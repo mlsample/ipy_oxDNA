@@ -35,7 +35,7 @@ def collect_freefiles(sim_dirs, n_bins):
 
 def plt_err(freefile, c, label, temp):
     temp = (temp + 273.15) / 3000
-    plt.errorbar(0.8518 * freefile.loc[:, '#Coor'], (freefile.loc[:, 'Free'] / temp),
+    plt.errorbar(0.8518 * freefile.loc[:, '#Coor'], (freefile.loc[:, 'Free']),
                  yerr=(freefile.loc[:, '+/-'] / temp), label=label, c=c, capsize=2, capthick=1.2, fmt='-',
                  linewidth=1.5, errorevery=5)
 

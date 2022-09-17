@@ -8,7 +8,7 @@ from forces import Force
 
 #Write simulation function
 from simulation_types import Simulation
-from production_files import write_production, get_windows_per_gpu, run_production_slurm_files
+from production_files import *
 from analysis import wham_analysis
 
 #other imports
@@ -128,6 +128,89 @@ def multi_prepare_melting_umbrella(path, systems, input_json_dict, walker_forces
     return processes
 
 
+def equlibration_umbrella_setup(path, system, p1, p2, input_json_dict, all_forces, xmin, xmax, n_gpus, run_file):
+    input_json_dict["external_forces"] = "1"
+    input_json_dict["external_forces_file"] = f"forces.json"
+    #input_json_dict["observables_file"] = "observables.json"
+    input_production = deepcopy(input_json_dict)
+    write_production(
+        file_dir=f"{path}/{system}/{system}_pull",
+        sim_dir=f"{path}/{system}/umbrella_equlibration",
+        p1=p1,
+        p2=p2,
+        xmin=xmin,
+        xmax=xmax,
+        all_forces=all_forces,
+        n_gpus=n_gpus,
+        input_json_dict=input_production,
+        run_file=run_file
+    )
+    return None
+
+
+def multi_umbrella_equlibration_setup(path, systems, p1, p2, walker_input_json_dict, walker_forces, xmin, xmax, n_gpus, run_file, n_walkers=1):
+    processes = {}
+    for walker in range(n_walkers):
+        processes[f'{walker}'] = spawn(equlibration_umbrella_setup, (path, systems[walker], p1, p2, walker_input_json_dict, walker_forces[str(walker)], xmin[walker], xmax[walker], n_gpus[walker], run_file))
+        processes[f'{walker}'].join()
+    return processes
+
+
+def umbrella_production_setup(path, system, input_json_dict, n_gpus, n_windows, run_file):
+    #copy over directories from umbrella equlibration and save them to umbrella production
+    #the difference between the two should be nearly none
+    #the dat files should be last conf files
+    #the number of steps in the input should change
+    #the equlibration does not need an observable
+
+    input_json_dict["external_forces"] = "1"
+    input_json_dict["external_forces_file"] = f"forces.json"
+    input_json_dict["observables_file"] = "observables.json"
+    input_production = deepcopy(input_json_dict)
+    file_dir=f"{path}/{system}/umbrella_equlibration"
+    sim_dir=f"{path}/{system}/umbrella_production"
+    if not os.path.exists(sim_dir):
+        os.mkdir(sim_dir)    
+    
+    w_p_gpu = get_windows_per_gpu(n_gpus, n_windows)
+    
+    for window in range(n_windows):        
+        eq_win = os.path.join(file_dir, str(window))
+        prod_win = os.path.join(sim_dir, str(window))
+        if not os.path.exists(prod_win):
+            os.mkdir(prod_win)
+        
+        dat, top = get_last_conf_top(eq_win)
+        
+        shutil.copy(os.path.join(eq_win, 'last_conf.dat'), prod_win)
+        
+        shutil.copy(os.path.join(eq_win, top), prod_win)
+        
+        shutil.copy(os.path.join(eq_win, 'oxDNA2_sequence_dependent_parameters.txt'), prod_win)
+        
+        shutil.copy(os.path.join(eq_win, 'observables.json'), prod_win)
+        
+        shutil.copy(os.path.join(eq_win, 'forces.json'), prod_win)
+        
+        shutil.copy(os.path.join(eq_win, 'run.sh'), prod_win)
+        
+        input_json_dict["topology"] = top
+        write_input(prod_win, input_production)
+
+        write_production_run_file(run_file, w_p_gpu, sim_dir)
+            
+    print(f'{n_windows} umbrella windows created')
+    return None
+
+
+def multi_umbrella_production_setup(path, systems, walker_input_json_dict, n_gpus, n_windows, run_file, n_walkers=1):
+    processes = {}
+    for walker in range(n_walkers):
+        processes[f'{walker}'] = spawn(umbrella_production_setup, (path, systems[walker], walker_input_json_dict, n_gpus[walker], n_windows[walker], run_file))
+        processes[f'{walker}'].join()
+    return processes
+
+
 def production_setup(path, system, p1, p2, input_json_dict, all_forces, xmin, xmax, n_gpus, run_file):
     input_json_dict["external_forces"] = "1"
     input_json_dict["external_forces_file"] = f"forces.json"
@@ -214,6 +297,15 @@ def prepare_umbrella_sampling(path, system, p1, p2, input_json_dict, all_forces,
     return None
 
 
+def multi_prepare_umbrella_sampling(path, systems, p1, p2, input_json_dict, walker_forces, steps_per_conf, xmin, xmax, n_windows, n_gpus, run_file, n_walkers=1):
+    processes = {}
+    for walker in range(n_walkers):
+        input_json_dict['CUDA_device'] = str(walker)
+        walker_input_json_dict = deepcopy(input_json_dict)
+        processes[f'{walker}'] = spawn(prepare_umbrella_sampling(path, systems[walker], p1, p2, input_json_dict, walker_forces[str(walker)], steps_per_conf[walker], xmin[walker], xmax[walker], n_windows[walker], n_gpus[walker], run_file))
+    return processes
+
+
 def preform_umbrella_sampling(path, system, p1, p2, input_json_dict, all_forces, steps_per_conf, xmin, xmax, n_windows, n_gpus, run_file, sim_dir):
     prepare_umbrella_sampling(path, system, p1, p2, input_json_dict, all_forces, steps_per_conf, xmin, xmax, n_windows, n_gpus, run_file)
     run_production_slurm_files(n_gpus, n_windows, sim_dir)
@@ -225,6 +317,5 @@ def multi_analysis(wham_dir, sim_dir, com_dir, xmin, xmax, k, n_bins, tol, n_boo
         processes[f'{walker}'] = spawn(wham_analysis, (wham_dir, sim_dir[walker], com_dir[walker], xmin[walker], xmax[walker], k[walker], n_bins[walker], tol[walker], n_boot[walker], temp[walker]))
         processes[f'{walker}'].join()
     return processes
-
 
 

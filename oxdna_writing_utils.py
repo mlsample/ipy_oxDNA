@@ -85,6 +85,7 @@ def write_run_file(sim_dir, sim_type, run_file):
                 else:
                     r.write(line)
     return None
+    
 
 
 def oxpy_manager(sim_dir):

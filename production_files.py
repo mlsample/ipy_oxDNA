@@ -90,6 +90,8 @@ def write_production_run_file(run_file, windows_per_gpu, sim_dir):
     return None
 
 
+
+
 def write_production(file_dir=None, sim_dir=None, p1=None, p2=None, xmin=None, xmax=None, all_forces=None, steps_per_window=None, n_gpus=None, input_json_dict=None, run_file=None, restart_from_last_conf=None):
     """
     Write production files for umbrella simulations.
@@ -135,7 +137,7 @@ def write_production(file_dir=None, sim_dir=None, p1=None, p2=None, xmin=None, x
         shutil.copyfile(os.path.join(file_dir, top), os.path.join(sim_dir, window, top))
 
         # Write order parameter files to each windows
-        write_op_file(os.path.join(sim_dir, window), p1, p2)
+        #write_op_file(os.path.join(sim_dir, window), p1, p2)
 
         # Write sequence dependent parameter files to each windows
         shutil.copy(os.path.join(file_dir, 'oxDNA2_sequence_dependent_parameters.txt'), os.path.join(sim_dir, window))
@@ -189,3 +191,4 @@ def run_production_slurm_files(n_gpus, n_windows, sim_dir):
     for i in run_dirs:
         os.chdir(os.path.join(f"{sim_dir}", str(i)))
         os.system("sbatch run.sh")
+        

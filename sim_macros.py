@@ -175,10 +175,13 @@ def umbrella_production_setup(path, system, input_json_dict, n_gpus, n_windows, 
     w_p_gpu = get_windows_per_gpu(n_gpus, n_windows)
     
     for window in range(n_windows):        
-        eq_win = os.path.join(file_dir, str(window))
         prod_win = os.path.join(sim_dir, str(window))
         if not os.path.exists(prod_win):
             os.mkdir(prod_win)
+    for window in range(n_windows):        
+        eq_win = os.path.join(file_dir, str(window))
+        prod_win = os.path.join(sim_dir, str(window))
+
         
         dat, top = get_last_conf_top(eq_win)
         
@@ -198,6 +201,7 @@ def umbrella_production_setup(path, system, input_json_dict, n_gpus, n_windows, 
         write_input(prod_win, input_production)
 
         write_production_run_file(run_file, w_p_gpu, sim_dir)
+        
             
     print(f'{n_windows} umbrella windows created')
     return None

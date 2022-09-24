@@ -77,6 +77,7 @@ def write_production_run_file(run_file, windows_per_gpu, sim_dir):
         window = 0
         for gpu_set in windows_per_gpu:
             for file in range(gpu_set):
+                print(str(window))
                 with open(os.path.join(sim_dir, str(window), 'run.sh'), 'w') as r:
                     win = window + 1
                     for line in lines:

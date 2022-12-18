@@ -59,16 +59,6 @@ def plt_fig(title=None):
     ax.yaxis.set_ticks_position('both')
     return ax
 
-
-def plot_indicator(system, w_means, ax, c=c):
-    target = w_means[system]
-    nearest = free_energy[system].iloc[(free_energy[system]['#Coor'] -target).abs().argsort()[:1]]
-    near_true = nearest
-    x_val = near_true['#Coor']
-    y_val = near_true['Free']
-    ax.scatter(x_val, y_val, s=50, c=c, label=f'{system}: {w_means[system]:.2f} nm \u00B1 {w_mean_errors[system]:.2f} nm')
-    return None
-
 def plt_err(system, ax, fmt='-', c=None, label=None):
     df = free_energy[system]
     ax.errorbar(df.loc[:, '#Coor'], df.loc[:, 'Free'],
@@ -76,9 +66,24 @@ def plt_err(system, ax, fmt='-', c=None, label=None):
                  linewidth=1.5, errorevery=15)
     plot_indicator(system, w_means, ax, c)
 
-def plot_free_energy(system, title='Free Energy Profile', c=None):
+def plot_indicator(system, indicator, ax, c=None):
+    target = indicator[0]
+    nearest = system.iloc[(system['#Coor'] -target).abs().argsort()[:1]]
+    near_true = nearest
+    x_val = near_true['#Coor']
+    y_val = near_true['Free']
+    ax.scatter(x_val, y_val, s=50, c=c, label=f'{target:.2f} nm \u00B1 {indicator[1]:.2f} nm')
+    return None
+
+
+def plot_free_energy(system, indicator=None, title='Free Energy Profile', c=None, label=None):
     ax = plt_fig(title=title)
-    plt_err(system, ax, c=None)
+    df = system
+    ax.errorbar(df.loc[:, '#Coor'], df.loc[:, 'Free'],
+                 yerr=df.loc[:, '+/-'], label=label, c=c, capsize=2.5, capthick=1.2,
+                 linewidth=1.5, errorevery=15)
+    if indicator is not None:
+        plot_indicator(system, indicator, ax, c)
     plt.legend()
 
 

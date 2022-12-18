@@ -68,7 +68,7 @@ def input_json(write_path=None):
         "ensemble": "nvt",
         "thermostat": "john",
         "T": "25C",
-        "dt": "0.002",
+        "dt": "0.003",
         "verlet_skin": "0.2",
         "diff_coeff": "2.5",
         "newtonian_steps": "103",

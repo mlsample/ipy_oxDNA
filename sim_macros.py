@@ -122,16 +122,16 @@ def prepare_melting_umbrella(path, system, input_json_dict, all_forces, steps_pe
 def multi_prepare_melting_umbrella(path, systems, input_json_dict, walker_forces, steps_per_conf, xmin, xmax, n_windows, n_walkers=1):
     processes = {}
     for walker in range(n_walkers):
-        input_json_dict['CUDA_device'] = str(walker)
+        input_json_dict[walker]['CUDA_device'] = str(walker)
         walker_input_json_dict = deepcopy(input_json_dict)
-        processes[f'{walker}'] = spawn(prepare_melting_umbrella, (path, systems[walker], walker_input_json_dict, walker_forces[str(walker)], steps_per_conf[walker], xmin[walker], xmax[walker], n_windows[walker]))
+        processes[f'{walker}'] = spawn(prepare_melting_umbrella, (path, systems[walker], walker_input_json_dict[walker], walker_forces[str(walker)], steps_per_conf[walker], xmin[walker], xmax[walker], n_windows[walker]))
     return processes
 
 
 def equlibration_umbrella_setup(path, system, p1, p2, input_json_dict, all_forces, xmin, xmax, n_gpus, run_file):
     input_json_dict["external_forces"] = "1"
     input_json_dict["external_forces_file"] = f"forces.json"
-    #input_json_dict["observables_file"] = "observables.json"
+    input_json_dict["observables_file"] = "observables.json"
     input_production = deepcopy(input_json_dict)
     write_production(
         file_dir=f"{path}/{system}/{system}_pull",
@@ -151,7 +151,7 @@ def equlibration_umbrella_setup(path, system, p1, p2, input_json_dict, all_force
 def multi_umbrella_equlibration_setup(path, systems, p1, p2, walker_input_json_dict, walker_forces, xmin, xmax, n_gpus, run_file, n_walkers=1):
     processes = {}
     for walker in range(n_walkers):
-        processes[f'{walker}'] = spawn(equlibration_umbrella_setup, (path, systems[walker], p1, p2, walker_input_json_dict, walker_forces[str(walker)], xmin[walker], xmax[walker], n_gpus[walker], run_file))
+        processes[f'{walker}'] = spawn(equlibration_umbrella_setup, (path, systems[walker], p1[walker], p2[walker], walker_input_json_dict[walker], walker_forces[str(walker)], xmin[walker], xmax[walker], n_gpus[walker], run_file))
         processes[f'{walker}'].join()
     return processes
 
@@ -189,7 +189,10 @@ def umbrella_production_setup(path, system, input_json_dict, n_gpus, n_windows, 
         
         shutil.copy(os.path.join(eq_win, top), prod_win)
         
-        shutil.copy(os.path.join(eq_win, 'oxDNA2_sequence_dependent_parameters.txt'), prod_win)
+        try:
+            shutil.copy(os.path.join(eq_win, 'oxDNA2_sequence_dependent_parameters.txt'), prod_win)
+        except:
+            pass
         
         shutil.copy(os.path.join(eq_win, 'observables.json'), prod_win)
         

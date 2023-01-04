@@ -2,20 +2,39 @@ import json as js
 from copy import deepcopy
 
 
+# def observables_json(p1, p2, write_path=None):
+#     observables = {
+#         "output_1": {
+#             "print_every": "1e4",
+#             "name": "hbond_count.txt",
+#             "cols": [
+#                 {
+#                     "type": "hb_list",
+#                     "order_parameters_file": "op.txt",
+#                     "only_count": "true"
+#                 }
+#             ]
+#         },
+#         "output_2": {
+#             "print_every": "1e4",
+#             "name": "com_distances.txt",
+#             "cols": [
+#                 {
+#                     "type": "distance",
+#                     "particle_1": p1,
+#                     "particle_2": p2
+#                 }
+#             ]
+#         }
+#     }
+#     if write_path is not None:
+#         with open(write_path, 'w') as f:
+#             f.write(js.dumps(observables, indent=4))
+#     return observables
+
 def observables_json(p1, p2, write_path=None):
     observables = {
         "output_1": {
-            "print_every": "1e4",
-            "name": "hbond_count.txt",
-            "cols": [
-                {
-                    "type": "hb_list",
-                    "order_parameters_file": "op.txt",
-                    "only_count": "true"
-                }
-            ]
-        },
-        "output_2": {
             "print_every": "1e4",
             "name": "com_distances.txt",
             "cols": [
@@ -49,7 +68,7 @@ def input_json(write_path=None):
         "ensemble": "nvt",
         "thermostat": "john",
         "T": "25C",
-        "dt": "0.002",
+        "dt": "0.003",
         "verlet_skin": "0.2",
         "diff_coeff": "2.5",
         "newtonian_steps": "103",

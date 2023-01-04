@@ -140,7 +140,11 @@ def write_production(file_dir=None, sim_dir=None, p1=None, p2=None, xmin=None, x
         #write_op_file(os.path.join(sim_dir, window), p1, p2)
 
         # Write sequence dependent parameter files to each windows
-        shutil.copy(os.path.join(file_dir, 'oxDNA2_sequence_dependent_parameters.txt'), os.path.join(sim_dir, window))
+        try:
+            if input_json_dict['use_average_seq'] == 'false':
+                shutil.copy(os.path.join(file_dir, 'oxDNA2_sequence_dependent_parameters.txt'), sim_dir)
+        except:
+            pass
 
         # Write observables file to each windows
         write_observables_file(os.path.join(sim_dir, window), p1, p2)

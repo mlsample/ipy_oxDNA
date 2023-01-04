@@ -27,8 +27,11 @@ class Simulation:
             write_run_file(sim_dir, sim_type, run_file)
 
         #Write sequence dependant parameters file
-        if input_json_dict['use_average_seq'] == 'false':
-            shutil.copy(os.path.join(file_dir, 'oxDNA2_sequence_dependent_parameters.txt'), sim_dir)
+        try:
+            if input_json_dict['use_average_seq'] == 'false':
+                shutil.copy(os.path.join(file_dir, 'oxDNA2_sequence_dependent_parameters.txt'), sim_dir)
+        except:
+            pass
 
         if auto_run:
             os.chdir(sim_dir)
@@ -78,8 +81,11 @@ class Simulation:
             write_run_file(sim_dir, force['external_force'], run_file)
 
         #Write sequence dependant parameters file
-        if input_json_dict['use_average_seq'] == 'false':
-            shutil.copy(os.path.join(file_dir, 'oxDNA2_sequence_dependent_parameters.txt'), sim_dir)
+        try:
+            if input_json_dict['use_average_seq'] == 'false':
+                shutil.copy(os.path.join(file_dir, 'oxDNA2_sequence_dependent_parameters.txt'), sim_dir)
+        except:
+            pass
 
         if auto_run:
             os.chdir(sim_dir)
@@ -135,9 +141,11 @@ class Simulation:
         if run_file is not None:
             write_run_file(sim_dir, 'pulling', run_file)
 
-        #Write sequence dependant parameters file
-        if input_json_dict['use_average_seq'] == 'false':
-            shutil.copy(os.path.join(file_dir, 'oxDNA2_sequence_dependent_parameters.txt'), sim_dir)
+        try:
+            if input_json_dict['use_average_seq'] == 'false':
+                shutil.copy(os.path.join(file_dir, 'oxDNA2_sequence_dependent_parameters.txt'), sim_dir)
+        except:
+            pass
 
         if auto_run:
             os.chdir(sim_dir)

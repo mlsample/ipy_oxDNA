@@ -113,9 +113,9 @@ def bootstrap_w_mean_error(df):
     return standard_error
 
 
-def to_si(path, system, temp):
-    free = pd.read_csv(f'{path}/{system}/umbrella_production/com_files/time_series/freefile', sep='\t', nrows=int(200))
-    free['Free'] /= temp
-    free['+/-'] /= temp
+def to_si(path, system, temp, n_bins):
+    free = pd.read_csv(f'{path}/{system}/umbrella_production/com_files/time_series/freefile', sep='\t', nrows=int(n_bins))
+    free['Free'] = free['Free'].div(temp)
+    free['+/-'] = free['+/-'].div(temp)
     free['#Coor'] *= 0.8518
     return free

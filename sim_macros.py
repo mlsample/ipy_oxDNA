@@ -213,7 +213,7 @@ def umbrella_production_setup(path, system, input_json_dict, n_gpus, n_windows, 
 def multi_umbrella_production_setup(path, systems, walker_input_json_dict, n_gpus, n_windows, run_file, n_walkers=1):
     processes = {}
     for walker in range(n_walkers):
-        processes[f'{walker}'] = spawn(umbrella_production_setup, (path, systems[walker], walker_input_json_dict, n_gpus[walker], n_windows[walker], run_file))
+        processes[f'{walker}'] = spawn(umbrella_production_setup, (path, systems[walker], walker_input_json_dict[walker], n_gpus[walker], n_windows[walker], run_file))
         processes[f'{walker}'].join()
     return processes
 
@@ -322,7 +322,7 @@ def multi_analysis(wham_dir, sim_dir, com_dir, xmin, xmax, k, n_bins, tol, n_boo
     processes = {}
     for walker in range(n_walkers):
         processes[f'{walker}'] = spawn(wham_analysis, (wham_dir, sim_dir[walker], com_dir[walker], xmin[walker], xmax[walker], k[walker], n_bins[walker], tol[walker], n_boot[walker], temp[walker]))
-        processes[f'{walker}'].join()
+        processes[f'{walker}']
     return processes
 
 

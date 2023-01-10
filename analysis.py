@@ -111,7 +111,8 @@ def wham_analysis(wham_dir, sim_dir, com_dir, xmin, xmax, k, n_bins, tol, n_boot
     r0_list = get_r0_list(xmin, xmax, sim_dir)
     create_metadata(time_dir, autocorrelation_list, r0_list, k)
     output = run_wham(wham_dir, time_dir, xmin, xmax, n_bins, tol, n_boot, temp)
-    print(output)
+    #print(output)
     format_freefile(time_dir)
+    print('WHAM analysis completed')
     return output
 

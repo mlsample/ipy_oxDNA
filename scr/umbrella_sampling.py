@@ -183,8 +183,6 @@ class UmbrellaAnalysis:
             except:
                 self.base_umbrella.production_sims[window].analysis.view_init()
     
-    def sliding_window_observable(self,idx)
-    
         
         
 class UmbrellaWindow:

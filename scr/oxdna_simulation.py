@@ -15,6 +15,7 @@ from time import sleep
 import nvidia_smi
 import timeit
 import subprocess as sp
+import nvsmi
 
 
 class Simulation:
@@ -187,33 +188,29 @@ class BuildSimulation:
                     f.write(dumps(read_observable_js, indent=4))    
 
 class OxpyRun:
-    """Automatically runs a built oxDNA simulation using oxpy within a subprocess. Runs complete unless a number of steps is specified"""
+    """Automatically runs a built oxDNA simulation using oxpy within a subprocess"""
     def __init__(self, sim):
         """ Initalize access to simulation inforamtion."""
         self.sim = sim
         self.sim_dir = sim.sim_dir
             
-    def run(self, subprocess=True, steps=None, continue_run=False, verbose=True, log=True, join=False):
+    def run(self, subprocess=True, continue_run=False, verbose=True, log=True, join=False):
         """ Run oxDNA simulation using oxpy in a subprocess.
         
         Parameters:
             subprocess (bool): If false run simulation in parent process (blocks process), if true spawn sim in child process.
-            steps (int): Number of steps to run oxDNA simulation. If none run for the full number of steps specified in input file.
-            continue_run (bool): If False overide previous simulation results. If True continue previous simulation run.
+            continue_run (number): If False overide previous simulation results. If True continue previous simulation run.
             verbose (bool): If true print directory of simulation when run.
             log (bool): If true print a log file to simulation directory.
             join (bool): If true block main parent process until child process has terminated (simulation finished)
         """
-        self.manager = mp.Manager()
-        self.sim_output = self.manager.Namespace()
         self.subprocess = subprocess
-        self.steps = steps
         self.verbose = verbose
         self.continue_run = continue_run
         self.log = log
         self.join = join
         if self.verbose == True:
-            print(f'Running: {self.sim_dir}')
+            print(f'Running: {self.sim_dir.split("/")[-1]}')
         if self.subprocess:
             self.spawn(self.run_complete)
         else:
@@ -230,12 +227,12 @@ class OxpyRun:
     
     def run_complete(self):
         """Run an oxDNA simulation"""
+        self.error_message = None
         tic = timeit.default_timer()
         capture = py.io.StdCaptureFD()
-        if self.continue_run == True:
-            self.sim.input_file({"conf_file": self.sim.sim_files.last_conf, "refresh_vel": "0", "restart_step_counter": "0"})
-        if self.steps is not None:
-            self.sim.input_file({'steps':f'{self.steps}'})
+        if self.continue_run is not False:
+            self.sim.input_file({"conf_file": self.sim.sim_files.last_conf, "refresh_vel": "0",
+                                 "restart_step_counter": "0", "steps":f'{self.continue_run}'})
         os.chdir(self.sim_dir)
         with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
             my_input = loads(f.read())
@@ -244,18 +241,28 @@ class OxpyRun:
             for k, v in my_input.items():
                 ox_input[k] = v
             manager = oxpy.OxpyManager(ox_input)
-            manager.run_complete()
-        self.sim_output.out = capture.reset()
+            try:
+                manager.run_complete()
+            except Exception as e:
+                self.error_message = e
+                
+        self.sim_output = capture.reset()
         toc = timeit.default_timer()
         if self.verbose == True:
-            print(f'Finished: {self.sim_dir}')
-            print(f'Run time: {tic - toc}')
+            print(f'Run time: {toc - tic}')
+            if self.error_message is not None:
+                print(f'Exception encountered in {self.sim_dir}:\n{self.error_message}')
+            else:
+                print(f'Finished: {self.sim_dir}')
         if self.log == True:
             with open('log.log', 'w') as f:
-                f.write(self.sim_output.out[0])
-                f.write(self.sim_output.out[1])
+                f.write(self.sim_output[0])
+                f.write(self.sim_output[1])
                 f.write(f'Run time: {toc - tic}')
+                if self.error_message is not None:
+                    f.write(f'Exception: {self.error_message}')
         self.sim.sim_files.parse_current_files()
+  
         
         
 class SlurmRun:
@@ -284,7 +291,7 @@ class SlurmRun:
 
 class SimulationManager:
     """ In conjunction with nvidia-cuda-mps-control, allocate simulations to avalible cpus and gpus."""
-    def __init__(self, n_processes=len(os.sched_getaffinity(0))-2):
+    def __init__(self, n_processes=len(os.sched_getaffinity(0))-1):
         """
         Initalize the multiprocessing queues used to manage simulation allocation.
         
@@ -300,34 +307,24 @@ class SimulationManager:
         self.sim_queue = self.manager.Queue()
         self.process_queue = self.manager.Queue(self.n_processes)
         self.gpu_memory_queue = self.manager.Queue(1)
+        self.terminate_queue = self.manager.Queue(1)
         self.worker_process_list = []
   
-    # def gpu_resources(self):
-    #     """ Method to probe the number and current avalible memory of gpus."""
-    #     avalible_memory = []
-    #     nvidia_smi.nvmlInit()
-    #     NUMBER_OF_GPU = nvidia_smi.nvmlDeviceGetCount()
-    #     for i in range(NUMBER_OF_GPU):
-    #         handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
-    #         info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
-    #         avalible_memory.append(self._bytes_to_megabytes(info.total) - self._bytes_to_megabytes(info.used))
-    #         gpu_most_aval_mem_free = max(avalible_memory)
-    #         gpu_most_aval_mem_free_idx = avalible_memory.index(gpu_most_aval_mem_free)
-    #     return np.round(gpu_most_aval_mem_free, 2), gpu_most_aval_mem_free_idx
-
     def gpu_resources(self):
-        output_to_list = lambda x: x.decode('ascii').split('\n')[:-1]
-        ACCEPTABLE_AVAILABLE_MEMORY = 1024
-        COMMAND = "nvidia-smi --query-gpu=memory.free --format=csv"
-        try:
-            memory_free_info = output_to_list(sp.check_output(COMMAND.split(),stderr=sp.STDOUT))[1:]
-        except sp.CalledProcessError as e:
-            raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
-        avalible_memory = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
-        # print(memory_use_values)
+        """ Method to probe the number and current avalible memory of gpus."""
+        avalible_memory = []
+        nvidia_smi.nvmlInit()
+        NUMBER_OF_GPU = nvidia_smi.nvmlDeviceGetCount()
+        for i in range(NUMBER_OF_GPU):
+            handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
+            info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+            avalible_memory.append(self._bytes_to_megabytes(info.total) - self._bytes_to_megabytes(info.used))
         gpu_most_aval_mem_free = max(avalible_memory)
         gpu_most_aval_mem_free_idx = avalible_memory.index(gpu_most_aval_mem_free)
         return np.round(gpu_most_aval_mem_free, 2), gpu_most_aval_mem_free_idx
+    
+    def _bytes_to_megabytes(self, byte):
+        return byte/1048576
 
     def get_sim_mem(self, sim, gpu_idx):
         """
@@ -345,7 +342,7 @@ class SimulationManager:
         sim.oxpy_run.run(subprocess=False, verbose=False, log=False)
         sim.input_file({'lastconf_file':f'{last_conf_file}', 'steps':f'{steps}'})
         mem_get = True
-        err_split = sim.oxpy_run.sim_output.out[1].split()
+        err_split = sim.oxpy_run.sim_output[1].split()
         mem = err_split.index('memory:')
         sim_mem = err_split[mem + 1]
         #os.remove('./trajectory.dat')
@@ -362,14 +359,22 @@ class SimulationManager:
             sim (Simulation): Simulation to be queued.
             continue_run (bool): If true, continue previously run oxDNA simulation
         """
-        if continue_run == True:
-            sim.input_file({"conf_file": sim.sim_files.last_conf, "refresh_vel": "0", "restart_step_counter": "0"})
+        if continue_run is not False:
+            sim.input_file({"conf_file": sim.sim_files.last_conf, "refresh_vel": "0",
+                            "restart_step_counter": "0", "steps":f"{continue_run}"})
         self.sim_queue.put(sim)   
                     
     def worker_manager(self):
         """ Head process in charge of allocating queued simulations to processes and gpu memory."""
+        
         while not self.sim_queue.empty():
             #get simulation from queue
+            if self.terminate_queue.empty():
+                pass
+            else:
+                for worker_process in self.worker_process_list:
+                    worker_process.terminate()
+                return print(self.terminate_queue.get())
             self.process_queue.put('Simulation worker finished')
             sim = self.sim_queue.get()
             free_gpu_memory, gpu_idx = self.gpu_resources()
@@ -378,10 +383,10 @@ class SimulationManager:
             p.start()
             self.worker_process_list.append(p)
             sim_mem = self.gpu_memory_queue.get()
-            if free_gpu_memory < (3 * sim_mem):
+            if free_gpu_memory < (3.5 * sim_mem):
                 wait_for_gpu_memory = True
                 while wait_for_gpu_memory == True:
-                    if free_gpu_memory < (3 * sim_mem):
+                    if free_gpu_memory < (3.5 * sim_mem):
                         free_gpu_memory, gpu_idx = self.gpu_resources()
                         sleep(5)
                     else:
@@ -396,22 +401,29 @@ class SimulationManager:
         sim_mem = self.get_sim_mem(sim, gpu_idx)
         self.gpu_memory_queue.put(sim_mem)
         sim.oxpy_run.run(subprocess=False)
+        if sim.oxpy_run.error_message is not None:
+            self.terminate_queue.put(f'Simulation exception encountered in {sim.sim_dir}:\n{sim.oxpy_run.error_message}')
         self.process_queue.get()
     
-    def run(self, join=False):
+    def run(self, log=None, join=False):
         """ In progress, intended to run worker_manager in subprocess to not block jupyter notebook."""
         print('spawning')
         p = mp.Process(target=self.worker_manager, args=()) 
+        self.manager_process = p
         p.start()
         if join == True:
-            p.join()
-        self.manager_process = p
-    
+            p.join()    
     
     def terminate_all(self,):
-        self.manager_process.terminate()
+        try:
+            self.manager_process.terminate()
+        except:
+            pass
         for process in self.worker_process_list:
-            process.terminate()               
+            try:
+                process.terminate()               
+            except:
+                pass
     
     
     def start_nvidia_cuda_mps_control(self, pipe='$SLURM_TASK_PID'):
@@ -595,8 +607,11 @@ class Analysis:
                           
     def view_last(self):
         """ Interactivly view last oxDNA conf in jupyter notebook."""
-        (ti,di), conf = self.get_last_conf()
-        oxdna_conf(ti, conf)
+        try:
+            (ti,di), conf = self.get_last_conf()
+            oxdna_conf(ti, conf)
+        except:
+            raise Exception('No last conf file avalible')
     
     def get_conf_count(self):
         """ Returns the number of confs in trajectory file."""
@@ -629,63 +644,86 @@ class Analysis:
 
     def plot_energy(self):
         """ Plot energy of oxDNA simulation."""
-        self.sim_files.parse_current_files()
-        df = pd.read_csv(self.sim_files.energy, delimiter="\s+",names=['time', 'U','P','K'])
-        dt = float(self.sim.input.input["dt"])
-        steps = float(self.sim.input.input["steps"])
-        # make sure our figure is bigger
-        plt.figure(figsize=(15,3)) 
-        # plot the energy
-        plt.plot(df.time/dt,df.U)
-        plt.ylabel("Energy")
-        plt.xlabel("Steps")
-        # and the line indicating the complete run
-        #plt.ylim([-2,0])
-        #plt.plot([steps,steps],[0,-2], color="r")     
+        try:
+            self.sim_files.parse_current_files()
+            df = pd.read_csv(self.sim_files.energy, delimiter="\s+",names=['time', 'U','P','K'])
+            dt = float(self.sim.input.input["dt"])
+            steps = float(self.sim.input.input["steps"])
+            # make sure our figure is bigger
+            plt.figure(figsize=(15,3)) 
+            # plot the energy
+            plt.plot(df.time/dt,df.U)
+            plt.ylabel("Energy")
+            plt.xlabel("Steps")
+        except:
+            raise Exception('No energy file avalible')
+            # and the line indicating the complete run
+            #plt.ylim([-2,0])
+            #plt.plot([steps,steps],[0,-2], color="r")     
     
-    def plot_observable(self, observable):
+    def plot_observable(self, observable, sliding_window=False, fig=True):
         file_name = observable['output']['name']
         conf_interval = float(observable['output']['print_every'])
         df = pd.read_csv(f"{self.sim.sim_dir}/{file_name}", header=None)
+        if sliding_window is not False:
+            df = df.rolling(window=sliding_window).sum().dropna()
+        df = np.concatenate(np.array(df))
         sim_conf_times = np.linspace(0, conf_interval * len(df), num=len(df))
-        plt.figure(figsize=(15,3)) 
+        if fig is True:
+            plt.figure(figsize=(15,3)) 
         plt.xlabel('steps')
         plt.ylabel(f'{os.path.splitext(file_name)[0]} (sim units)')
-        plt.plot(sim_conf_times, df)
+        plt.plot(sim_conf_times, df, label=self.sim.sim_dir.split("/")[-1])
+
+    def hist_observable(self, observable, bins=10, fig=True):
+        file_name = observable['output']['name']
+        conf_interval = float(observable['output']['print_every'])
+        df = pd.read_csv(f"{self.sim.sim_dir}/{file_name}", header=None)
+        df = np.concatenate(np.array(df))
+        sim_conf_times = np.linspace(0, conf_interval * len(df), num=len(df))
+        if fig is True:
+            plt.figure(figsize=(15,3)) 
+        plt.xlabel(f'{os.path.splitext(file_name)[0]} (sim units)')
+        plt.ylabel(f'Probablity')
+        H, bins = np.histogram(df, density=True, bins=bins)
+        H = H * (bins[1] - bins[0])
+        plt.plot(bins[:-1], H, label=self.sim.sim_dir.split("/")[-1])
+    
         
-#Unstable
-#     def view_traj(self,  init = 0, op=None):
-#         # get the initial conf and the reference to the trajectory 
-#         (ti,di), cur_conf = self.get_conf(init)
+    #Unstable
+    def view_traj(self,  init = 0, op=None):
+        print('This feature is highly unstable and will crash your kernel if you scroll through confs too fast')
+        # get the initial conf and the reference to the trajectory 
+        (ti,di), cur_conf = self.get_conf(init)
         
-#         slider = widgets.IntSlider(
-#             min = 0,
-#             max = len(di.idxs),
-#             step=1,
-#             description="Select:",
-#             value=init
-#         )
+        slider = widgets.IntSlider(
+            min = 0,
+            max = len(di.idxs),
+            step=1,
+            description="Select:",
+            value=init
+        )
         
-#         output = widgets.Output()
-#         if op:
-#             min_v,max_v = np.min(op), np.max(op)
+        output = widgets.Output()
+        if op:
+            min_v,max_v = np.min(op), np.max(op)
         
-#         def handle(obj=None):
-#             conf= get_confs(ti,di,slider.value,1)[0]
-#             with output:
-#                 output.clear_output()
-#                 if op:
-#                     # make sure our figure is bigger
-#                     plt.figure(figsize=(15,3)) 
-#                     plt.plot(op)
-#                     print(init)
-#                     plt.plot([slider.value,slider.value],[min_v, max_v], color="r")
-#                     plt.show()
-#                 oxdna_conf(ti,conf)
+        def handle(obj=None):
+            conf= get_confs(ti,di,slider.value,1)[0]
+            with output:
+                output.clear_output()
+                if op:
+                    # make sure our figure is bigger
+                    plt.figure(figsize=(15,3)) 
+                    plt.plot(op)
+                    print(init)
+                    plt.plot([slider.value,slider.value],[min_v, max_v], color="r")
+                    plt.show()
+                oxdna_conf(ti,conf)
                 
-#         slider.observe(handle)
-#         display(slider,output)
-#         handle(None)
+        slider.observe(handle)
+        display(slider,output)
+        handle(None)
 
 
 class Observable:
@@ -705,7 +743,38 @@ class Observable:
                 ]
             }
         })
-
+    
+    @staticmethod
+    def hb_list(sim_dir, particle_1=None, particle_2=None, print_every=None, name=None):       
+        self.write_hb_list_file(sim_dir, particle_1, particle_2)
+        return({
+            "output": {
+                "print_every": print_every,
+                "name": name,
+                "cols": [
+                    {
+                        "type": "hb_list",
+                        "order_parameters_file": "hb_list.txt",
+                        "only_count": "true"
+                    }
+                ]
+            }
+        })
+    
+    def write_op_file(self, sim_dir, p1, p2):
+        p1 = p1.split(',')
+        p2 = p2.split(',')
+        i = 1
+        with open(os.path.join(sim_dir,"op.txt"), 'w') as f:
+            f.write("{\norder_parameter = bond\nname = all_native_bonds\n")
+        for nuc1 in p1:
+            for nuc2 in p2:
+                with open(os.path.join(sim_dir,"op.txt"), 'a') as f:
+                    f.write(f'pair{i} = {nuc1}, {nuc2}\n')
+                i += 1
+        with open(os.path.join(sim_dir,"op.txt"), 'a') as f:
+            f.write("}\n")
+        return None
               
 class Force:
     """ Currently implemented external forces for this oxDNA wrapper."""

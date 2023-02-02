@@ -13,10 +13,21 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from time import sleep
 import nvidia_smi
+import timeit
+import subprocess as sp
+import nvsmi
 
 
 class Simulation:
+    """
+    Used to interactivly interface and run an oxDNA simulation.
+    
+    Parameters:
+        file_dir (str): Path to directory containing inital oxDNA dat and top files.
+        sim_dir (str): Path to directory where a simulation will be run using inital files.
+    """
     def __init__(self, file_dir, sim_dir, exsisting=True):
+        """ Instance lower level class objects used to compose the Simulation class features."""
         self.file_dir = file_dir
         self.sim_dir = sim_dir
         self.sim_files = SimFiles(self.sim_dir)
@@ -26,6 +37,12 @@ class Simulation:
         self.oxpy_run = OxpyRun(self)
     
     def build(self, clean_build=False):
+        """
+        Build dat, top, and input files in simulation directory.
+        
+        Parameters:
+            clean_build (bool): If sim_dir already exsists, remove it and then rebuild sim_dir
+        """
         if os.path.exists(self.sim_dir):
             #print(f'Exisisting simulation files in {self.sim_dir.split("/")[-1]}')            
             if clean_build == True:               
@@ -43,38 +60,65 @@ class Simulation:
         self.sim_files.parse_current_files()
     
     def input_file(self, parameters):
+        """
+        Modify the parameters of the oxDNA input file, all parameters are avalible at https://lorenzo-rovigatti.github.io/oxDNA/input.html
+        
+        Parameters:
+            parameters (dict): dictonary of oxDNA input file parameters
+        """
         self.input.modify_input(parameters)
     
     def add_force(self, force_js):
+        """
+        Add an external force to the simulation.
+        
+        Parameters:
+            force_js (Force): A force object, essentially a dictonary, specifying the external force parameters.
+        """
         if not os.path.exists(os.path.join(self.sim_dir, "forces.json")):
             self.input_file({'external_forces':'1'})
         self.build_sim.build_force(force_js)
         
     def add_observable(self, observable_js):
+        """
+        Add an observable that will be saved as a text file to the simulation.
+        
+        Parameters:
+            observable_js (Observable): A observable object, essentially a dictonary, specifying the observable parameters.
+        """
         if not os.path.exists(os.path.join(self.sim_dir, "observables.json")):
             self.input_file({'observables_file': 'observables.json'})
         self.build_sim.build_observable(observable_js)
 
     def slurm_run(self, run_file, job_name='oxDNA'):
+        """
+        Write a provided sbatch run file to the simulation directory.
+        
+        Parameters:
+            run_file (str): Path to the provided sbatch run file.
+            job_name (str): Name of the sbatch job.
+        """
         self.sim_files.run_file = os.path.abspath(os.path.join(self.sim_dir, run_file))
         self.slurm_run = SlurmRun(self.sim_dir, run_file, job_name)
     
     def sequence_dependant(self):
+        """ Add a sequence dependant file to simulation directory and modify input file to use it."""
         self.input_file({'use_average_seq': 'no', 'seq_dep_file':'oxDNA2_sequence_dependent_parameters.txt'})
         SequenceDependant(self.sim_dir)
           
 
     
 class BuildSimulation:
-    """Methods used to create/build oxDNA simulation"""
+    """ Methods used to create/build oxDNA simulations."""
     def __init__(self, sim):
+        """ Initalize access to simulation information"""
         self.sim = sim
         self.file_dir = sim.file_dir
         self.sim_dir = sim.sim_dir
         self.force = Force()
     
     def get_last_conf_top(self):
-        """set attributes containing the name of the inital conf (dat file) and topology"""
+        """Set attributes containing the name of the inital conf (dat file) and topology"""
         conf_top = os.listdir(self.file_dir)
         self.top = [file for file in conf_top if (file.endswith(('.top')))][0]
         try:
@@ -144,34 +188,35 @@ class BuildSimulation:
                     f.write(dumps(read_observable_js, indent=4))    
 
 class OxpyRun:
-    """Automatically runs a built oxDNA simulation using oxpy within a subprocess. Runs complete unless a number of steps is specified"""
+    """Automatically runs a built oxDNA simulation using oxpy within a subprocess"""
     def __init__(self, sim):
+        """ Initalize access to simulation inforamtion."""
         self.sim = sim
         self.sim_dir = sim.sim_dir
             
-    def run(self, subprocess=True, steps=None, continue_run=False, verbose=True, log=True, join=False):
-        self.manager = mp.Manager()
-        self.sim_output = self.manager.Namespace()
+    def run(self, subprocess=True, continue_run=False, verbose=True, log=True, join=False):
+        """ Run oxDNA simulation using oxpy in a subprocess.
+        
+        Parameters:
+            subprocess (bool): If false run simulation in parent process (blocks process), if true spawn sim in child process.
+            continue_run (number): If False overide previous simulation results. If True continue previous simulation run.
+            verbose (bool): If true print directory of simulation when run.
+            log (bool): If true print a log file to simulation directory.
+            join (bool): If true block main parent process until child process has terminated (simulation finished)
+        """
         self.subprocess = subprocess
-        self.steps = steps
         self.verbose = verbose
         self.continue_run = continue_run
         self.log = log
         self.join = join
         if self.verbose == True:
-            print(f'Running: {self.sim_dir}')
+            print(f'Running: {self.sim_dir.split("/")[-1]}')
         if self.subprocess:
-            if self.steps is None:
-                self.spawn(self.run_complete)
-            elif self.steps is not None:
-                self.spawn(self.run_steps)
+            self.spawn(self.run_complete)
         else:
-            if self.steps is None:
-                self.run_complete()
-            elif self.steps is not None:
-                self.run_steps()
-        
-            
+            self.run_complete()        
+         
+
     def spawn(self, f, args=()):
         """Spawn subprocess"""
         p = mp.Process(target=f, args=args)
@@ -181,10 +226,13 @@ class OxpyRun:
         self.process = p
     
     def run_complete(self):
-        """Run an oxDNA simulation to completion using the number of step defined in the input file"""
+        """Run an oxDNA simulation"""
+        self.error_message = None
+        tic = timeit.default_timer()
         capture = py.io.StdCaptureFD()
-        if self.continue_run == True:
-            self.sim.input_file({"conf_file": self.sim.sim_files.last_conf, "refresh_vel": "0", "restart_step_counter": "0"})
+        if self.continue_run is not False:
+            self.sim.input_file({"conf_file": self.sim.sim_files.last_conf, "refresh_vel": "0",
+                                 "restart_step_counter": "0", "steps":f'{self.continue_run}'})
         os.chdir(self.sim_dir)
         with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
             my_input = loads(f.read())
@@ -193,39 +241,28 @@ class OxpyRun:
             for k, v in my_input.items():
                 ox_input[k] = v
             manager = oxpy.OxpyManager(ox_input)
-            manager.run_complete()
-        self.sim_output.out = capture.reset()
+            try:
+                manager.run_complete()
+            except Exception as e:
+                self.error_message = e
+                
+        self.sim_output = capture.reset()
+        toc = timeit.default_timer()
         if self.verbose == True:
-            print(f'Finished: {self.sim_dir}')
+            print(f'Run time: {toc - tic}')
+            if self.error_message is not None:
+                print(f'Exception encountered in {self.sim_dir}:\n{self.error_message}')
+            else:
+                print(f'Finished: {self.sim_dir}')
         if self.log == True:
             with open('log.log', 'w') as f:
-                f.write(self.sim_output.out[0])
-                f.write(self.sim_output.out[1])
+                f.write(self.sim_output[0])
+                f.write(self.sim_output[1])
+                f.write(f'Run time: {toc - tic}')
+                if self.error_message is not None:
+                    f.write(f'Exception: {self.error_message}')
         self.sim.sim_files.parse_current_files()
-            
-        
-    def run_steps(self):
-        """Run an oxDNA simulation for a user specificed number of steps"""
-        capture = py.io.StdCaptureFD()
-        if self.continue_run == True:
-            self.sim.input_file({"conf_file": self.sim.sim_files.last_conf, "refresh_vel": "0", "restart_step_counter": "0"})
-        os.chdir(self.sim_dir)
-        with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
-            my_input = loads(f.read())
-        with oxpy.Context():
-            ox_input = oxpy.InputFile()
-            for k, v in my_input.items():
-                ox_input[k] = v
-            manager = oxpy.OxpyManager(ox_input)
-            manager.run(self.steps) 
-        self.sim_output.out = capture.reset()
-        if self.verbose == True:
-            print(f'Finished: {self.sim_dir}')
-        if self.log == True:
-            with open('log.log', 'w') as f:
-                f.write(self.sim_output.out[0])
-                f.write(self.sim_output.out[1])
-        self.sim.sim_files.parse_current_files()
+  
         
         
 class SlurmRun:
@@ -237,7 +274,7 @@ class SlurmRun:
         self.write_run_file()
     
     def write_run_file(self):
-        
+        """ Write a run file to simulation directory."""
         with open(self.run_file, 'r') as f:
             lines = f.readlines()
             with open(os.path.join(self.sim_dir, 'run.sh'), 'w') as r:
@@ -247,19 +284,34 @@ class SlurmRun:
                     else:
                         r.write(line)
     def sbatch(self):
+        """ Submit sbatch run file."""
         os.chdir(self.sim_dir)
         os.system("sbatch run.sh")             
 
 
 class SimulationManager:
-    def __init__(self, n_processes=len(os.sched_getaffinity(0))-2):
+    """ In conjunction with nvidia-cuda-mps-control, allocate simulations to avalible cpus and gpus."""
+    def __init__(self, n_processes=len(os.sched_getaffinity(0))-1):
+        """
+        Initalize the multiprocessing queues used to manage simulation allocation.
+        
+        The sim_queue utilizes a single process to store all queued simulations and allocates simulations to cpus.
+        The process_queue manages the number of processes/cpus avalible to be sent to gpu memory.
+        gpu_memory_queue is used to block the process_queue from sending simulations to gpu memory if memoy is near full.
+        
+        Parameters:
+            n_processes (int): number of processes/cpus avalible to run oxDNA simulations in parallel.
+        """
         self.n_processes = n_processes
         self.manager = mp.Manager()
         self.sim_queue = self.manager.Queue()
         self.process_queue = self.manager.Queue(self.n_processes)
         self.gpu_memory_queue = self.manager.Queue(1)
+        self.terminate_queue = self.manager.Queue(1)
+        self.worker_process_list = []
   
     def gpu_resources(self):
+        """ Method to probe the number and current avalible memory of gpus."""
         avalible_memory = []
         nvidia_smi.nvmlInit()
         NUMBER_OF_GPU = nvidia_smi.nvmlDeviceGetCount()
@@ -267,19 +319,50 @@ class SimulationManager:
             handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
             info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
             avalible_memory.append(self._bytes_to_megabytes(info.total) - self._bytes_to_megabytes(info.used))
-            gpu_most_aval_mem_free = max(avalible_memory)
-            gpu_most_aval_mem_free_idx = avalible_memory.index(gpu_most_aval_mem_free)
+        gpu_most_aval_mem_free = max(avalible_memory)
+        gpu_most_aval_mem_free_idx = avalible_memory.index(gpu_most_aval_mem_free)
         return np.round(gpu_most_aval_mem_free, 2), gpu_most_aval_mem_free_idx
-
-    def _bytes_to_megabytes(self, bytes):
-        return round((bytes/1024)/1024,2)
+    
+    def _bytes_to_megabytes(self, byte):
+        return byte/1048576
+    
+    # def gpu_resources(self):
+    #     gpus_mem_free = [gpu.mem_free for gpu in nvsmi.get_gpus()]
+    #     gpu_most_aval_mem_free = max(gpus_mem_free)
+    #     gpu_most_aval_mem_free_idx = gpus_mem_free.index(gpu_most_aval_mem_free)
+    #     return gpu_most_aval_mem_free, gpu_most_aval_mem_free_idx
+        
+    # def gpu_resources(self):
+    #     output_to_list = lambda x: x.decode('ascii').split('\n')[:-1]
+    #     ACCEPTABLE_AVAILABLE_MEMORY = 1024
+    #     COMMAND = "nvidia-smi --query-gpu=memory.free --format=csv"
+    #     try:
+    #         memory_free_info = output_to_list(sp.check_output(COMMAND.split(),stderr=sp.STDOUT))[1:]
+    #     except sp.CalledProcessError as e:
+    #         raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
+    #     avalible_memory = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
+    #     # print(memory_use_values)
+    #     gpu_most_aval_mem_free = max(avalible_memory)
+    #     gpu_most_aval_mem_free_idx = avalible_memory.index(gpu_most_aval_mem_free)
+    #     return np.round(gpu_most_aval_mem_free, 2), gpu_most_aval_mem_free
 
     def get_sim_mem(self, sim, gpu_idx):
-        sim.input_file({'lastconf_file':'temp'})
-        sim.oxpy_run.run(steps=0, subprocess=False, verbose=False, log=False)
-        sim.input_file({'lastconf_file':'last_conf.dat'})
+        """
+        Returns the amount of simulation memory requried to run an oxDNA simulation.
+        Note: A process running a simulation will need more memory then just required for the simulation.
+              Most likely overhead from nvidia-cuda-mps-server
+        
+        Parameters:
+            sim (Simulation): Simulation object to probe the required memory of.
+            gpu_idx: depreciated
+        """
+        steps = sim.input.input['steps']
+        last_conf_file = sim.input.input['lastconf_file']
+        sim.input_file({'lastconf_file':'temp', 'steps':'0'})
+        sim.oxpy_run.run(subprocess=False, verbose=False, log=False)
+        sim.input_file({'lastconf_file':f'{last_conf_file}', 'steps':f'{steps}'})
         mem_get = True
-        err_split = sim.oxpy_run.sim_output.out[1].split()
+        err_split = sim.oxpy_run.sim_output[1].split()
         mem = err_split.index('memory:')
         sim_mem = err_split[mem + 1]
         #os.remove('./trajectory.dat')
@@ -289,24 +372,41 @@ class SimulationManager:
         return float(sim_mem)
     
     def queue_sim(self, sim, continue_run=False):
-        if continue_run == True:
-            sim.input_file({"conf_file": sim.sim_files.last_conf, "refresh_vel": "0", "restart_step_counter": "0"})
+        """ 
+        Add simulation object to the queue of all simulations.
+        
+        Parameters:
+            sim (Simulation): Simulation to be queued.
+            continue_run (bool): If true, continue previously run oxDNA simulation
+        """
+        if continue_run is not False:
+            sim.input_file({"conf_file": sim.sim_files.last_conf, "refresh_vel": "0",
+                            "restart_step_counter": "0", "steps":f"{continue_run}"})
         self.sim_queue.put(sim)   
                     
     def worker_manager(self):
+        """ Head process in charge of allocating queued simulations to processes and gpu memory."""
+        
         while not self.sim_queue.empty():
             #get simulation from queue
+            if self.terminate_queue.empty():
+                pass
+            else:
+                for worker_process in self.worker_process_list:
+                    worker_process.terminate()
+                return print(self.terminate_queue.get())
+            self.process_queue.put('Simulation worker finished')
             sim = self.sim_queue.get()
             free_gpu_memory, gpu_idx = self.gpu_resources()
             sim.input_file({'CUDA_device': str(gpu_idx)})
             p = mp.Process(target=self.worker_job, args=(sim, gpu_idx))
             p.start()
+            self.worker_process_list.append(p)
             sim_mem = self.gpu_memory_queue.get()
-            self.process_queue.put('Simulation worker finished')
-            if free_gpu_memory < (3 * sim_mem):
+            if free_gpu_memory < (3.5 * sim_mem):
                 wait_for_gpu_memory = True
                 while wait_for_gpu_memory == True:
-                    if free_gpu_memory < (3 * sim_mem):
+                    if free_gpu_memory < (3.5 * sim_mem):
                         free_gpu_memory, gpu_idx = self.gpu_resources()
                         sleep(5)
                     else:
@@ -317,29 +417,66 @@ class SimulationManager:
         print('All queued simulations finished')
             
     def worker_job(self, sim, gpu_idx):
-            sim_mem = self.get_sim_mem(sim, gpu_idx)
-            self.gpu_memory_queue.put(sim_mem)
-            sim.oxpy_run.run(subprocess=False)
-            print(self.process_queue.get())
+        """ Run an allocated oxDNA simulation"""
+        sim_mem = self.get_sim_mem(sim, gpu_idx)
+        self.gpu_memory_queue.put(sim_mem)
+        sim.oxpy_run.run(subprocess=False)
+        if sim.oxpy_run.error_message is not None:
+            self.terminate_queue.put(f'Simulation exception encountered in {sim.sim_dir}:\n{sim.oxpy_run.error_message}')
+        self.process_queue.get()
     
-    def run(self, join=False):
+    def run(self, log=None, join=False):
+        """ In progress, intended to run worker_manager in subprocess to not block jupyter notebook."""
         print('spawning')
         p = mp.Process(target=self.worker_manager, args=()) 
+        self.manager_process = p
         p.start()
         if join == True:
             p.join()
     
-    def start_nvidia_cuda_mps_control(self):
-        os.system("""export CUDA_MPS_PIPE_DIRECTORY=/tmp/mps-pipe_$SLURM_TASK_PID;
-export CUDA_MPS_LOG_DIRECTORY=/tmp/mps-log_$SLURM_TASK_PID;
+    
+    def terminate_all(self,):
+        try:
+            self.manager_process.terminate()
+        except:
+            pass
+        for process in self.worker_process_list:
+            try:
+                process.terminate()               
+            except:
+                pass
+    
+    
+    def start_nvidia_cuda_mps_control(self, pipe='$SLURM_TASK_PID'):
+        """
+        Begin nvidia-cuda-mps-server.
+        
+        Parameters:
+            pipe (str): of of directory to pipe control server information to. Defaults to PID of a slurm allocation
+        """
+        os.system(f"""export CUDA_MPS_PIPE_DIRECTORY=/tmp/mps-pipe_{pipe};
+export CUDA_MPS_LOG_DIRECTORY=/tmp/mps-log_{pipe};
 mkdir -p $CUDA_MPS_PIPE_DIRECTORY;
 mkdir -p $CUDA_MPS_LOG_DIRECTORY;
 nvidia-cuda-mps-control -d;""")
+     
+    def restart_nvidia_cuda_mps_control(self):
+        os.system("""echo quit | nvidia-cuda-mps-control""")
+        sleep(0.5)
+        self.start_nvidia_cuda_mps_control()
 
         
                     
 class Input:
+    """ Lower level input file methods"""
     def __init__(self, sim_dir, parameters=None):
+        """ 
+        Read input file in simulation dir if it exsists, other wise define default input parameters.
+        
+        Parameters:
+            sim_dir (str): Simulation directory
+            parameters: depreciated
+        """
         self.sim_dir = sim_dir
         if os.path.exists(os.path.join(self.sim_dir, 'input.json')):
             self.read_input()
@@ -371,8 +508,8 @@ class Input:
             "no_stdout_energy": "0",
             "restart_step_counter": "1",
             "energy_file": "energy.dat",
-            "print_conf_interval": "1e5",
-            "print_energy_every": "1e5",
+            "print_conf_interval": "5e5",
+            "print_energy_every": "5e5",
             "time_scale": "linear",
             "max_io": "5",
             "external_forces": "0",
@@ -384,6 +521,7 @@ class Input:
                     self.input[k] = v
     
     def get_last_conf_top(self):
+        """Set attributes containing the name of the inital conf (dat file) and topology"""
         conf_top = os.listdir(self.sim_dir)
         self.top = [file for file in conf_top if (file.endswith(('.top')))][0]
         try:
@@ -393,6 +531,7 @@ class Input:
         self.dat = last_conf
         
     def write_input_standard(self):
+        """ Write a oxDNA input file to sim_dir"""
         with oxpy.Context():
             ox_input = oxpy.InputFile()
             for k, v in self.input.items():
@@ -400,6 +539,7 @@ class Input:
             print(ox_input, file=f)
     
     def write_input(self, production=False):
+        """ Write an oxDNA input file as a json file to sim_dir"""
         if production is False:
             self.get_last_conf_top()
             self.input["conf_file"] = self.dat
@@ -416,17 +556,20 @@ class Input:
                 print(ox_input, file=f)    
         
     def modify_input(self, parameters):
+        """ Modify the parameters of the oxDAN input file."""
         for k, v in parameters.items():
                 self.input[k] = v
         self.write_input()
                          
     def read_input(self):
+        """ Read parameters of exsisting input file in sim_dir"""
         with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
             my_input = loads(f.read())
         self.input = my_input
 
         
 class SequenceDependant:
+    """ Make the targeted sim_dir run a sequence dependant oxDNA simulation"""
     def __init__(self, sim_dir):
         self.sim_dir = sim_dir
         self.parameters = """STCK_FACT_EPS = 0.18
@@ -458,37 +601,48 @@ HYDR_G_C = 1.23238"""
         
         
 class Analysis:
+    """ Methods used to interface with oxDNA simulation in jupyter notebook (currently in work)"""
     def __init__(self, simulation):
+        """ Set attributes to know all files in sim_dir and the input_parameters"""
+        self.sim = simulation
         self.sim_files = simulation.sim_files
-        self.input = simulation.input.input
         
     def get_init_conf(self):
+        """ Returns inital topology and dat file paths, as well as x,y,z info of the conf."""
         self.sim_files.parse_current_files()
         ti, di = describe(self.sim_files.top,
                           self.sim_files.dat)
         return (ti, di), get_confs(ti, di, 0, 1)[0]
     
     def get_last_conf(self):
+        """ Returns last topology and dat file paths, as well as x,y,z info of the conf."""
         self.sim_files.parse_current_files()
         ti, di = describe(self.sim_files.top,
                           self.sim_files.last_conf)
         return (ti,di), get_confs(ti, di, 0,1)[0]
     
     def view_init(self):
+        """ Interactivly view inital oxDNA conf in jupyter notebook."""
         (ti,di), conf = self.get_init_conf()        
         oxdna_conf(ti, conf)
                           
     def view_last(self):
-        (ti,di), conf = self.get_last_conf()
-        oxdna_conf(ti, conf)
+        """ Interactivly view last oxDNA conf in jupyter notebook."""
+        try:
+            (ti,di), conf = self.get_last_conf()
+            oxdna_conf(ti, conf)
+        except:
+            raise Exception('No last conf file avalible')
     
     def get_conf_count(self):
+        """ Returns the number of confs in trajectory file."""
         self.sim_files.parse_current_files()
         ti,di = describe(self.sim_files.top,
                          self.sim_files.traj)
         return len(di.idxs)
     
     def get_conf(self, id:int):
+        """ Returns x,y,z (and other) info of specified conf."""
         self.sim_files.parse_current_files()
         ti,di = describe(self.sim_files.top,
                          self.sim_files.traj)
@@ -499,64 +653,102 @@ class Analysis:
             raise Exception("You requested a conf out of bounds.")
     
     def current_step(self):
+        """ Returns the time-step of the most recently save oxDNA conf."""
         n_confs = float(self.get_conf_count())
-        steps_per_conf = float(self.input["print_conf_interval"])
+        steps_per_conf = float(self.sim.input.input["print_conf_interval"])
         return n_confs * steps_per_conf
     
     def view_conf(self, id:int):
+        """ Interactivly view oxDNA conf in jupyter notebook."""
         (ti,di), conf = self.get_conf(id)
         oxdna_conf(ti, conf)
 
     def plot_energy(self):
-        self.sim_files.parse_current_files()
-        df = pd.read_csv(self.sim_files.energy, delimiter="\s+",names=['time', 'U','P','K'])
-        dt = float(self.input["dt"])
-        steps = float(self.input["steps"])
-        # make sure our figure is bigger
-        plt.figure(figsize=(15,3)) 
-        # plot the energy
-        plt.plot(df.time/dt,df.U)
-        plt.ylabel("Energy")
-        plt.xlabel("Steps")
-        # and the line indicating the complete run
-        plt.ylim([-2,0])
-        plt.plot([steps,steps],[0,-2], color="r")                
-#Unstable
-#     def view_traj(self,  init = 0, op=None):
-#         # get the initial conf and the reference to the trajectory 
-#         (ti,di), cur_conf = self.get_conf(init)
+        """ Plot energy of oxDNA simulation."""
+        try:
+            self.sim_files.parse_current_files()
+            df = pd.read_csv(self.sim_files.energy, delimiter="\s+",names=['time', 'U','P','K'])
+            dt = float(self.sim.input.input["dt"])
+            steps = float(self.sim.input.input["steps"])
+            # make sure our figure is bigger
+            plt.figure(figsize=(15,3)) 
+            # plot the energy
+            plt.plot(df.time/dt,df.U)
+            plt.ylabel("Energy")
+            plt.xlabel("Steps")
+        except:
+            raise Exception('No energy file avalible')
+            # and the line indicating the complete run
+            #plt.ylim([-2,0])
+            #plt.plot([steps,steps],[0,-2], color="r")     
+    
+    def plot_observable(self, observable, sliding_window=False, fig=True):
+        file_name = observable['output']['name']
+        conf_interval = float(observable['output']['print_every'])
+        df = pd.read_csv(f"{self.sim.sim_dir}/{file_name}", header=None)
+        if sliding_window is not False:
+            df = df.rolling(window=sliding_window).sum().dropna()
+        df = np.concatenate(np.array(df))
+        sim_conf_times = np.linspace(0, conf_interval * len(df), num=len(df))
+        if fig is True:
+            plt.figure(figsize=(15,3)) 
+        plt.xlabel('steps')
+        plt.ylabel(f'{os.path.splitext(file_name)[0]} (sim units)')
+        plt.plot(sim_conf_times, df, label=self.sim.sim_dir.split("/")[-1])
+
+    def hist_observable(self, observable, bins=10, fig=True):
+        file_name = observable['output']['name']
+        conf_interval = float(observable['output']['print_every'])
+        df = pd.read_csv(f"{self.sim.sim_dir}/{file_name}", header=None)
+        df = np.concatenate(np.array(df))
+        sim_conf_times = np.linspace(0, conf_interval * len(df), num=len(df))
+        if fig is True:
+            plt.figure(figsize=(15,3)) 
+        plt.xlabel(f'{os.path.splitext(file_name)[0]} (sim units)')
+        plt.ylabel(f'Probablity')
+        H, bins = np.histogram(df, density=True, bins=bins)
+        H = H * (bins[1] - bins[0])
+        plt.plot(bins[:-1], H, label=self.sim.sim_dir.split("/")[-1])
+    
         
-#         slider = widgets.IntSlider(
-#             min = 0,
-#             max = len(di.idxs),
-#             step=1,
-#             description="Select:",
-#             value=init
-#         )
+    #Unstable
+    def view_traj(self,  init = 0, op=None):
+        print('This feature is highly unstable and will crash your kernel if you scroll through confs too fast')
+        # get the initial conf and the reference to the trajectory 
+        (ti,di), cur_conf = self.get_conf(init)
         
-#         output = widgets.Output()
-#         if op:
-#             min_v,max_v = np.min(op), np.max(op)
+        slider = widgets.IntSlider(
+            min = 0,
+            max = len(di.idxs),
+            step=1,
+            description="Select:",
+            value=init
+        )
         
-#         def handle(obj=None):
-#             conf= get_confs(ti,di,slider.value,1)[0]
-#             with output:
-#                 output.clear_output()
-#                 if op:
-#                     # make sure our figure is bigger
-#                     plt.figure(figsize=(15,3)) 
-#                     plt.plot(op)
-#                     print(init)
-#                     plt.plot([slider.value,slider.value],[min_v, max_v], color="r")
-#                     plt.show()
-#                 oxdna_conf(ti,conf)
+        output = widgets.Output()
+        if op:
+            min_v,max_v = np.min(op), np.max(op)
+        
+        def handle(obj=None):
+            conf= get_confs(ti,di,slider.value,1)[0]
+            with output:
+                output.clear_output()
+                if op:
+                    # make sure our figure is bigger
+                    plt.figure(figsize=(15,3)) 
+                    plt.plot(op)
+                    print(init)
+                    plt.plot([slider.value,slider.value],[min_v, max_v], color="r")
+                    plt.show()
+                oxdna_conf(ti,conf)
                 
-#         slider.observe(handle)
-#         display(slider,output)
-#         handle(None)
+        slider.observe(handle)
+        display(slider,output)
+        handle(None)
 
 
 class Observable:
+    """ Currently implemented observables for this oxDNA wrapper."""
     @staticmethod
     def distance(particle_1=None, particle_2=None, print_every=None, name=None):
         return({
@@ -572,10 +764,10 @@ class Observable:
                 ]
             }
         })
-        
+
               
 class Force:
-    
+    """ Currently implemented external forces for this oxDNA wrapper."""
     @staticmethod
     def com_force(com_list=None, ref_list=None, stiff=None, r0=None, PBC=None, rate=None):
         return({"force":{
@@ -721,6 +913,7 @@ class Force:
        
               
 class SimFiles:
+    """ Parse the current files present in simulation directory"""
     def __init__(self, sim_dir):
         self.sim_dir = sim_dir
         if os.path.exists(self.sim_dir):

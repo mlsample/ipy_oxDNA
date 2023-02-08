@@ -35,7 +35,7 @@ def autocorrelation(com_list):
     # create a list of autocorrelation values for each window
     autocorrelation_list = []
     for com in com_list:
-        de = sm.tsa.acf(com, nlags=500)
+        de = sm.tsa.acf(com, nlags=50000)
         low = next(x[0] for x in enumerate(list(de)) if abs(x[1]) < (1 / np.e))
         autocorrelation_list.append(low)
     return autocorrelation_list

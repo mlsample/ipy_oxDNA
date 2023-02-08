@@ -67,10 +67,10 @@ class BaseUmbrellaSampling:
 class ComUmbrellaSampling(BaseUmbrellaSampling):
     def __init__(self, file_dir, system):
         super().__init__(file_dir, system)
+        self.observables_list = []
         
-        
-    def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
-                                observable=False, print_every=1e4, name='com_distance.txt', continue_run=False):
+    def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax,
+                                input_parameters,observable=False, print_every=1e4, name='com_distance.txt', continue_run=False):
         self.windows.equlibration_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
@@ -92,13 +92,13 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
     
     def com_distance_observable(self, com_list, ref_list,  print_every=1e4, name='com_distance.txt'):
         """ Build center of mass observable"""
-        self.observables_list = []
         obs = Observable()
         com_observable = obs.distance(
             particle_1=com_list,
             particle_2=ref_list,
             print_every=f'{print_every}',
-            name=f'{name}'
+            name=f'{name}',
+            PBC='1'
         )  
         self.observables_list.append(com_observable)
  
@@ -138,38 +138,88 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
     
     def plot_free(self):
         self.wham.plot_free_energy()
+        
+
+class MeltingUmbrellaSampling(ComUmbrellaSampling):
+    def __init__(self, file_dir, system):
+        super().__init__(file_dir, system)
+        
+    def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
+                                observable=False, print_every=1e4, name='com_distance.txt', continue_run=False):
+        self.windows.equlibration_windows(n_windows)
+        self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
+        self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
+        self.hb_list_observable(print_every=print_every, only_count='true')
+        if continue_run is False:
+            self.us_build.build(self.equlibration_sims, input_parameters, self.forces_list, self.observables_list, observable=observable)
+            for sim in self.equlibration_sims:
+                sim.build_sim.build_hb_list_file(com_list, ref_list)
+        self.queue_sims(simulation_manager, self.equlibration_sims, continue_run=continue_run)
+        
+        
+    def build_production_runs(self, simulation_manager, n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
+                              observable=True, print_every=1e4, name='com_distance.txt', continue_run=False):
+        self.windows.equlibration_windows(n_windows)
+        self.windows.production_windows(n_windows)
+        self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
+        self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
+        self.hb_list_observable(print_every=print_every, only_count='true')
+        if continue_run is False:
+            self.us_build.build(self.production_sims, input_parameters, self.forces_list, self.observables_list, observable=observable)
+            for sim in self.production_sims:
+                sim.build_sim.build_hb_list_file(com_list, ref_list)
+        self.queue_sims(simulation_manager, self.production_sims, continue_run=continue_run)   
+    
+    def hb_list_observable(self, print_every=1e4, name='hb_observable.txt', only_count='true'):
+        """ Build center of mass observable"""
+        hb_obs = self.obs.hb_list(
+            print_every='1e3',
+            name='hb_observable.txt',
+            only_count='true'
+           )
+        self.observables_list.append(hb_obs)
+
 
 
 class UmbrellaAnalysis:
     def __init__(self, base_umbrella):
         self.base_umbrella = base_umbrella
         
-    def view_observable(self, sim_type, idx, sliding_window=False):
+    def view_observable(self, sim_type, idx, sliding_window=False, observable=None):
+        if observable == None:
+            observable=self.base_umbrella.observables_list[0]
+        
         if sim_type == 'eq':
-            self.base_umbrella.equlibration_sims[idx].analysis.plot_observable(self.base_umbrella.observables_list[0], fig=False, sliding_window=sliding_window)
+            self.base_umbrella.equlibration_sims[idx].analysis.plot_observable(observable, fig=False, sliding_window=sliding_window)
 
         if sim_type == 'prod':
-            self.base_umbrella.production_sims[idx].analysis.plot_observable(self.base_umbrella.observables_list[0], fig=False, sliding_window=sliding_window)
+            self.base_umbrella.production_sims[idx].analysis.plot_observable(observable, fig=False, sliding_window=sliding_window)
     
-    def hist_observable(self, sim_type, idx, bins=10):
+    def hist_observable(self, sim_type, idx, bins=10, observable=None):
+        if observable == None:
+            observable=self.base_umbrella.observables_list[0]
+            
         if sim_type == 'eq':
-            self.base_umbrella.equlibration_sims[idx].analysis.hist_observable(self.base_umbrella.observables_list[0],
+            self.base_umbrella.equlibration_sims[idx].analysis.hist_observable(observable,
                                                                                fig=False, bins=bins)
 
         if sim_type == 'prod':
-            self.base_umbrella.production_sims[idx].analysis.hist_observable(self.base_umbrella.observables_list[0],
+            self.base_umbrella.production_sims[idx].analysis.hist_observable(observable,
                                                                              fig=False, bins=bins)
     
-    def view_observables(self, sim_type, sliding_window=False):
+    def view_observables(self, sim_type, sliding_window=False, observable=None):
+        if observable == None:
+            observable=self.base_umbrella.observables_list[0]
+            
         if sim_type == 'eq':
             plt.figure()
             for sim in self.base_umbrella.equlibration_sims:
-                sim.analysis.plot_observable(self.base_umbrella.observables_list[0], fig=False, sliding_window=sliding_window)
+                sim.analysis.plot_observable(observable, fig=False, sliding_window=sliding_window)
 
         if sim_type == 'prod':
             plt.figure(figsize=(15,3))
             for sim in self.base_umbrella.production_sims:
-                sim.analysis.plot_observable(self.base_umbrella.observables_list[0], fig=False, sliding_window=sliding_window)
+                sim.analysis.plot_observable(observable, fig=False, sliding_window=sliding_window)
     
     def view_conf(self, sim_type, window):
         if sim_type == 'eq':
@@ -181,8 +231,7 @@ class UmbrellaAnalysis:
             try:
                 self.base_umbrella.production_sims[window].analysis.view_last()
             except:
-                self.base_umbrella.production_sims[window].analysis.view_init()
-    
+                self.base_umbrella.production_sims[window].analysis.view_init()    
         
         
 class UmbrellaWindow:

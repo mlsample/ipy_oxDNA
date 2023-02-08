@@ -1,37 +1,36 @@
-from umbrella_sampling import ComUmbrellaSampling
-from oxdna_simulation import SimulationManager
+from umbrella_sampling import ComUmbrellaSampling, MeltingUmbrellaSampling
+from oxdna_simulation import SimulationManager, Simulation, Observable
 import os
-import multiprocessing as mp
-from memory_profiler import profile
+import matplotlib.pyplot as plt
 
-@profile
 def main():
-    path = os.path.abspath('../ipy_oxdna_examples')
-    file_dir = f'{path}/rro'
-    system = [f'rro_umbrella_benchmarking_{sys}' for sys in range(5)]
+    path = os.path.abspath('../ipy_oxdna_examples/melting_example/')
+    file_dir = f'{path}/duplex_8nt/'
+    system = 'us_k_05_min_0_max_5_1e3'
     
-    com_list = '63,157,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,6830,6736,6737,6738,6739,6740,6741,6742,6743,6744,6745,6746,6747,6748,6749,6750,6751,6752,6753,6754,6755,6756,6757,6758,6759,6760,6761,6762,6763,6764,6765,6766,6767,6768,6769,6770,6771,6772,6773,6774,6775,6776,6777,6778,6779,6780,6781,6782,6783,6784,6785,6786,6787,6788,6789,6790,6791,6792,6793,6794,6795,6796,6797,6798,6799,6800,6801,6802,6803,6804,6805,6806,6807,6808,6809,6810,6811,6812,6813,6814,6815,6816,6817,6818,6819,6820,6821,6822,6823,6824,6825,6826,6827,6828,6829'
-    ref_list = '3455,3510,3456,3457,3458,3459,3460,3461,3462,3463,3464,3465,3466,3467,3468,3469,3470,3471,3472,3473,3474,3475,3476,3477,3478,3479,3480,3481,3482,3483,3484,3485,3486,3487,3488,3489,3490,3491,3492,3493,3494,3495,3496,3497,3498,3499,3500,3501,3502,3503,3504,3505,3506,3507,3508,3509,3447,3448,3449,3450,3451,3452,3453,3454,3541,3511,3512,3513,3514,3515,3516,3517,3518,3519,3520,3521,3522,3523,3524,3525,3526,3527,3528,3529,3530,3531,3532,3533,3534,3535,3536,3537,3538,3539,3540,3352,3353,3354,3355,3356,3357,3358,3359,3360,3361,3362,3363,3364,3365,3366,3367,3368,3369,3370,3371,3372,3373,3374,3375,3376,3377,3378,3379,3380,3381,3382,3383,3384,3385,3386,3387,3388,3389,3390,3391,3392,3393,3394,3395,3396,3397,3398,3399,3400,3401,3402,3403,3404,3405,3406,3407,3408,3409,3410,3411,3412,3413,3414,3415,3416,3417,3418,3419,3420,3421,3422,3423,3424,3425,3426,3427,3428,3429,3430,3431,3432,3433,3434,3435,3436,3437,3438,3439,3440,3441,3442,3443,3444,3445,3446'
-    
-    stiff = 0.2
+    com_list = '8,9,10,11,12,13,14,15'
+    ref_list = '0,1,2,3,4,5,6,7'
     xmin = 0
-    xmax = 72.787
-    n_windows = 100
+    xmax = 5
+    n_windows = 48
     
-    equlibration_parameters = [{'steps':'1e7', 'print_energy_every': '1e7', 'print_conf_interval':'1e7'},
-                               {'steps':'3e5',  'print_energy_every': '3e5', 'print_conf_interval':'3e5','fix_diffusion':'0'}
-                              ]
-    production_parameters = [{'steps':'1e6', 'print_energy_every': '1e6', 'print_conf_interval':'1e6'} for _ in range(3)]
+    stiff = 0.5
     
+    equlibration_parameters = {'steps':'1e7', 'T':'20C', 'print_energy_every': '5e5','print_conf_interval':'5e5',
+                               'max_density_multiplier': '50'}
     
-    us_0 = ComUmbrellaSampling(file_dir, system[0])
+    production_parameters = {'steps':'1e8', 'T':'20C', 'print_energy_every': '5e6',
+                             'print_conf_interval':'5e5', 'max_density_multiplier':'50'}
     
-    
+    us = MeltingUmbrellaSampling(file_dir, system)
     simulation_manager = SimulationManager()
     
-    us_0.build_equlibration_runs(simulation_manager, n_windows, com_list, ref_list, stiff, xmin, xmax, equlibration_parameters[0], observable=True, print_every=1e4, name='com_distance.txt')
+    us.build_production_runs(simulation_manager, n_windows, com_list, ref_list, stiff, xmin, xmax, production_parameters,
+                           observable=True, print_every=1e3, name='com_distance.txt')
     
-    simulation_manager.worker_manager()
+    simulation_manager.run()
+    
+    
     
 if __name__ == '__main__':
     main()

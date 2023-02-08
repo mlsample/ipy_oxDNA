@@ -122,7 +122,7 @@ class BuildSimulation:
         conf_top = os.listdir(self.file_dir)
         self.top = [file for file in conf_top if (file.endswith(('.top')))][0]
         try:
-            last_conf = [file for file in conf_top if (file.startswith(('last_conf')))][0]
+            last_conf = [file for file in conf_top if (file.startswith('last_conf')) and (not  (file.endswith('pyidx')))][0]
         except IndexError:
             last_conf = [file for file in conf_top if (file.endswith(('.dat'))) and not (file.endswith(('energy.dat'))) and not (file.endswith(('trajectory.dat'))) and not (file.endswith(('error_conf.dat')))][0]
         self.dat = last_conf
@@ -172,6 +172,7 @@ class BuildSimulation:
         Parameters:
             observable_js (dict): observable dictornary obtained from the Observable class methods
         """
+        
         if not os.path.exists(os.path.join(self.sim_dir, "observables.json")):
             with open(os.path.join(self.sim_dir, "observables.json"), 'w') as f:
                 f.write(dumps(observable_js, indent=4))
@@ -186,6 +187,23 @@ class BuildSimulation:
                 read_observable_js.update(observable_js.items())
                 with open(os.path.join(self.sim_dir, "observables.json"), 'w') as f:
                     f.write(dumps(read_observable_js, indent=4))    
+
+    
+    def build_hb_list_file(self, p1, p2):
+        p1 = p1.split(',')
+        p2 = p2.split(',')
+        i = 1
+        with open(os.path.join(self.sim_dir,"hb_list.txt"), 'w') as f:
+            f.write("{\norder_parameter = bond\nname = all_native_bonds\n")
+        for nuc1 in p1:
+            for nuc2 in p2:
+                with open(os.path.join(self.sim_dir,"hb_list.txt"), 'a') as f:
+                    f.write(f'pair{i} = {nuc1}, {nuc2}\n')
+                i += 1
+        with open(os.path.join(self.sim_dir,"hb_list.txt"), 'a') as f:
+            f.write("}\n")
+        return None
+    
 
 class OxpyRun:
     """Automatically runs a built oxDNA simulation using oxpy within a subprocess"""
@@ -362,7 +380,8 @@ class SimulationManager:
         if continue_run is not False:
             sim.input_file({"conf_file": sim.sim_files.last_conf, "refresh_vel": "0",
                             "restart_step_counter": "0", "steps":f"{continue_run}"})
-        self.sim_queue.put(sim)   
+        self.sim_queue.put(sim) 
+        
                     
     def worker_manager(self):
         """ Head process in charge of allocating queued simulations to processes and gpu memory."""
@@ -504,7 +523,7 @@ class Input:
         conf_top = os.listdir(self.sim_dir)
         self.top = [file for file in conf_top if (file.endswith(('.top')))][0]
         try:
-            last_conf = [file for file in conf_top if (file.startswith(('last_conf')))][0]
+            last_conf = [file for file in conf_top if (file.startswith('last_conf')) and (not  (file.endswith('pyidx')))][0]
         except IndexError:
             last_conf = [file for file in conf_top if (file.endswith(('.dat'))) and not (file.endswith(('energy.dat'))) and not (file.endswith(('trajectory.dat'))) and not (file.endswith(('error_conf.dat')))][0]
         self.dat = last_conf
@@ -729,7 +748,7 @@ class Analysis:
 class Observable:
     """ Currently implemented observables for this oxDNA wrapper."""
     @staticmethod
-    def distance(particle_1=None, particle_2=None, print_every=None, name=None):
+    def distance(particle_1=None, particle_2=None, PBC=None,print_every=None, name=None):
         return({
             "output": {
                 "print_every": print_every,
@@ -738,15 +757,15 @@ class Observable:
                     {
                         "type": "distance",
                         "particle_1": particle_1,
-                        "particle_2": particle_2
+                        "particle_2": particle_2,
+                        "PBC": PBC
                     }
                 ]
             }
         })
     
-    @staticmethod
-    def hb_list(sim_dir, particle_1=None, particle_2=None, print_every=None, name=None):       
-        self.write_hb_list_file(sim_dir, particle_1, particle_2)
+    @staticmethod 
+    def hb_list(print_every=None, name=None, only_count=None):       
         return({
             "output": {
                 "print_every": print_every,
@@ -755,26 +774,12 @@ class Observable:
                     {
                         "type": "hb_list",
                         "order_parameters_file": "hb_list.txt",
-                        "only_count": "true"
+                        "only_count": only_count
                     }
                 ]
             }
         })
-    
-    def write_op_file(self, sim_dir, p1, p2):
-        p1 = p1.split(',')
-        p2 = p2.split(',')
-        i = 1
-        with open(os.path.join(sim_dir,"op.txt"), 'w') as f:
-            f.write("{\norder_parameter = bond\nname = all_native_bonds\n")
-        for nuc1 in p1:
-            for nuc2 in p2:
-                with open(os.path.join(sim_dir,"op.txt"), 'a') as f:
-                    f.write(f'pair{i} = {nuc1}, {nuc2}\n')
-                i += 1
-        with open(os.path.join(sim_dir,"op.txt"), 'a') as f:
-            f.write("}\n")
-        return None
+
               
 class Force:
     """ Currently implemented external forces for this oxDNA wrapper."""
@@ -937,27 +942,28 @@ class SimFiles:
             print('Simulation directory does not exsist')
             return None
         for file in self.file_list:
-            if file == 'trajectory.dat':
-                self.traj = os.path.abspath(os.path.join(self.sim_dir, file))
-            elif file == 'last_conf.dat':
-                self.last_conf = os.path.abspath(os.path.join(self.sim_dir, file))
-            elif (file.endswith(('.dat'))) and not (file.endswith(('energy.dat'))) and not (file.endswith(('trajectory.dat'))) and not (file.endswith(('error_conf.dat'))):
-                self.dat = os.path.abspath(os.path.join(self.sim_dir, file))
-            elif (file.endswith(('.top'))):
-                self.top = os.path.abspath(os.path.join(self.sim_dir, file))
-            elif file == 'forces.json':
-                self.force = os.path.abspath(os.path.join(self.sim_dir, file))
-            elif file == 'input':
-                self.input = os.path.abspath(os.path.join(self.sim_dir, file))
-            elif file == 'input.json':
-                self.input_js = os.path.abspath(os.path.join(self.sim_dir, file))
-            elif file == 'observables.json':
-                self.observables = os.path.abspath(os.path.join(self.sim_dir, file))
-            elif file == 'run.sh':
-                self.run_file = os.path.abspath(os.path.join(self.sim_dir, file))
-            elif (file.startswith(('slurm'))):
-                self.run_file = os.path.abspath(os.path.join(self.sim_dir, file))
-            elif 'energy' in file:
-                self.energy = os.path.abspath(os.path.join(self.sim_dir, file))
-            elif 'com_distance' in file:
-                self.com_distance = os.path.abspath(os.path.join(self.sim_dir, file))
+            if not file.endswith('pyidx'):
+                if file == 'trajectory.dat':
+                    self.traj = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif file == 'last_conf.dat':
+                    self.last_conf = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif (file.endswith(('.dat'))) and not (file.endswith(('energy.dat'))) and not (file.endswith(('trajectory.dat'))) and not (file.endswith(('error_conf.dat'))):
+                    self.dat = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif (file.endswith(('.top'))):
+                    self.top = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif file == 'forces.json':
+                    self.force = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif file == 'input':
+                    self.input = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif file == 'input.json':
+                    self.input_js = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif file == 'observables.json':
+                    self.observables = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif file == 'run.sh':
+                    self.run_file = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif (file.startswith(('slurm'))):
+                    self.run_file = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif 'energy' in file:
+                    self.energy = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif 'com_distance' in file:
+                    self.com_distance = os.path.abspath(os.path.join(self.sim_dir, file))

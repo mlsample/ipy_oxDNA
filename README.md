@@ -27,5 +27,21 @@ Before using this code, you will need to have the following installed:
 
 ## Installation
 To install the `ipy_oxDNA` code, simply clone the repository to your local machine:
+git clone https://github.com/<username>/ipy_oxDNA.git
+
+## Usage
+The code can be used by importing the necessary modules into your python script or Jupyter Notebook. A tutorial on how to use the code can be found in the `examples` directory.
+
+## Example Notebooks
+This repository includes a number of example notebooks that demonstrate how to use the code to perform oxDNA umbrella sampling simulations. These notebooks can be used as a starting point for your own simulations.
+
+## Contributing
+If you would like to contribute to this project, please fork the repository and submit a pull request. Contributions are welcome and greatly appreciated!
+
+## Citation
+If you use this code in your research, please cite the accompanying academic article that will be published soon.
+
+## License
+This code is licensed under the MIT license. See [LICENSE](LICENSE) for details.
 
 

@@ -27,7 +27,7 @@ Before using this code, you will need to have the following installed:
 
 ## Installation
 To install the `ipy_oxDNA` code, simply clone the repository to your local machine:
-git clone https://github.com/<username>/ipy_oxDNA.git
+git clone https://github.com/mlsample/ipy_oxDNA.git
 
 ## Usage
 The code can be used by importing the necessary modules into your python script or Jupyter Notebook. A tutorial on how to use the code can be found in the `examples` directory.

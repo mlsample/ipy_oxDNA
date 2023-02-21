@@ -50,6 +50,17 @@ The code can be used by importing the necessary modules into your python script 
 ## Example Notebooks
 This repository includes a number of example notebooks that demonstrate how to use the code to perform oxDNA umbrella sampling simulations. These notebooks can be used as a starting point for your own simulations.
 
+`ipy_oxdna_example.ipynb`
+- Running a single simulation or multiple simulations in parallel
+- Examples for running single umbrella sampling simulation or multiple in parallel
+
+`double_layer.ipynb
+- Production umbrella sampling of the anti-parallel double layer strucutre
+- Benchamrking the speedup from varying number of simulations in parallel for umbrella sampling
+
+`duplex_example.ipynb'
+- Example of using umbrella sampling for duplex melting
+
 ## Contributing
 If you would like to contribute to this project, please fork the repository and submit a pull request.
 

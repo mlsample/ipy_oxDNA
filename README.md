@@ -36,7 +36,7 @@ To install the `ipy_oxDNA` code, clone the repository to your local machine:
 
 Install the Weight Histogram Analysis Technique (http://membrane.urmc.rochester.edu/?page_id=126)
 `chmod +x ./src/install_wham.sh`
-`./scr/install_wham.sh`
+`./src/install_wham.sh`
 
 
 ## Usage

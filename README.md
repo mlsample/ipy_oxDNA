@@ -3,13 +3,13 @@
 <!--
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 -->
-This repository contains python code for running oxDNA umbrella sampling and large throuput simulations. This code is complementary to the article
+This repository contains python code for running oxDNA umbrella sampling and large throughput simulations. This code is complementary to the article
 
 "Hairygami: Analysis of DNA Nanostructure's Conformational Change Driven by Functionalizable Overhangs"
 
 Matthew Sample, Michael Matthies, and Petr Sulc
 
-Within the src folder exist Jupyter notebook tutorials and examples.
+Within the src folder exists Jupyter notebook tutorials and examples.
 
 ## Contents
 - [Introduction](#introduction)
@@ -29,12 +29,12 @@ Before using this code, you will need to have the following installed:
 - oxDNA installed with python bindings (and the pakages that come with them)
 -  3.8 <= Python <= 3.10 
 
-
 ## Installation
 To install the `ipy_oxDNA` code, clone the repository to your local machine:
 `git clone https://github.com/mlsample/ipy_oxDNA.git`
 
 Install the Weight Histogram Analysis Technique (http://membrane.urmc.rochester.edu/?page_id=126)
+
 `chmod +x ./src/install_wham.sh`
 `./src/install_wham.sh`
 

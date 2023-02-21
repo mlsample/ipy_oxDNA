@@ -27,8 +27,8 @@ oxDNA is a molecular dynamics simulation code that can be used to study the mech
 Before using this code, you will need to have the following installed:
 -  3.8 <= Python <= 3.10 
 - oxDNA installed with python bindings (and the pakages that come with them)
-- nvidia_smi (pip install nvidia-ml-py3)
-- ipykernal and ipywidgets (for Jupyter Notebook)
+- conda/mamba envirment with pakages specified in `./ipy_oxdna.yml` (conda env create -f ipy_oxdna.yml)
+
 
 ## Installation
 To install the `ipy_oxDNA` code, clone the repository to your local machine:

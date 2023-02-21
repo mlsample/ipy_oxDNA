@@ -1,4 +1,7 @@
 # ipy_oxDNA
+<center>
+<img src="./src/oxDNA.png">
+</center>
 
 <!--
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)

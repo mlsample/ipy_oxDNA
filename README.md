@@ -45,6 +45,9 @@ The code can be used by importing the necessary modules into your python script 
 ## Example Notebooks
 This repository includes a number of example notebooks that demonstrate how to use the code to perform oxDNA umbrella sampling simulations. These notebooks can be used as a starting point for your own simulations.
 
+## Contributing
+If you would like to contribute to this project, please fork the repository and submit a pull request.
+
 ## Citation
 If you use this code in your research, please cite the accompanying academic article that will be published soon.
 <!--

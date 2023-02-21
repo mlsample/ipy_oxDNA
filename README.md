@@ -40,7 +40,7 @@ Install the Weight Histogram Analysis Technique (http://membrane.urmc.rochester.
 
 
 ## Usage
-The code can be used by importing the necessary modules into your python script or Jupyter Notebook. A tutorial on how to use the code can be found in the `scr/ipy_oxdna_examples.ipynb`.
+The code can be used by importing the necessary modules into your python script or Jupyter Notebook. A tutorial on how to use the code can be found in the `src/ipy_oxdna_examples.ipynb`.
 
 ## Example Notebooks
 This repository includes a number of example notebooks that demonstrate how to use the code to perform oxDNA umbrella sampling simulations. These notebooks can be used as a starting point for your own simulations.

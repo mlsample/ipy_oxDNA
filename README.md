@@ -1,7 +1,8 @@
 # ipy_oxDNA
 
-%[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-
+<!--
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+-->
 This repository contains python code for running oxDNA umbrella sampling and large throuput simulations. This code is complementary to an "Hairygami: Analysis of DNA Nanostructure's Conformational Change Driven by Functionalizable Overhangs"
 
 Within the src folder exist Jupyter notebook tutorials and examples.
@@ -43,8 +44,8 @@ This repository includes a number of example notebooks that demonstrate how to u
 
 ## Citation
 If you use this code in your research, please cite the accompanying academic article that will be published soon.
-
-%## License
+<!--
+## License
 %This code is licensed under the MIT license. See [LICENSE](LICENSE) for details.
-
+-->
 

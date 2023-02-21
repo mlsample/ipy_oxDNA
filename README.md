@@ -3,7 +3,11 @@
 <!--
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 -->
-This repository contains python code for running oxDNA umbrella sampling and large throuput simulations. This code is complementary to an "Hairygami: Analysis of DNA Nanostructure's Conformational Change Driven by Functionalizable Overhangs"
+This repository contains python code for running oxDNA umbrella sampling and large throuput simulations. This code is complementary to the article
+
+"Hairygami: Analysis of DNA Nanostructure's Conformational Change Driven by Functionalizable Overhangs"
+
+Matthew Sample, Michael Matthies, and Petr Sulc
 
 Within the src folder exist Jupyter notebook tutorials and examples.
 

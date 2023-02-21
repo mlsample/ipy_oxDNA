@@ -19,7 +19,6 @@ Within the src folder exist Jupyter notebook tutorials and examples.
 - [Example Notebooks](#example-notebooks)
 - [Contributing](#contributing)
 - [Citation](#citation)
-- [License](#license)
 
 ## Introduction
 oxDNA is a molecular dynamics simulation code that can be used to study the mechanical and thermodynamic properties of DNA and RNA molecules. Umbrella sampling is a highly paralizable simulation technique that is used to calculate the free energy profiles between two particles or groups of particles. The `ipy_oxDNA` repository provides a python interface for running oxDNA umbrella sampling simulations, allowing users to easily perform these simulations and analyze their results.

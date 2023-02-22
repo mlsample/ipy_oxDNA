@@ -105,7 +105,7 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
 
     def umbrella_forces(self, com_list, ref_list, stiff, xmin, xmax, n_windows):
         """ Build Umbrella potentials"""
-        x_range = np.linspace(xmin, xmax, (n_windows + 1))[1:]
+        x_range = np.round(np.linspace(xmin, xmax, (n_windows + 1))[1:], 3)
         umbrella_forces_1 = []
         umbrella_forces_2 = []
         

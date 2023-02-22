@@ -279,7 +279,6 @@ class OxpyRun:
                 if self.error_message is not None:
                     f.write(f'Exception: {self.error_message}')
         self.sim.sim_files.parse_current_files()
-  
         
         
 class SlurmRun:
@@ -397,10 +396,10 @@ class SimulationManager:
             self.worker_process_list.append(p)
             if gpu_mem_block is True:
                 sim_mem = self.gpu_memory_queue.get()
-                if free_gpu_memory < (3.5 * sim_mem):
+                if free_gpu_memory < (3 * sim_mem):
                     wait_for_gpu_memory = True
                     while wait_for_gpu_memory == True:
-                        if free_gpu_memory < (3.5 * sim_mem):
+                        if free_gpu_memory < (3 * sim_mem):
                             free_gpu_memory, gpu_idx = self.gpu_resources()
                             sleep(5)
                         else:
@@ -419,7 +418,6 @@ class SimulationManager:
             self.gpu_memory_queue.put(sim_mem)
         
         sim.oxpy_run.run(subprocess=False)
-        
         if sim.oxpy_run.error_message is not None:
             self.terminate_queue.put(f'Simulation exception encountered in {sim.sim_dir}:\n{sim.oxpy_run.error_message}')
         self.process_queue.get()
@@ -685,7 +683,7 @@ class Analysis:
         conf_interval = float(observable['output']['print_every'])
         df = pd.read_csv(f"{self.sim.sim_dir}/{file_name}", header=None)
         if sliding_window is not False:
-            df = df.rolling(window=sliding_window).sum().dropna()
+            df = df.rolling(window=sliding_window).sum().dropna().div(sliding_window)
         df = np.concatenate(np.array(df))
         sim_conf_times = np.linspace(0, conf_interval * len(df), num=len(df))
         if fig is True:

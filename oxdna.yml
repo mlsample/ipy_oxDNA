@@ -1,43 +1,15 @@
-name: base
+name: oxdna
 channels:
   - defaults
 dependencies:
   - python=3.10
-  - conda==22.11.1
-  - setuptools
-  - pip
-  - wheel
-  - conda-content-trust
-  - mamba=1.2.0
-  - numpy
-  - scipy
-  - pandas
-  - natsort
-  - scikit-learn
-  - networkx
-  - beautifulsoup4
-  - opencv
-  - geopandas
-  - sympy
-  - mpmath
-  - matplotlib
-  - plotly
-  - bokeh
-  - seaborn
-  - ipython
-  - tqdm
-  - zstandard
-  - pyarrow
-  - feather-format
-  - pyyaml
-  - yaml
-  - openpyxl
-  - xlrd
-  - dask
-  - micromamba
-  - openssh
-  - rsync
+  - jupyterlab
   - ca-certificates
-  - certifi
   - openssl
-prefix: /packages/apps/mamba/1.2.0
+  - py
+  - certifi
+  - ipywidgets
+  - pandas
+  - nvidia-ml-py3
+  - statsmodels
+prefix: /home/mlsample/.conda/envs/oxdna

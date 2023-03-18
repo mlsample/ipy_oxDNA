@@ -1,6 +1,7 @@
 name: oxdna
 channels:
   - defaults
+  - fastai
 dependencies:
   - python=3.10
   - jupyterlab

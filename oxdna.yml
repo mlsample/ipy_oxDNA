@@ -1,4 +1,4 @@
-name: base
+name: oxdna
 channels:
   - defaults
 dependencies:

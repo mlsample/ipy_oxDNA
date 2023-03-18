@@ -28,7 +28,7 @@ oxDNA is a molecular dynamics simulation code that can be used to study the mech
 
 ## Prerequisites
 Before using this code, you will need to have the following installed:
-- conda/mamba environment with packages specified in `./ipy_oxdna.yml` (conda env create -f ipy_oxdna.yml)
+- conda/mamba environment with packages specified in `./ipy_oxdna.yml` (conda env create -f oxdna.yml)
 - oxDNA installed with python bindings (https://github.com/lorenzo-rovigatti/oxDNA)
 - Python >= 3.8
 

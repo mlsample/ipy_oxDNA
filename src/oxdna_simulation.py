@@ -15,7 +15,7 @@ from time import sleep
 import nvidia_smi
 import timeit
 import subprocess as sp
-
+import traceback
 
 class Simulation:
     """
@@ -261,14 +261,14 @@ class OxpyRun:
             try:
                 manager.run_complete()
             except Exception as e:
-                self.error_message = e
+                self.error_message = traceback.format_exc()
                 
         self.sim_output = capture.reset()
         toc = timeit.default_timer()
         if self.verbose == True:
             print(f'Run time: {toc - tic}')
             if self.error_message is not None:
-                print(f'Exception encountered in {self.sim_dir}:\n{self.error_message}')
+                print(f'Exception encountered in {self.sim_dir}:\n{type(self.error_message).__name__}: {self.error_message}')
             else:
                 print(f'Finished: {self.sim_dir.split("/")[-1]}')
         if self.log == True:

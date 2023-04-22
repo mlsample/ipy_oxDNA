@@ -1,5 +1,5 @@
 from oxdna_simulation import Simulation, Force, Observable, SimulationManager
-from wham_analysis import wham_analysis
+from wham_analysis import *
 import multiprocessing as mp
 import os
 from os.path import join, exists
@@ -36,7 +36,10 @@ class BaseUmbrellaSampling:
         self.wham.run_wham(wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot)
         self.wham.to_si(n_bins)
         self.wham.w_mean()
-        self.wham.bootstrap_w_mean_error()
+        try:
+            self.wham.bootstrap_w_mean_error()
+        except:
+            self.standard_error = 'failed'
     
     def read_progress(self):   
         if exists(join(self.system_dir, 'equlibration')):
@@ -61,7 +64,10 @@ class BaseUmbrellaSampling:
             n_bins = len(file)
             self.wham.to_si(n_bins)
             self.wham.w_mean()
-            self.wham.bootstrap_w_mean_error()
+            try:
+                self.wham.bootstrap_w_mean_error()
+            except:
+                self.standard_error = 'failed'
             
 
 class ComUmbrellaSampling(BaseUmbrellaSampling):
@@ -69,24 +75,28 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
         super().__init__(file_dir, system)
         self.observables_list = []
         
-    def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax,
-                                input_parameters,observable=False, print_every=1e4, name='com_distance.txt', continue_run=False):
+    def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
+                                observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False):
         self.windows.equlibration_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         if continue_run is False:
-            self.us_build.build(self.equlibration_sims, input_parameters, self.forces_list, self.observables_list, observable=observable)
+            self.us_build.build(self.equlibration_sims, input_parameters,
+                                self.forces_list, self.observables_list,
+                                observable=observable, sequence_dependant=sequence_dependant)
         self.queue_sims(simulation_manager, self.equlibration_sims, continue_run=continue_run)
         
         
     def build_production_runs(self, simulation_manager, n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
-                              observable=True, print_every=1e4, name='com_distance.txt', continue_run=False):
+                              observable=True, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False):
         self.windows.equlibration_windows(n_windows)
         self.windows.production_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         if continue_run is False:
-            self.us_build.build(self.production_sims, input_parameters, self.forces_list, self.observables_list, observable=observable)
+            self.us_build.build(self.production_sims, input_parameters,
+                                self.forces_list, self.observables_list,
+                                observable=observable, sequence_dependant=sequence_dependant)
         self.queue_sims(simulation_manager, self.production_sims, continue_run=continue_run)   
     
     
@@ -136,36 +146,81 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
         self.ax = self.wham.plt_fig(title='Free Energy Profile', xlabel='End-to-End Distance (nm)', ylabel='Free Energy / k$_B$T')
     
     
-    def plot_free(self):
-        self.wham.plot_free_energy()
+    def plot_free(self, ax=None, title='Free Energy Profile', c=None, label=None, fmt=None):
+        self.wham.plot_free_energy(ax=ax, title=title, c=c, label=label, fmt=fmt)
+    
+    def plot_free_mod(self, negative=False, ax=None, title='Free Energy Profile', c=None, label=None):
+        self.wham.plot_free_energy_mod(negative=negative ,ax=ax, title=title, c=c, label=label)
+
+
         
+class CustomObservableUmbrellaSampling(ComUmbrellaSampling):
+    def __init__(self, file_dir, system):
+        super().__init__(file_dir, system)
+        self.wham = CustomObsWham(self)
+    
+    def build_equlibration_runs(self, simulation_manager,  n_windows, 
+                                com_list, ref_list, stiff, xmin, xmax,
+                                input_parameters, cms_observable,
+                                observable=False, sequence_dependant=False,
+                                print_every=1e4, name='com_distance.txt', continue_run=False):
+        self.windows.equlibration_windows(n_windows)
+        self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
+        self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
+        if continue_run is False:
+            self.us_build.build(self.equlibration_sims, input_parameters,
+                                self.forces_list, self.observables_list,
+                                observable=observable, sequence_dependant=sequence_dependant,
+                                cms_observable=cms_observable)
+        self.queue_sims(simulation_manager, self.equlibration_sims, continue_run=continue_run)
+          
+    def build_production_runs(self, simulation_manager, n_windows, com_list, ref_list, stiff, xmin, xmax,
+                              input_parameters,cms_observable, observable=True,
+                              sequence_dependant=False, print_every=1e4,
+                              name='com_distance.txt', continue_run=False):
+        self.windows.equlibration_windows(n_windows)
+        self.windows.production_windows(n_windows)
+        self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
+        self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
+        if continue_run is False:
+            self.us_build.build(self.production_sims, input_parameters,
+                                self.forces_list, self.observables_list,
+                                observable=observable, sequence_dependant=sequence_dependant,
+                                cms_observable=cms_observable)
+        self.queue_sims(simulation_manager, self.production_sims, continue_run=continue_run)   
+    
+    
 
 class MeltingUmbrellaSampling(ComUmbrellaSampling):
     def __init__(self, file_dir, system):
         super().__init__(file_dir, system)
         
     def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
-                                observable=False, print_every=1e4, name='com_distance.txt', continue_run=False):
+                                observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False):
         self.windows.equlibration_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         self.hb_list_observable(print_every=print_every, only_count='true')
         if continue_run is False:
-            self.us_build.build(self.equlibration_sims, input_parameters, self.forces_list, self.observables_list, observable=observable)
+            self.us_build.build(self.equlibration_sims, input_parameters,
+                                self.forces_list, self.observables_list,
+                                observable=observable, sequence_dependant=sequence_dependant)
             for sim in self.equlibration_sims:
                 sim.build_sim.build_hb_list_file(com_list, ref_list)
         self.queue_sims(simulation_manager, self.equlibration_sims, continue_run=continue_run)
         
         
     def build_production_runs(self, simulation_manager, n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
-                              observable=True, print_every=1e4, name='com_distance.txt', continue_run=False):
+                              observable=True, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False):
         self.windows.equlibration_windows(n_windows)
         self.windows.production_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         self.hb_list_observable(print_every=print_every, only_count='true')
         if continue_run is False:
-            self.us_build.build(self.production_sims, input_parameters, self.forces_list, self.observables_list, observable=observable)
+            self.us_build.build(self.production_sims, input_parameters,
+                                self.forces_list, self.observables_list,
+                                observable=observable, sequence_dependant=sequence_dependant)
             for sim in self.production_sims:
                 sim.build_sim.build_hb_list_file(com_list, ref_list)
         self.queue_sims(simulation_manager, self.production_sims, continue_run=continue_run)   
@@ -206,6 +261,27 @@ class UmbrellaAnalysis:
         if sim_type == 'prod':
             self.base_umbrella.production_sims[idx].analysis.hist_observable(observable,
                                                                              fig=False, bins=bins)
+            
+    def hist_cms(self, sim_type, idx, xmax, print_every, bins=10, fig=True):
+        if sim_type == 'eq':
+            self.base_umbrella.equlibration_sims[idx].analysis.hist_cms_obs(xmax, print_every, bins=bins, fig=fig)
+        if sim_type == 'prod':
+            self.base_umbrella.production_sims[idx].analysis.hist_cms_obs(xmax, print_every,bins=bins, fig=fig)
+          
+    def view_cms(self, sim_type, idx, xmax, print_every, sliding_window=10, fig=True):
+        if sim_type == 'eq':
+            self.base_umbrella.equlibration_sims[idx].analysis.view_cms_obs(xmax, print_every, sliding_window=sliding_window, fig=fig)
+        if sim_type == 'prod':
+            self.base_umbrella.production_sims[idx].analysis.view_cms_obs(xmax, print_every, sliding_window=sliding_window, fig=fig)
+  
+    def combine_hist_observable(self, observable, idxes, bins=10, fig=True):
+        for sim in self.base_umbrella.production_sims[idx]:    
+            file_name = observable['output']['name']
+            conf_interval = float(observable['output']['print_every'])
+            df = pd.read_csv(f"{self.sim.sim_dir}/{file_name}", header=None)
+            df = np.concatenate(np.array(df))
+            H, bins = np.histogram(df, density=True, bins=bins)
+            H = H * (bins[1] - bins[0])
     
     def view_observables(self, sim_type, sliding_window=False, observable=None):
         if observable == None:
@@ -232,6 +308,7 @@ class UmbrellaAnalysis:
                 self.base_umbrella.production_sims[window].analysis.view_last()
             except:
                 self.base_umbrella.production_sims[window].analysis.view_init()    
+    
         
         
 class UmbrellaWindow:
@@ -271,7 +348,7 @@ class UmbrellaBuild:
     def __init__(self, base_umbrella):
         pass
     
-    def build(self, sims, input_parameters, forces_list, observables_list, observable=False):
+    def build(self, sims, input_parameters, forces_list, observables_list, observable=False, sequence_dependant=False, cms_observable=False):
         for sim, forces in zip(sims, forces_list):
             sim.build(clean_build='force')
             for force in forces:
@@ -279,7 +356,14 @@ class UmbrellaBuild:
             if observable == True:
                 for observables in observables_list:
                     sim.add_observable(observables)
+            if cms_observable is not False:
+                for cms_obs_dict in cms_observable:
+                    sim.oxpy_run.cms_obs(cms_obs_dict['idx'],
+                                         name=cms_obs_dict['name'],
+                                         print_every=cms_obs_dict['print_every'])
             sim.input_file(input_parameters)
+            if sequence_dependant is True:
+                sim.sequence_dependant()
 
 
 class WhamAnalysis:
@@ -402,7 +486,7 @@ class WhamAnalysis:
         return None
     
     
-    def plot_free_energy(self, ax=None, title='Free Energy Profile', c=None, label=None):
+    def plot_free_energy(self, ax=None, title='Free Energy Profile', c=None, label=None, fmt=None):
         if ax is None:
             ax = self.plt_fig()
         if label is None:
@@ -411,24 +495,108 @@ class WhamAnalysis:
         #     c = '#00429d'
         indicator = [self.base_umbrella.mean, self.base_umbrella.standard_error]
         df = self.base_umbrella.free
-        ax.errorbar(df.loc[:, '#Coor'], df.loc[:, 'Free'],
+        try:
+            ax.errorbar(df.loc[:, '#Coor'], df.loc[:, 'Free'],
+                     yerr=df.loc[:, '+/-'], c=c, capsize=2.5, capthick=1.2,
+                     linewidth=1.5, errorevery=15, fmt=fmt)
+            if indicator is not None:
+                self.plot_indicator(indicator, ax, c=c, label=label)
+        except:
+            ax.plot(df.loc[:, '#Coor'], df.loc[:, 'Free'], label=label)      
+            
+    def plot_free_energy_mod(self, negative=False, ax=None, title='Free Energy Profile', c=None, label=None):
+        if ax is None:
+            ax = self.plt_fig()
+        if label is None:
+            label = self.base_umbrella.system
+        # if c is None:
+        #     c = '#00429d'
+        indicator = [self.base_umbrella.mean, self.base_umbrella.standard_error]
+        df = self.base_umbrella.free
+        try:
+            if negative is False:
+                ax.errorbar((62 - df.loc[:, '#Coor']), df.loc[:, 'Free'],
                      yerr=df.loc[:, '+/-'], c=c, capsize=2.5, capthick=1.2,
                      linewidth=1.5, errorevery=15)
-        if indicator is not None:
-            self.plot_indicator(indicator, ax, c=c, label=label)
-        plt.legend()      
+            else:
+                ax.errorbar(-(62 - df.loc[:, '#Coor']), df.loc[:, 'Free'],
+                     yerr=df.loc[:, '+/-'], c=c, capsize=2.5, capthick=1.2,
+                     linewidth=1.5, errorevery=15)
+            # if indicator is not None:
+            #     self.plot_indicator(indicator, ax, c=c, label=label)
+        except:
+            ax.plot(df.loc[:, '#Coor'], df.loc[:, 'Free'], label=label)      
     
-       
-                
+             
+class CustomObsWham(WhamAnalysis):
+    def __init__(self, base_umbrella):
+        super().__init__(base_umbrella)
+        
+    def run_wham(self,opp_umbrella,wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot):
+        """
+        Run Weighted Histogram Analysis Method on production windows.
+        
+        Parameters:
+            wham_dir (str): Path to wham executable.
+            xmin (str): Minimum distance of center of mass order parameter in simulation units.
+            xmax (str): Maximum distance of center of mass order parameter in simulation units.
+            umbrella_stiff (str): The parameter used to modified the stiffness of the center of mass spring potential
+            n_bins (str): number of histogram bins to use.
+            tol (str): Convergence tolerance for the WHAM calculations.
+            n_boot (str): Number of monte carlo bootstrapping error analysis iterations to preform.
 
-            
-            
-            
-            
-            
-            
-            
-            
+        """
+        print('Running WHAM analysis...')
+        self.opp_umbrella = opp_umbrella
+        
+        self.base_umbrella.mod_com_dir = join(self.base_umbrella.production_sim_dir, 'mod_com_dir')
+        self.base_umbrella.pos_dir = join(self.base_umbrella.production_sim_dir, 'pos_dir')
+        self.base_umbrella.com_dir = join(self.base_umbrella.production_sim_dir, 'com_dir')
+        
+        copy_com_pos(self.base_umbrella.production_sim_dir, self.base_umbrella.com_dir, self.base_umbrella.pos_dir)
+                                          
+        self.opp_umbrella.mod_com_dir = join(self.opp_umbrella.production_sim_dir, 'mod_com_dir')
+        self.opp_umbrella.pos_dir = join(self.opp_umbrella.production_sim_dir, 'pos_dir')
+        self.opp_umbrella.com_dir = join(self.opp_umbrella.production_sim_dir, 'com_dir')        
+        
+        copy_com_pos(self.opp_umbrella.production_sim_dir, self.opp_umbrella.com_dir, self.opp_umbrella.pos_dir)
+             
+        value = float(get_xmax(self.base_umbrella.com_dir, self.opp_umbrella.com_dir))
+        
+        auto_1 = mod_com_info(self.base_umbrella.production_sim_dir, self.base_umbrella.com_dir, self.base_umbrella.pos_dir, self.base_umbrella.mod_com_dir, value)                                   
+        auto_2 = mod_com_info(self.opp_umbrella.production_sim_dir, self.opp_umbrella.com_dir, self.opp_umbrella.pos_dir, self.opp_umbrella.mod_com_dir, value)
+                                 
+        pre_temp = self.base_umbrella.production_sims[0].input.input['T']
+        if ('C'.upper() in pre_temp) or ('C'.lower() in pre_temp):
+            self.base_umbrella.temperature = (float(pre_temp[:-1]) + 273.15) / 3000
+        elif ('K'.upper() in pre_temp) or ('K'.lower() in pre_temp):
+             self.base_umbrella.temperature = float(pre_temp[:-1]) / 3000
+        two_sided_wham(wham_dir,
+                       auto_1,
+                       auto_2,
+                       self.base_umbrella.mod_com_dir,
+                       self.opp_umbrella.mod_com_dir,
+                       str(xmin),
+                       str(xmax),
+                       str(umbrella_stiff),
+                       str(n_bins),
+                       str(tol),
+                       str(n_boot),
+                       str(self.base_umbrella.temperature))
+                                         
+    def to_si(self, n_bins):
+        self.base_umbrella.com_dir = join(self.base_umbrella.production_sim_dir, 'mod_com_dir')
+        pre_temp = self.base_umbrella.production_sims[0].input.input['T']
+        if ('C'.upper() in pre_temp) or ('C'.lower() in pre_temp):
+            self.base_umbrella.temperature = (float(pre_temp[:-1]) + 273.15) / 3000
+        elif ('K'.upper() in pre_temp) or ('K'.lower() in pre_temp):
+             self.base_umbrella.temperature = float(pre_temp[:-1]) / 3000
+        free = pd.read_csv(f'{self.base_umbrella.system_dir}/production/mod_com_dir/freefile', sep='\t', nrows=int(n_bins))
+        free['Free'] = free['Free'].div(self.base_umbrella.temperature)
+        free['+/-'] = free['+/-'].div(self.base_umbrella.temperature)
+        free['#Coor'] *= 0.8518
+        self.base_umbrella.free = free     
+
             
             
 # class BaseUmbrellaSampling:

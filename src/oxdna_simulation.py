@@ -39,7 +39,7 @@ class Simulation:
         self.protein = Protein(self)
         self.oxpy_run = OxpyRun(self)
     
-    def build(self, clean_build=False, protein=None, force_file=None):
+    def build(self, clean_build=False):
         """
         Build dat, top, and input files in simulation directory.
         
@@ -60,17 +60,9 @@ class Simulation:
         self.build_sim.build_sim_dir()
         self.build_sim.build_dat_top()
         self.build_sim.build_input()
-        
-        if protein is not None:
-            self.build_sim.build_par()
-            self.protein.par_input()
-            
-        if force_file is not None:
-            self.build_sim.get_force_file()
-            self.build_sim.build_force_from_file(force_file)
-            self.input_file({'external_forces':'1'})
-        
+    
         self.sim_files.parse_current_files()
+      
     
     def input_file(self, parameters):
         """
@@ -80,6 +72,21 @@ class Simulation:
             parameters (dict): dictonary of oxDNA input file parameters
         """
         self.input.modify_input(parameters)
+    
+    def add_protein_par(self):
+        """
+        Add a parfile from file_dir to sim_dir
+        """
+        self.build_sim.build_par()
+        self.protein.par_input()
+    
+    def add_force_file(self):
+        """
+        Add a external force file from file_dir to sim_dir
+        """
+        self.build_sim.get_force_file()
+        self.build_sim.build_force_from_file()
+        self.input_file({'external_forces':'1'})
     
     def add_force(self, force_js):
         """
@@ -177,8 +184,9 @@ class BuildSimulation:
         force_file = [file for file in files if (file.endswith(('.txt')))][0]
         self.force_file = os.path.join(self.file_dir, force_file)
         
-    def build_force_from_file(self, force_file):
+    def build_force_from_file(self):
         forces = []
+        shutil.copy(self.force_file, self.sim.sim_dir)
         with open(self.force_file, 'r') as f:
             lines = f.readlines()
         
@@ -571,7 +579,7 @@ class Input:
             "edge_n_forces": "1",
             "CUDA_list": "verlet",
             "CUDA_sort_every": "0",
-            "max_density_multiplier": "2",
+            "max_density_multiplier": "3",
             "steps": "1e9",
             "ensemble": "nvt",
             "thermostat": "john",

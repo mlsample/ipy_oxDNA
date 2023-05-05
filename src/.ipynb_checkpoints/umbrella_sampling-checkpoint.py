@@ -76,19 +76,21 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
         self.observables_list = []
         
     def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
-                                observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False):
+                                observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
+                                protein=None, force_file=None):
         self.windows.equlibration_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         if continue_run is False:
             self.us_build.build(self.equlibration_sims, input_parameters,
                                 self.forces_list, self.observables_list,
-                                observable=observable, sequence_dependant=sequence_dependant)
+                                observable=observable, sequence_dependant=sequence_dependant, protein=protein, force_file=force_file)
         self.queue_sims(simulation_manager, self.equlibration_sims, continue_run=continue_run)
         
         
     def build_production_runs(self, simulation_manager, n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
-                              observable=True, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False):
+                              observable=True, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
+                              protein=None, force_file=None):
         self.windows.equlibration_windows(n_windows)
         self.windows.production_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
@@ -96,7 +98,7 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
         if continue_run is False:
             self.us_build.build(self.production_sims, input_parameters,
                                 self.forces_list, self.observables_list,
-                                observable=observable, sequence_dependant=sequence_dependant)
+                                observable=observable, sequence_dependant=sequence_dependant, protein=protein, force_file=force_file)
         self.queue_sims(simulation_manager, self.production_sims, continue_run=continue_run)   
     
     
@@ -163,7 +165,8 @@ class CustomObservableUmbrellaSampling(ComUmbrellaSampling):
                                 com_list, ref_list, stiff, xmin, xmax,
                                 input_parameters, cms_observable,
                                 observable=False, sequence_dependant=False,
-                                print_every=1e4, name='com_distance.txt', continue_run=False):
+                                print_every=1e4, name='com_distance.txt', continue_run=False,
+                                protein=None, force_file=None):
         self.windows.equlibration_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
@@ -171,13 +174,14 @@ class CustomObservableUmbrellaSampling(ComUmbrellaSampling):
             self.us_build.build(self.equlibration_sims, input_parameters,
                                 self.forces_list, self.observables_list,
                                 observable=observable, sequence_dependant=sequence_dependant,
-                                cms_observable=cms_observable)
+                                cms_observable=cms_observable, protein=protein, force_file=force_file)
         self.queue_sims(simulation_manager, self.equlibration_sims, continue_run=continue_run)
           
     def build_production_runs(self, simulation_manager, n_windows, com_list, ref_list, stiff, xmin, xmax,
                               input_parameters,cms_observable, observable=True,
                               sequence_dependant=False, print_every=1e4,
-                              name='com_distance.txt', continue_run=False):
+                              name='com_distance.txt', continue_run=False,
+                              protein=None, force_file=None):
         self.windows.equlibration_windows(n_windows)
         self.windows.production_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
@@ -186,7 +190,7 @@ class CustomObservableUmbrellaSampling(ComUmbrellaSampling):
             self.us_build.build(self.production_sims, input_parameters,
                                 self.forces_list, self.observables_list,
                                 observable=observable, sequence_dependant=sequence_dependant,
-                                cms_observable=cms_observable)
+                                cms_observable=cms_observable, protein=protein, force_file=force_file)
         self.queue_sims(simulation_manager, self.production_sims, continue_run=continue_run)   
     
     
@@ -196,7 +200,8 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         super().__init__(file_dir, system)
         
     def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
-                                observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False):
+                                observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
+                                protein=None, force_file=None):
         self.windows.equlibration_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
@@ -204,14 +209,15 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         if continue_run is False:
             self.us_build.build(self.equlibration_sims, input_parameters,
                                 self.forces_list, self.observables_list,
-                                observable=observable, sequence_dependant=sequence_dependant)
+                                observable=observable, sequence_dependant=sequence_dependant, protein=protein, force_file=force_file)
             for sim in self.equlibration_sims:
                 sim.build_sim.build_hb_list_file(com_list, ref_list)
         self.queue_sims(simulation_manager, self.equlibration_sims, continue_run=continue_run)
         
         
     def build_production_runs(self, simulation_manager, n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
-                              observable=True, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False):
+                              observable=True, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
+                              protein=None, force_file=None):
         self.windows.equlibration_windows(n_windows)
         self.windows.production_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
@@ -220,7 +226,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         if continue_run is False:
             self.us_build.build(self.production_sims, input_parameters,
                                 self.forces_list, self.observables_list,
-                                observable=observable, sequence_dependant=sequence_dependant)
+                                observable=observable, sequence_dependant=sequence_dependant, protein=protein, force_file=force_file)
             for sim in self.production_sims:
                 sim.build_sim.build_hb_list_file(com_list, ref_list)
         self.queue_sims(simulation_manager, self.production_sims, continue_run=continue_run)   
@@ -348,9 +354,15 @@ class UmbrellaBuild:
     def __init__(self, base_umbrella):
         pass
     
-    def build(self, sims, input_parameters, forces_list, observables_list, observable=False, sequence_dependant=False, cms_observable=False):
+    def build(self, sims, input_parameters, forces_list, observables_list,
+              observable=False, sequence_dependant=False, cms_observable=False, protein=None, force_file=None):
         for sim, forces in zip(sims, forces_list):
             sim.build(clean_build='force')
+            
+            if protein is not None:
+                sim.add_protein_par()
+            if force_file is not None:
+                sim.add_force_file()
             for force in forces:
                 sim.add_force(force)
             if observable == True:

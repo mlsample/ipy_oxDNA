@@ -38,6 +38,7 @@ class Simulation:
         self.analysis = Analysis(self)
         self.protein = Protein(self)
         self.oxpy_run = OxpyRun(self)
+        self.oat = OxdnaAnalysisTools(self)
     
     def build(self, clean_build=False):
         """
@@ -125,8 +126,10 @@ class Simulation:
         """ Add a sequence dependant file to simulation directory and modify input file to use it."""
         self.input_file({'use_average_seq': 'no', 'seq_dep_file':'oxDNA2_sequence_dependent_parameters.txt'})
         SequenceDependant(self.sim_dir)
-          
-
+            
+        
+            
+            
 class Protein:
     "Methods used to enable anm simulations with proteins"
     def __init__(self, sim):
@@ -542,17 +545,77 @@ class SimulationManager:
         Parameters:
             pipe (str): of of directory to pipe control server information to. Defaults to PID of a slurm allocation
         """
-        os.system(f"""export CUDA_MPS_PIPE_DIRECTORY=/tmp/mps-pipe_{pipe};
+        with open('launch_mps.tmp', 'w') as f:
+            f.write(f"""#!/bin/bash
+export CUDA_MPS_PIPE_DIRECTORY=/tmp/mps-pipe_{pipe};
 export CUDA_MPS_LOG_DIRECTORY=/tmp/mps-log_{pipe};
 mkdir -p $CUDA_MPS_PIPE_DIRECTORY;
 mkdir -p $CUDA_MPS_LOG_DIRECTORY;
-nvidia-cuda-mps-control -d;""")
+nvidia-cuda-mps-control -d"""
+                   )
+        os.system('chmod u+rx launch_mps.tmp')
+        sp.call('./launch_mps.tmp')
+        self.test_cuda_script()
+        os.system('./test_script')
+        os.system('echo $CUDA_MPS_PIPE_DIRECTORY')
+#         os.system(f"""export CUDA_MPS_PIPE_DIRECTORY=/tmp/mps-pipe_{pipe};
+# export CUDA_MPS_LOG_DIRECTORY=/tmp/mps-log_{pipe};
+# mkdir -p $CUDA_MPS_PIPE_DIRECTORY;
+# mkdir -p $CUDA_MPS_LOG_DIRECTORY;
+# nvidia-cuda-mps-control -d;""")
      
     def restart_nvidia_cuda_mps_control(self):
         os.system("""echo quit | nvidia-cuda-mps-control""")
         sleep(0.5)
         self.start_nvidia_cuda_mps_control()
 
+    def test_cuda_script(self):
+        script = """#include <stdio.h>
+
+#define N 2
+
+__global__
+void add(int *a, int *b) {
+    int i = blockIdx.x;
+    if (i<N) {
+        b[i] = 2*a[i];
+    }
+}
+
+int main() {
+
+    int ha[N], hb[N];
+
+    int *da, *db;
+    cudaMalloc((void **)&da, N*sizeof(int));
+    cudaMalloc((void **)&db, N*sizeof(int));
+
+    for (int i = 0; i<N; ++i) {
+        ha[i] = i;
+    }
+
+
+    cudaMemcpy(da, ha, N*sizeof(int), cudaMemcpyHostToDevice);
+
+    add<<<N, 1>>>(da, db);
+
+    cudaMemcpy(hb, db, N*sizeof(int), cudaMemcpyDeviceToHost);
+    
+        for (int i = 0; i<N; ++i) {
+        printf("%d", hb[i]);
+    }
+
+    cudaFree(da);
+    cudaFree(db);
+
+    return 0;
+}
+"""
+        with open('test_script.cu', 'w') as f:
+            f.write(script)
+           
+        os.system('nvcc -o test_script test_script.cu')
+        os.system('./test_script')
         
                     
 class Input:
@@ -686,7 +749,391 @@ HYDR_G_C = 1.23238"""
     def write_sequence_dependant_file(self):
         with open(os.path.join(self.sim_dir,'oxDNA2_sequence_dependent_parameters.txt'), 'w') as f:
             f.write(self.parameters)
-        
+
+
+class OxdnaAnalysisTools:
+    """Interface to OAT"""
+    def __init__(self, sim):
+        self.sim = sim            
+    
+    def align(self, outfile='aligned.dat', args='', join=False):
+        if args == '-h':
+            os.system('oat align -h')
+            return None
+        def run_align(self, outfile, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat align {self.sim.sim_files.traj} {outfile} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_align, args=(self, outfile,), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
+            
+    # def anm_parameterize(self, args='', join=False):
+    #     if args == '-h':
+    #         os.system('oat anm_parameterize -h')
+    #         return None
+    #     def run_anm_parameterize(self, args=''):
+    #         start_dir = os.getcwd()
+    #         os.chdir(self.sim.sim_dir)
+    #         os.system(f'oat anm_parameterize {self.sim.sim_files.traj} {args}')
+    #         os.chdir(start_dir)
+    #     p = mp.Process(target=run_anm_parameterize, args=(self,), kwargs={'args':args})
+    #     p.start()
+    #     if join == True:
+    #         p.join()
+            
+    # def backbone_flexibility(self, args='', join=False):
+    #     if args == '-h':
+    #         os.system('oat backbone_flexibility -h')
+    #         return None
+    #     def run_backbone_flexibility(self, args=''):
+    #         start_dir = os.getcwd()
+    #         os.chdir(self.sim.sim_dir)
+    #         os.system(f'oat backbone_flexibility {self.sim.sim_files.traj} {args}')
+    #         os.chdir(start_dir)
+    #     p = mp.Process(target=run_backbone_flexibility, args=(self,), kwargs={'args':args})
+    #     p.start()
+    #     if join == True:
+    #         p.join()
+            
+    # def bond_analysis(self, args='', join=False):
+    #     if args == '-h':
+    #         os.system('oat bond_analysis -h')
+    #         return None
+    #     def run_bond_analysis(self, args=''):
+    #         start_dir = os.getcwd()
+    #         os.chdir(self.sim.sim_dir)
+    #         os.system(f'oat bond_analysis {self.sim.sim_files.traj} {args}')
+    #         os.chdir(start_dir)
+    #     p = mp.Process(target=run_bond_analysis, args=(self,), kwargs={'args':args})
+    #     p.start()
+    #     if join == True:
+    #         p.join()
+            
+    def centroid(self, reference_structure='mean.dat', args='', join=False):
+        if args == '-h':
+            os.system('oat centroid -h')
+            return None
+        def run_centroid(self, reference_structure, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat centroid {reference_structure} {self.sim.sim_files.traj} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_centroid, args=(self, reference_structure,), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
+            
+#     def clustering(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat clustering -h')
+#             return None
+#         def run_clustering(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat clustering {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_clustering, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+#     def config(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat config -h')
+#             return None
+#         def run_config(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat config {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_config, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+#     def contact_map(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat contact_map -h')
+#             return None
+#         def run_contact_map(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat contact_map {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_contact_map, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+#     def db_to_force(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat db_to_force -h')
+#             return None
+#         def run_db_to_force(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat db_to_force {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_db_to_force, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+    def decimate(self, outfile='strided_trajectory.dat', args='', join=False):
+        if args == '-h':
+            os.system('oat decimate -h')
+            return None
+        def run_decimate(self, outfile, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat decimate {self.sim.sim_files.traj} {outfile} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_decimate, args=(self, outfile,), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
+            
+    def deviations(self, mean_structure='mean.dat', args='', join=False):
+        if args == '-h':
+            os.system('oat deviations -h')
+            return None
+        def run_deviations(self, mean_structure, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat deviations {mean_structure} {self.sim.sim_files.traj} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_deviations, args=(self, mean_structure), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
+            
+#     def distance(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat distance -h')
+#             return None
+#         def run_distance(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat distance {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_distance, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+#     def duplex_angle_plotter(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat duplex_angle_plotter -h')
+#             return None
+#         def run_duplex_angle_plotter(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat duplex_angle_plotter {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_duplex_angle_plotter, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+#     def duplex_finder(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat duplex_finder -h')
+#             return None
+#         def run_duplex_finder(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat duplex_finder {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_duplex_finder, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+#     def file_info(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat file_info -h')
+#             return None
+#         def run_file_info(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat file_info {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_file_info, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+#     def forces2pairs(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat forces2pairs -h')
+#             return None
+#         def run_forces2pairs(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat forces2pairs {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_forces2pairs, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+#     def generate_force(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat generate_force -h')
+#             return None
+#         def run_generate_force(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat generate_force {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_generate_force, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+    def mean(self, args='', join=False):
+        if args == '-h':
+            os.system('oat mean -h')
+            return None
+        def run_mean(self, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat mean {self.sim.sim_files.traj} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_mean, args=(self,), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
+            
+    def minify(self, outfile='mini_trajectory.dat', args='', join=False):
+        if args == '-h':
+            os.system('oat minify -h')
+            return None
+        def run_minify(self, outfile, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat minify {self.sim.sim_files.traj} {outfile} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_minify, args=(self, outfile,), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
+            
+#     def multidimensional_scaling_mean(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat multidimensional_scaling_mean -h')
+#             return None
+#         def run_multidimensional_scaling_mean(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat multidimensional_scaling_mean {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_multidimensional_scaling_mean, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+#     def output_bonds(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat output_bonds -h')
+#             return None
+#         def run_output_bonds(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat output_bonds {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_output_bonds, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+    def oxDNA_PDB(self, configuration='mean.dat', direction='35', pdbfiles='', args='', join=False):
+        if args == '-h':
+            os.system('oat oxDNA_PDB -h')
+            return None
+        def run_oxDNA_PDB(self, topology, configuration, direction, pdbfiles, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat oxDNA_PDB {topology} {configuration} {direction} {pdbfiles} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_oxDNA_PDB, args=(self, self.sim.sim_files.top, configuration, direction, pdbfiles), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
+            
+    def pca(self, meanfile='mean.dat', outfile='pca.json', args='', join=False):
+        if args == '-h':
+            os.system('oat pca -h')
+            return None
+        def run_pca(self, meanfile, outfile, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat pca {self.sim.sim_files.traj} {meanfile} {outfile} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_pca, args=(self, meanfile, outfile,), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
+            
+#     def persistence_length(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat persistence_length -h')
+#             return None
+#         def run_persistence_length(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat persistence_length {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_persistence_length, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+#     def plot_energy(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat plot_energy -h')
+#             return None
+#         def run_plot_energy(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat plot_energy {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_plot_energy, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+#     def subset_trajectory(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat subset_trajectory -h')
+#             return None
+#         def run_subset_trajectory(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat subset_trajectory {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_subset_trajectory, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()
+            
+#     def superimpose(self, args='', join=False):
+#         if args == '-h':
+#             os.system('oat superimpose -h')
+#             return None
+#         def run_superimpose(self, args=''):
+#             start_dir = os.getcwd()
+#             os.chdir(self.sim.sim_dir)
+#             os.system(f'oat superimpose {self.sim.sim_files.traj} {args}')
+#             os.chdir(start_dir)
+#         p = mp.Process(target=run_superimpose, args=(self,), kwargs={'args':args})
+#         p.start()
+#         if join == True:
+#             p.join()  
+
         
 class Analysis:
     """ Methods used to interface with oxDNA simulation in jupyter notebook (currently in work)"""
@@ -713,6 +1160,7 @@ class Analysis:
         """ Interactivly view inital oxDNA conf in jupyter notebook."""
         (ti,di), conf = self.get_init_conf()        
         oxdna_conf(ti, conf)
+        sleep(2.5)
                           
     def view_last(self):
         """ Interactivly view last oxDNA conf in jupyter notebook."""
@@ -722,6 +1170,7 @@ class Analysis:
             oxdna_conf(ti, conf)
         except:
             raise Exception('No last conf file avalible')
+        sleep(2.5)
     
     def get_conf_count(self):
         """ Returns the number of confs in trajectory file."""
@@ -751,6 +1200,7 @@ class Analysis:
         """ Interactivly view oxDNA conf in jupyter notebook."""
         (ti,di), conf = self.get_conf(id)
         oxdna_conf(ti, conf)
+        sleep(2.5)
 
     def plot_energy(self, fig=None):
         """ Plot energy of oxDNA simulation."""

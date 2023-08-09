@@ -17,6 +17,8 @@ import timeit
 import subprocess as sp
 import traceback
 import re
+import time
+import queue
 
 # import cupy
 
@@ -126,9 +128,90 @@ class Simulation:
         """ Add a sequence dependant file to simulation directory and modify input file to use it."""
         self.input_file({'use_average_seq': 'no', 'seq_dep_file':'oxDNA2_sequence_dependent_parameters.txt'})
         SequenceDependant(self.sim_dir)
-            
+
         
+class GenerateReplicas:
+    "Methods to generate multisystem replicas"
+    
+    def __init__(self):
+        pass
+    
+    def multisystem_replica(self, systems, n_replicas_per_system, file_dir_list, sim_dir_list):
+        self.systems = systems
+        self.n_replicas_per_system = n_replicas_per_system
+        self.file_dir_list = file_dir_list
+        self.sim_dir_list = sim_dir_list
+        
+        replicas = range(n_replicas_per_system)
+        sim_rep_list = []
+        for sys in sim_dir_list:
+            for rep in replicas:
+                sim_rep_list.append(f'{sys}_{rep}')
+        q1 = queue.Queue()
+        for sys in sim_rep_list:
+            q1.put(sys)
+        sim_list = []
+        
+        for file_dir in file_dir_list:
+            for _ in range(len(replicas)):
+                sim_dir = q1.get()
+                sim_list.append(Simulation(file_dir, sim_dir))
+        q2 = queue.Queue()
+        for sim in sim_list:
+            q2.put(sim)
+        
+        self.sim_list = sim_list
+        self.queue_of_sims = q2
+
+    def concat_single_system_traj(self, system, concat_dir='concat_dir'):
+        "Concatenate the trajectory of multiple replicas"
+        system_index = self.systems.index(system)
+        
+        start_index = self.n_replicas_per_system * system_index
+        end_index = start_index + self.n_replicas_per_system
+        
+        system_specific_sim_list = self.sim_list[start_index:end_index]
+        sim_list_file_dir = [sim.file_dir for sim in system_specific_sim_list]
+        sim_list_sim_dir = [sim.sim_dir for sim in system_specific_sim_list]
+        concat_dir = os.path.abspath(os.path.join(sim_list_file_dir[0], concat_dir))
+        if not os.path.exists(concat_dir):
+            os.mkdir(concat_dir)
             
+        with open(f'{concat_dir}/trajectory.dat', 'wb') as outfile:
+            for f in sim_list_sim_dir:
+                with open(f'{f}/trajectory.dat', 'rb') as infile:
+                    outfile.write(infile.read())
+        shutil.copyfile(system_specific_sim_list[0].sim_files.top, concat_dir+'/concat.top')
+        return sim_list_file_dir, concat_dir
+        
+    def concat_all_system_traj(self):
+        self.concat_sim_dirs = []
+        self.concat_file_dirs = []
+        for system in self.systems:
+            file_dir, concat_dir = self.concat_single_system_traj(system)
+            self.concat_sim_dirs.append(concat_dir)
+            self.concat_file_dirs.append(file_dir)
+class Replica:
+    "Methods used to preform analysis of multiple simulation replicas pertaining to a single system"
+    def __init__(self, sim_list):
+        self.sim_list = sim_list
+        self.n_sims = len(sim_list)
+        self.sim_list_file_dir = sim_list[0].file_dir
+        self.sim_paths = [sim.sim_dir for sim in sim_list]
+    
+        
+    def concat_trajectory(self,concat_dir='concat_dir'):
+        "Concatenate the trajectory of multiple replicas"
+        self.concat_dir = os.path.abspath(os.path.join(self.sim_list_file_dir, concat_dir))
+        if not os.path.exists(self.concat_dir):
+            os.mkdir(self.concat_dir)
+            
+        with open(f'{self.concat_dir}/trajectory.dat', 'wb') as outfile:
+            for f in self.sim_paths:
+                with open(f'{f}/trajectory.dat', 'rb') as infile:
+                    outfile.write(infile.read())
+        shutil.copyfile(self.sim_list[0].sim_files.top, self.concat_dir+'/concat.top')
+                  
             
 class Protein:
     "Methods used to enable anm simulations with proteins"
@@ -185,6 +268,8 @@ class BuildSimulation:
     def get_force_file(self):
         files = os.listdir(self.file_dir)
         force_file = [file for file in files if (file.endswith(('.txt')))][0]
+        if len(force_file) > 1:
+            force_file = [file for file in files if (file.endswith(('force.txt')))][0]
         self.force_file = os.path.join(self.file_dir, force_file)
         
     def build_force_from_file(self):
@@ -468,7 +553,7 @@ class SimulationManager:
         self.sim_queue.put(sim) 
         
                     
-    def worker_manager(self, gpu_mem_block=True, custom_observables=None):
+    def worker_manager(self, gpu_mem_block=True, custom_observables=None, run_when_failed=False):
         """ Head process in charge of allocating queued simulations to processes and gpu memory."""
         tic = timeit.default_timer()
         self.custom_observables = custom_observables
@@ -477,9 +562,12 @@ class SimulationManager:
             if self.terminate_queue.empty():
                 pass
             else:
-                for worker_process in self.worker_process_list:
-                    worker_process.terminate()
-                return print(self.terminate_queue.get())
+                if run_when_failed is False:
+                    for worker_process in self.worker_process_list:
+                        worker_process.terminate()
+                    return print(self.terminate_queue.get())
+                else:
+                    print(self.terminate_queue.get())
             self.process_queue.put('Simulation worker finished')
             sim = self.sim_queue.get()
             free_gpu_memory, gpu_idx = self.gpu_resources()
@@ -517,10 +605,10 @@ class SimulationManager:
             self.terminate_queue.put(f'Simulation exception encountered in {sim.sim_dir}:\n{sim.oxpy_run.error_message}')
         self.process_queue.get()
     
-    def run(self, log=None, join=False, gpu_mem_block=True, custom_observables=None):
+    def run(self, log=None, join=False, gpu_mem_block=True, custom_observables=None, run_when_failed=False):
         """ Run the worker manager in a subprocess"""
         print('spawning')
-        p = mp.Process(target=self.worker_manager, args=(), kwargs={'gpu_mem_block':gpu_mem_block, 'custom_observables':custom_observables}) 
+        p = mp.Process(target=self.worker_manager, args=(), kwargs={'gpu_mem_block':gpu_mem_block, 'custom_observables':custom_observables, 'run_when_failed':run_when_failed}) 
         self.manager_process = p
         p.start()
         if join == True:
@@ -994,30 +1082,30 @@ class OxdnaAnalysisTools:
 #         if join == True:
 #             p.join()
             
-    def mean(self, args='', join=False):
+    def mean(self, traj='trajectory.dat', args='', join=False):
         if args == '-h':
             os.system('oat mean -h')
             return None
-        def run_mean(self, args=''):
+        def run_mean(self, traj, args=''):
             start_dir = os.getcwd()
             os.chdir(self.sim.sim_dir)
-            os.system(f'oat mean {self.sim.sim_files.traj} {args}')
+            os.system(f'oat mean {traj} {args}')
             os.chdir(start_dir)
-        p = mp.Process(target=run_mean, args=(self,), kwargs={'args':args})
+        p = mp.Process(target=run_mean, args=(self, traj,), kwargs={'args':args})
         p.start()
         if join == True:
             p.join()
             
-    def minify(self, outfile='mini_trajectory.dat', args='', join=False):
+    def minify(self, traj='trajectory.dat', outfile='mini_trajectory.dat', args='', join=False):
         if args == '-h':
             os.system('oat minify -h')
             return None
-        def run_minify(self, outfile, args=''):
+        def run_minify(self, traj, outfile, args=''):
             start_dir = os.getcwd()
             os.chdir(self.sim.sim_dir)
-            os.system(f'oat minify {self.sim.sim_files.traj} {outfile} {args}')
+            os.system(f'oat minify {traj} {outfile} {args}')
             os.chdir(start_dir)
-        p = mp.Process(target=run_minify, args=(self, outfile,), kwargs={'args':args})
+        p = mp.Process(target=run_minify, args=(self, traj, outfile,), kwargs={'args':args})
         p.start()
         if join == True:
             p.join()
@@ -1077,6 +1165,20 @@ class OxdnaAnalysisTools:
         p.start()
         if join == True:
             p.join()
+
+    def conformational_entropy(self, traj='trajectory.dat', meanfile='mean.dat', outfile='conformational_entropy.json', args='', join=False):
+        if args == '-h':
+            os.system('oat pca -h')
+            return None
+        def run_conformational_entropy(self,traj, meanfile, outfile, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat conformational_entropy {traj} {meanfile} {outfile} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_conformational_entropy, args=(self,traj, meanfile, outfile,), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
             
 #     def persistence_length(self, args='', join=False):
 #         if args == '-h':
@@ -1106,19 +1208,19 @@ class OxdnaAnalysisTools:
 #         if join == True:
 #             p.join()
             
-#     def subset_trajectory(self, args='', join=False):
-#         if args == '-h':
-#             os.system('oat subset_trajectory -h')
-#             return None
-#         def run_subset_trajectory(self, args=''):
-#             start_dir = os.getcwd()
-#             os.chdir(self.sim.sim_dir)
-#             os.system(f'oat subset_trajectory {self.sim.sim_files.traj} {args}')
-#             os.chdir(start_dir)
-#         p = mp.Process(target=run_subset_trajectory, args=(self,), kwargs={'args':args})
-#         p.start()
-#         if join == True:
-#             p.join()
+    def subset_trajectory(self, args='', join=False):
+        if args == '-h':
+            os.system('oat subset_trajectory -h')
+            return None
+        def run_subset_trajectory(self, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat subset_trajectory {self.sim.sim_files.traj} {self.sim.sim_files.top} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_subset_trajectory, args=(self,), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
             
 #     def superimpose(self, args='', join=False):
 #         if args == '-h':
@@ -1133,6 +1235,39 @@ class OxdnaAnalysisTools:
 #         p.start()
 #         if join == True:
 #             p.join()  
+    def com_distance(self, base_list_file_1=None, base_list_file_2=None, base_list_1=None, base_list_2=None, args='', join=False):
+        if args == '-h':
+            os.system('oat com_distance -h')
+            return None
+        
+        def build_space_sep_base_list(comma_sep_indexes, filename=None):
+            space_seperated = comma_sep_indexes.replace(',', ' ')
+            
+            base_filename = 'base_list_'
+            counter = 0
+            while os.path.exists(os.path.join(self.sim.sim_dir, f"{base_filename}{counter}.txt")):
+                counter += 1
+            print(f"{base_filename}{counter}.txt")
+            filename = os.path.join(self.sim.sim_dir, f"{base_filename}{counter}.txt")
+            with open(filename, 'w') as f:
+                f.write(space_seperated)
+            # print(filename)
+            return filename
+        
+        def run_com_distance(self, base_list_file_1, base_list_file_2, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat com_distance -i {self.sim.sim_files.traj} {base_list_file_1} {base_list_file_2} {args}')
+            os.chdir(start_dir)
+        
+        if (base_list_file_1 is None) and (base_list_file_2 is None):
+            base_list_file_1 = build_space_sep_base_list(base_list_1)
+            base_list_file_2 = build_space_sep_base_list(base_list_2)    
+            
+        p = mp.Process(target=run_com_distance, args=(self, base_list_file_1, base_list_file_2), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
 
         
 class Analysis:
@@ -1627,7 +1762,8 @@ class Force:
             "r0" : r0,
             "rate" : rate
         })
-       
+
+
               
 class SimFiles:
     """ Parse the current files present in simulation directory"""
@@ -1636,7 +1772,17 @@ class SimFiles:
         if os.path.exists(self.sim_dir):
             self.file_list = os.listdir(self.sim_dir)
             self.parse_current_files()
-    
+
+    # def __getattr__(self, name):
+    #     # Parse the files every time an attribute is accessed
+    #     self.parse_current_files()
+    #     # Now try getting the attribute again
+    #     try:
+    #         return super().__getattribute__(name)
+    #     except AttributeError:
+    #         raise AttributeError(f"'SimFiles' object has no attribute '{name}'")
+
+            
     def parse_current_files(self):
         if os.path.exists(self.sim_dir):
             self.file_list = os.listdir(self.sim_dir)

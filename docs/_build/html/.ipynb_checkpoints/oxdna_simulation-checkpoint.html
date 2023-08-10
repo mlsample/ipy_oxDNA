@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>oxdna_simulation module &#8212; ipy_oxdna 0.2 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=4f649999" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=039e1c02" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=d7c963c3"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="umbrella_sampling module" href="umbrella_sampling.html" />
+    <link rel="prev" title="src" href="modules.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-oxdna_simulation">
+<span id="oxdna-simulation-module"></span><h1>oxdna_simulation module<a class="headerlink" href="#module-oxdna_simulation" title="Permalink to this heading">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">Analysis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simulation</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Methods used to interface with oxDNA simulation in jupyter notebook (currently in work)</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.current_step">
+<span class="sig-name descname"><span class="pre">current_step</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.current_step" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the time-step of the most recently save oxDNA conf.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.get_conf">
+<span class="sig-name descname"><span class="pre">get_conf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.get_conf" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns x,y,z (and other) info of specified conf.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.get_conf_count">
+<span class="sig-name descname"><span class="pre">get_conf_count</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.get_conf_count" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the number of confs in trajectory file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.get_init_conf">
+<span class="sig-name descname"><span class="pre">get_init_conf</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.get_init_conf" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns inital topology and dat file paths, as well as x,y,z info of the conf.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.get_last_conf">
+<span class="sig-name descname"><span class="pre">get_last_conf</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.get_last_conf" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns last topology and dat file paths, as well as x,y,z info of the conf.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.get_up_down">
+<span class="sig-name descname"><span class="pre">get_up_down</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">com_dist_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.get_up_down" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.hist_cms_obs">
+<span class="sig-name descname"><span class="pre">hist_cms_obs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fig</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.hist_cms_obs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.hist_observable">
+<span class="sig-name descname"><span class="pre">hist_observable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">observable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fig</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.hist_observable" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.plot_energy">
+<span class="sig-name descname"><span class="pre">plot_energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fig</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.plot_energy" title="Permalink to this definition">¶</a></dt>
+<dd><p>Plot energy of oxDNA simulation.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.plot_observable">
+<span class="sig-name descname"><span class="pre">plot_observable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">observable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sliding_window</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fig</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.plot_observable" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.view_cms_obs">
+<span class="sig-name descname"><span class="pre">view_cms_obs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sliding_window</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fig</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.view_cms_obs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.view_conf">
+<span class="sig-name descname"><span class="pre">view_conf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.view_conf" title="Permalink to this definition">¶</a></dt>
+<dd><p>Interactivly view oxDNA conf in jupyter notebook.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.view_init">
+<span class="sig-name descname"><span class="pre">view_init</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.view_init" title="Permalink to this definition">¶</a></dt>
+<dd><p>Interactivly view inital oxDNA conf in jupyter notebook.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.view_last">
+<span class="sig-name descname"><span class="pre">view_last</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.view_last" title="Permalink to this definition">¶</a></dt>
+<dd><p>Interactivly view last oxDNA conf in jupyter notebook.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Analysis.view_traj">
+<span class="sig-name descname"><span class="pre">view_traj</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">init</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">op</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Analysis.view_traj" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.BuildSimulation">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">BuildSimulation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.BuildSimulation" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Methods used to create/build oxDNA simulations.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.BuildSimulation.build_dat_top">
+<span class="sig-name descname"><span class="pre">build_dat_top</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.BuildSimulation.build_dat_top" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write intial conf and toplogy to simulation directory</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.BuildSimulation.build_force">
+<span class="sig-name descname"><span class="pre">build_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">force_js</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.BuildSimulation.build_force" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write force file is one does not exist. If a force file exists add additional forces to the file.</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>force_js (dict): force dictornary obtained from the Force class methods</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.BuildSimulation.build_force_from_file">
+<span class="sig-name descname"><span class="pre">build_force_from_file</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.BuildSimulation.build_force_from_file" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.BuildSimulation.build_hb_list_file">
+<span class="sig-name descname"><span class="pre">build_hb_list_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">p1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.BuildSimulation.build_hb_list_file" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.BuildSimulation.build_input">
+<span class="sig-name descname"><span class="pre">build_input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">production</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.BuildSimulation.build_input" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calls a methods from the Input class which writes a oxDNA input file in plain text and json</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.BuildSimulation.build_observable">
+<span class="sig-name descname"><span class="pre">build_observable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">observable_js</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.BuildSimulation.build_observable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write observable file is one does not exist. If a observable file exists add additional observables to the file.</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>observable_js (dict): observable dictornary obtained from the Observable class methods</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.BuildSimulation.build_par">
+<span class="sig-name descname"><span class="pre">build_par</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.BuildSimulation.build_par" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.BuildSimulation.build_sim_dir">
+<span class="sig-name descname"><span class="pre">build_sim_dir</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.BuildSimulation.build_sim_dir" title="Permalink to this definition">¶</a></dt>
+<dd><p>Make the simulation directory</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.BuildSimulation.get_force_file">
+<span class="sig-name descname"><span class="pre">get_force_file</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.BuildSimulation.get_force_file" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.BuildSimulation.get_last_conf_top">
+<span class="sig-name descname"><span class="pre">get_last_conf_top</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.BuildSimulation.get_last_conf_top" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set attributes containing the name of the inital conf (dat file) and topology</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.BuildSimulation.get_par">
+<span class="sig-name descname"><span class="pre">get_par</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.BuildSimulation.get_par" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.Force">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">Force</span></span><a class="headerlink" href="#oxdna_simulation.Force" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Currently implemented external forces for this oxDNA wrapper.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Force.com_force">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">com_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">com_list</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_list</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">PBC</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Force.com_force" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Force.harmonic_trap">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">harmonic_trap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">particle</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rate</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">direction</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Force.harmonic_trap" title="Permalink to this definition">¶</a></dt>
+<dd><p>A linear potential well that traps a particle</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>particle (int): the particle that the force acts upon
+pos0 ([float, float, float]): the position of the trap at t=0
+stiff (float): the stiffness of the trap (force = stiff * dx)
+rate (float): the velocity of the trap (simulation units/time step)
+direction ([float, float, float]): the direction of movement of the trap</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Force.morse">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">morse</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">particle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_particle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">D</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">PBC</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Force.morse" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Force.mutual_trap">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">mutual_trap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">particle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_particle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">PBC</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Force.mutual_trap" title="Permalink to this definition">¶</a></dt>
+<dd><p>A spring force that pulls a particle towards the position of another particle</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>particle (int): the particle that the force acts upon
+ref_particle (int): the particle that the particle will be pulled towards
+stiff (float): the force constant of the spring (in simulation units)
+r0 (float): the equlibrium distance of the spring
+PBC (bool): does the force calculation take PBC into account (almost always 1)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Force.repulsion_plane">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">repulsion_plane</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">particle</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">direction</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">position</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Force.repulsion_plane" title="Permalink to this definition">¶</a></dt>
+<dd><p>A plane that forces the affected particle to stay on one side.</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>particle (int): the particle that the force acts upon.  -1 will act on whole system.
+stiff (float): the stiffness of the trap (force = stiff * distance below plane)
+dir ([float, float, float]): the normal vecor to the plane
+position(float): position of the plane (plane is d0*x + d1*y + d2*z + position = 0)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Force.repulsion_sphere">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">repulsion_sphere</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">particle</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">center</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Force.repulsion_sphere" title="Permalink to this definition">¶</a></dt>
+<dd><p>A sphere that encloses the particle</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>particle (int): the particle that the force acts upon
+center ([float, float, float]): the center of the sphere
+stiff (float): stiffness of trap
+r0 (float): radius of sphere at t=0
+rate (float): the sphere’s radius changes to r = r0 + rate*t</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Force.rotating_harmonic_trap">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">rotating_harmonic_trap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">particle</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rate</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">center</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">axis</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Force.rotating_harmonic_trap" title="Permalink to this definition">¶</a></dt>
+<dd><p>A harmonic trap that rotates in space with constant angular velocity</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>particle (int): the particle that the force acts upon
+pos0 ([float, float, float]): the position of the trap at t=0
+stiff (float): the stiffness of the trap (force = stiff * dx)
+rate (float): the angular velocity of the trap (simulation units/time step)
+base (float): initial phase of the trap
+axis ([float, float, float]): the rotation axis of the trap
+mask([float, float, float]): the masking vector of the trap (force vector is element-wise multiplied by mask)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Force.skew_force">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">skew_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">particle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_particle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stdev</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shape</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">PBC</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Force.skew_force" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Force.string">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">string</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">particle</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rate</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">direction</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Force.string" title="Permalink to this definition">¶</a></dt>
+<dd><p>A linear force along a vector</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>particle (int): the particle that the force acts upon
+f0 (float): the initial strength of the force at t=0 (in simulation units)
+rate (float or SN string): growing rate of the force (simulation units/timestep)
+dir ([float, float, float]): the direction of the force</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.GenerateReplicas">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">GenerateReplicas</span></span><a class="headerlink" href="#oxdna_simulation.GenerateReplicas" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Methods to generate multisystem replicas</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.GenerateReplicas.concat_all_system_traj">
+<span class="sig-name descname"><span class="pre">concat_all_system_traj</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.GenerateReplicas.concat_all_system_traj" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.GenerateReplicas.concat_single_system_traj">
+<span class="sig-name descname"><span class="pre">concat_single_system_traj</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">system</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">concat_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'concat_dir'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.GenerateReplicas.concat_single_system_traj" title="Permalink to this definition">¶</a></dt>
+<dd><p>Concatenate the trajectory of multiple replicas</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.GenerateReplicas.multisystem_replica">
+<span class="sig-name descname"><span class="pre">multisystem_replica</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">systems</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_replicas_per_system</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_dir_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sim_dir_list</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.GenerateReplicas.multisystem_replica" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.Input">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">Input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Input" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Lower level input file methods</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Input.get_last_conf_top">
+<span class="sig-name descname"><span class="pre">get_last_conf_top</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Input.get_last_conf_top" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set attributes containing the name of the inital conf (dat file) and topology</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Input.modify_input">
+<span class="sig-name descname"><span class="pre">modify_input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parameters</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Input.modify_input" title="Permalink to this definition">¶</a></dt>
+<dd><p>Modify the parameters of the oxDNA input file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Input.read_input">
+<span class="sig-name descname"><span class="pre">read_input</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Input.read_input" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read parameters of exsisting input file in sim_dir</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Input.write_input">
+<span class="sig-name descname"><span class="pre">write_input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">production</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Input.write_input" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write an oxDNA input file as a json file to sim_dir</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Input.write_input_standard">
+<span class="sig-name descname"><span class="pre">write_input_standard</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Input.write_input_standard" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write a oxDNA input file to sim_dir</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.Observable">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">Observable</span></span><a class="headerlink" href="#oxdna_simulation.Observable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Currently implemented observables for this oxDNA wrapper.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Observable.distance">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">distance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">particle_1</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">particle_2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">PBC</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Observable.distance" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Observable.hb_list">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">hb_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">only_count</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Observable.hb_list" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Observable.particle_position">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">particle_position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">particle_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">absolute</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Observable.particle_position" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.OxdnaAnalysisTools">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">OxdnaAnalysisTools</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxdnaAnalysisTools" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Interface to OAT</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxdnaAnalysisTools.align">
+<span class="sig-name descname"><span class="pre">align</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">outfile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'aligned.dat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxdnaAnalysisTools.align" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxdnaAnalysisTools.centroid">
+<span class="sig-name descname"><span class="pre">centroid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">reference_structure</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean.dat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxdnaAnalysisTools.centroid" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxdnaAnalysisTools.com_distance">
+<span class="sig-name descname"><span class="pre">com_distance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_list_file_1</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_list_file_2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_list_1</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_list_2</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxdnaAnalysisTools.com_distance" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxdnaAnalysisTools.conformational_entropy">
+<span class="sig-name descname"><span class="pre">conformational_entropy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">traj</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'trajectory.dat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">meanfile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean.dat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outfile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'conformational_entropy.json'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxdnaAnalysisTools.conformational_entropy" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxdnaAnalysisTools.decimate">
+<span class="sig-name descname"><span class="pre">decimate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">outfile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'strided_trajectory.dat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxdnaAnalysisTools.decimate" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxdnaAnalysisTools.deviations">
+<span class="sig-name descname"><span class="pre">deviations</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mean_structure</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean.dat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxdnaAnalysisTools.deviations" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxdnaAnalysisTools.mean">
+<span class="sig-name descname"><span class="pre">mean</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">traj</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'trajectory.dat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxdnaAnalysisTools.mean" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxdnaAnalysisTools.minify">
+<span class="sig-name descname"><span class="pre">minify</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">traj</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'trajectory.dat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outfile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mini_trajectory.dat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxdnaAnalysisTools.minify" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxdnaAnalysisTools.oxDNA_PDB">
+<span class="sig-name descname"><span class="pre">oxDNA_PDB</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">configuration</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean.dat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">direction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'35'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pdbfiles</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxdnaAnalysisTools.oxDNA_PDB" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxdnaAnalysisTools.pca">
+<span class="sig-name descname"><span class="pre">pca</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">meanfile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean.dat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outfile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'pca.json'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxdnaAnalysisTools.pca" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxdnaAnalysisTools.subset_trajectory">
+<span class="sig-name descname"><span class="pre">subset_trajectory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxdnaAnalysisTools.subset_trajectory" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.OxpyRun">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">OxpyRun</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxpyRun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Automatically runs a built oxDNA simulation using oxpy within a subprocess</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxpyRun.cms_obs">
+<span class="sig-name descname"><span class="pre">cms_obs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxpyRun.cms_obs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxpyRun.cms_observables">
+<span class="sig-name descname"><span class="pre">cms_observables</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">particle_indexes</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxpyRun.cms_observables" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxpyRun.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">subprocess</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">continue_run</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_observables</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxpyRun.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run oxDNA simulation using oxpy in a subprocess.</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>subprocess (bool): If false run simulation in parent process (blocks process), if true spawn sim in child process.
+continue_run (number): If False overide previous simulation results. If True continue previous simulation run.
+verbose (bool): If true print directory of simulation when run.
+log (bool): If true print a log file to simulation directory.
+join (bool): If true block main parent process until child process has terminated (simulation finished)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxpyRun.run_complete">
+<span class="sig-name descname"><span class="pre">run_complete</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxpyRun.run_complete" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run an oxDNA simulation</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.OxpyRun.spawn">
+<span class="sig-name descname"><span class="pre">spawn</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.OxpyRun.spawn" title="Permalink to this definition">¶</a></dt>
+<dd><p>Spawn subprocess</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.Protein">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">Protein</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Protein" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Methods used to enable anm simulations with proteins</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Protein.par_input">
+<span class="sig-name descname"><span class="pre">par_input</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Protein.par_input" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.Replica">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">Replica</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim_list</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Replica" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Methods used to preform analysis of multiple simulation replicas pertaining to a single system</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Replica.concat_trajectory">
+<span class="sig-name descname"><span class="pre">concat_trajectory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">concat_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'concat_dir'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Replica.concat_trajectory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Concatenate the trajectory of multiple replicas</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.SequenceDependant">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">SequenceDependant</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim_dir</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SequenceDependant" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Make the targeted sim_dir run a sequence dependant oxDNA simulation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SequenceDependant.write_sequence_dependant_file">
+<span class="sig-name descname"><span class="pre">write_sequence_dependant_file</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SequenceDependant.write_sequence_dependant_file" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.SimFiles">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">SimFiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim_dir</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SimFiles" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Parse the current files present in simulation directory</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SimFiles.parse_current_files">
+<span class="sig-name descname"><span class="pre">parse_current_files</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SimFiles.parse_current_files" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.Simulation">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">Simulation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sim_dir</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Simulation" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Used to interactivly interface and run an oxDNA simulation.</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>file_dir (str): Path to directory containing inital oxDNA dat and top files.
+sim_dir (str): Path to directory where a simulation will be run using inital files.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Simulation.add_force">
+<span class="sig-name descname"><span class="pre">add_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">force_js</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Simulation.add_force" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add an external force to the simulation.</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>force_js (Force): A force object, essentially a dictonary, specifying the external force parameters.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Simulation.add_force_file">
+<span class="sig-name descname"><span class="pre">add_force_file</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Simulation.add_force_file" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a external force file from file_dir to sim_dir</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Simulation.add_observable">
+<span class="sig-name descname"><span class="pre">add_observable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">observable_js</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Simulation.add_observable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add an observable that will be saved as a text file to the simulation.</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>observable_js (Observable): A observable object, essentially a dictonary, specifying the observable parameters.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Simulation.add_protein_par">
+<span class="sig-name descname"><span class="pre">add_protein_par</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Simulation.add_protein_par" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a parfile from file_dir to sim_dir</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Simulation.build">
+<span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clean_build</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Simulation.build" title="Permalink to this definition">¶</a></dt>
+<dd><p>Build dat, top, and input files in simulation directory.</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>clean_build (bool): If sim_dir already exsists, remove it and then rebuild sim_dir</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Simulation.input_file">
+<span class="sig-name descname"><span class="pre">input_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parameters</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Simulation.input_file" title="Permalink to this definition">¶</a></dt>
+<dd><p>Modify the parameters of the oxDNA input file, all parameters are avalible at <a class="reference external" href="https://lorenzo-rovigatti.github.io/oxDNA/input.html">https://lorenzo-rovigatti.github.io/oxDNA/input.html</a></p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>parameters (dict): dictonary of oxDNA input file parameters</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Simulation.sequence_dependant">
+<span class="sig-name descname"><span class="pre">sequence_dependant</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Simulation.sequence_dependant" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a sequence dependant file to simulation directory and modify input file to use it.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.Simulation.slurm_run">
+<span class="sig-name descname"><span class="pre">slurm_run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">run_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">job_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'oxDNA'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.Simulation.slurm_run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write a provided sbatch run file to the simulation directory.</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>run_file (str): Path to the provided sbatch run file.
+job_name (str): Name of the sbatch job.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.SimulationManager">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">SimulationManager</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_processes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">11</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SimulationManager" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>In conjunction with nvidia-cuda-mps-control, allocate simulations to avalible cpus and gpus.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SimulationManager.get_sim_mem">
+<span class="sig-name descname"><span class="pre">get_sim_mem</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gpu_idx</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SimulationManager.get_sim_mem" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the amount of simulation memory requried to run an oxDNA simulation.
+Note: A process running a simulation will need more memory then just required for the simulation.</p>
+<blockquote>
+<div><p>Most likely overhead from nvidia-cuda-mps-server</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>sim (Simulation): Simulation object to probe the required memory of.
+gpu_idx: depreciated</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SimulationManager.gpu_resources">
+<span class="sig-name descname"><span class="pre">gpu_resources</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SimulationManager.gpu_resources" title="Permalink to this definition">¶</a></dt>
+<dd><p>Method to probe the number and current avalible memory of gpus.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SimulationManager.queue_sim">
+<span class="sig-name descname"><span class="pre">queue_sim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">continue_run</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SimulationManager.queue_sim" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add simulation object to the queue of all simulations.</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>sim (Simulation): Simulation to be queued.
+continue_run (bool): If true, continue previously run oxDNA simulation</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SimulationManager.restart_nvidia_cuda_mps_control">
+<span class="sig-name descname"><span class="pre">restart_nvidia_cuda_mps_control</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SimulationManager.restart_nvidia_cuda_mps_control" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SimulationManager.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">log</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gpu_mem_block</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_observables</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_when_failed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SimulationManager.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the worker manager in a subprocess</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SimulationManager.start_nvidia_cuda_mps_control">
+<span class="sig-name descname"><span class="pre">start_nvidia_cuda_mps_control</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pipe</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'$SLURM_TASK_PID'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SimulationManager.start_nvidia_cuda_mps_control" title="Permalink to this definition">¶</a></dt>
+<dd><p>Begin nvidia-cuda-mps-server.</p>
+<dl class="simple">
+<dt>Parameters:</dt><dd><p>pipe (str): of of directory to pipe control server information to. Defaults to PID of a slurm allocation</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SimulationManager.terminate_all">
+<span class="sig-name descname"><span class="pre">terminate_all</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SimulationManager.terminate_all" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SimulationManager.test_cuda_script">
+<span class="sig-name descname"><span class="pre">test_cuda_script</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SimulationManager.test_cuda_script" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SimulationManager.worker_job">
+<span class="sig-name descname"><span class="pre">worker_job</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gpu_idx</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gpu_mem_block</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SimulationManager.worker_job" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run an allocated oxDNA simulation</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SimulationManager.worker_manager">
+<span class="sig-name descname"><span class="pre">worker_manager</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gpu_mem_block</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">custom_observables</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_when_failed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SimulationManager.worker_manager" title="Permalink to this definition">¶</a></dt>
+<dd><p>Head process in charge of allocating queued simulations to processes and gpu memory.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="oxdna_simulation.SlurmRun">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxdna_simulation.</span></span><span class="sig-name descname"><span class="pre">SlurmRun</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">job_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SlurmRun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Using a user provided slurm run file, setup a slurm job to be run</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SlurmRun.sbatch">
+<span class="sig-name descname"><span class="pre">sbatch</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SlurmRun.sbatch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Submit sbatch run file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxdna_simulation.SlurmRun.write_run_file">
+<span class="sig-name descname"><span class="pre">write_run_file</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxdna_simulation.SlurmRun.write_run_file" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write a run file to simulation directory.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">ipy_oxdna</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">src</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">oxdna_simulation module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="umbrella_sampling.html">umbrella_sampling module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wham_analysis.html">wham_analysis module</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="modules.html">src</a><ul>
+      <li>Previous: <a href="modules.html" title="previous chapter">src</a></li>
+      <li>Next: <a href="umbrella_sampling.html" title="next chapter">umbrella_sampling module</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2023, Matthew Sample.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 7.1.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
+      
+      |
+      <a href="_sources/oxdna_simulation.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

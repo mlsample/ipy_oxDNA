@@ -26,14 +26,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Set up Python
-        uses: actions/setup-python@v2
+      - name: Set up Conda and Create Environment
+        uses: conda-incubator/setup-miniconda@v2
         with:
-          python-version: '3.10' # Use the version of Python you need for Sphinx
+          environment-file: oxdna.yml # Replace with the actual path
+          activate-environment: my-environment # Replace with the name of your environment
+          auto-activate-base: false
 
       - name: Install dependencies
         run: |
           pip install sphinx sphinx_rtd_theme
+          pip install -r requirements.txt
 
       - name: Build Sphinx documentation
         run: |

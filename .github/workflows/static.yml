@@ -22,20 +22,12 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    container:
+      image: mlsample/ipy_oxdna:v0.2 # Using your Docker image
+
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-
-      - name: Set up Conda and Create Environment
-        uses: conda-incubator/setup-miniconda@v2
-        with:
-          environment-file: oxdna.yml # Replace with the actual path
-          activate-environment: my-environment # Replace with the name of your environment
-          auto-activate-base: false
-
-      - name: Install dependencies
-        run: |
-          pip install sphinx sphinx_rtd_theme SciencePlots
 
       - name: Build Sphinx documentation
         run: |
@@ -47,3 +39,4 @@ jobs:
         with:
           github_token: ${{ secrets.GH_PAGES_TOKEN}}
           publish_dir: ./docs/_build/html # Change to the path of your built HTML files
+

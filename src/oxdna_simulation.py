@@ -20,7 +20,7 @@ import re
 import time
 import queue
 
-# import cupy
+
 
 class Simulation:
     """

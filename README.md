@@ -45,22 +45,22 @@ Install the Weight Histogram Analysis Technique (http://membrane.urmc.rochester.
 
 
 ## Usage
-The code can be used by importing the necessary modules into your python script or Jupyter Notebook. A tutorial on how to use the code can be found in the `src/ipy_oxdna_examples.ipynb`.
+The code can be used by importing the necessary modules into your python script or Jupyter Notebook. A tutorial on how to use the code can be found in the `src/notebook/ipy_oxdna_examples.ipynb`. Move the notebook into src to use the it, for now that is required.
 
 Furthermore, if you wish to run umbrella sampling as a python script an example can be found in `./src/full_umbrella.py`
 
 ## Example Notebooks
 This repository includes a number of example notebooks that demonstrate how to use the code to perform oxDNA umbrella sampling simulations. These notebooks can be used as a starting point for your own simulations.
 
-`./src/ipy_oxdna_example.ipynb`
+`./src/notebook/ipy_oxdna_example.ipynb`
 - Running a single simulation or multiple simulations in parallel
 - Examples for running single umbrella sampling simulation or multiple in parallel
 
-`./src/double_layer.ipynb`
+`./src/notebook/double_layer.ipynb`
 - Production umbrella sampling of the anti-parallel double layer strucutre
 - Benchamrking the speedup from varying number of simulations in parallel for umbrella sampling
 
-`./src/duplex_example.ipynb`
+`./src/notebook/duplex_example.ipynb`
 - Example of using umbrella sampling for duplex melting
 
 ## Contributing

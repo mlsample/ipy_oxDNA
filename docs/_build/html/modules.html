@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>src &#8212; ipy_oxdna 0.2 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=4f649999" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=039e1c02" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=d7c963c3"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="oxdna_simulation module" href="oxdna_simulation.html" />
+    <link rel="prev" title="Welcome to ipy_oxdna’s documentation!" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="src">
+<h1>src<a class="headerlink" href="#src" title="Permalink to this heading">¶</a></h1>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="oxdna_simulation.html">oxdna_simulation module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Simulation"><code class="docutils literal notranslate"><span class="pre">Simulation</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Simulation.build"><code class="docutils literal notranslate"><span class="pre">Simulation.build()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Simulation.input_file"><code class="docutils literal notranslate"><span class="pre">Simulation.input_file()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Simulation.add_protein_par"><code class="docutils literal notranslate"><span class="pre">Simulation.add_protein_par()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Simulation.add_force_file"><code class="docutils literal notranslate"><span class="pre">Simulation.add_force_file()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Simulation.add_force"><code class="docutils literal notranslate"><span class="pre">Simulation.add_force()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Simulation.add_observable"><code class="docutils literal notranslate"><span class="pre">Simulation.add_observable()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Simulation.sequence_dependant"><code class="docutils literal notranslate"><span class="pre">Simulation.sequence_dependant()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.SimulationManager"><code class="docutils literal notranslate"><span class="pre">SimulationManager</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.SimulationManager.queue_sim"><code class="docutils literal notranslate"><span class="pre">SimulationManager.queue_sim()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.SimulationManager.worker_manager"><code class="docutils literal notranslate"><span class="pre">SimulationManager.worker_manager()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.SimulationManager.run"><code class="docutils literal notranslate"><span class="pre">SimulationManager.run()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.SimulationManager.start_nvidia_cuda_mps_control"><code class="docutils literal notranslate"><span class="pre">SimulationManager.start_nvidia_cuda_mps_control()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.GenerateReplicas"><code class="docutils literal notranslate"><span class="pre">GenerateReplicas</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.GenerateReplicas.multisystem_replica"><code class="docutils literal notranslate"><span class="pre">GenerateReplicas.multisystem_replica()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.GenerateReplicas.concat_all_system_traj"><code class="docutils literal notranslate"><span class="pre">GenerateReplicas.concat_all_system_traj()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.OxdnaAnalysisTools"><code class="docutils literal notranslate"><span class="pre">OxdnaAnalysisTools</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Analysis"><code class="docutils literal notranslate"><span class="pre">Analysis</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Analysis.get_init_conf"><code class="docutils literal notranslate"><span class="pre">Analysis.get_init_conf()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Analysis.get_last_conf"><code class="docutils literal notranslate"><span class="pre">Analysis.get_last_conf()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Analysis.view_init"><code class="docutils literal notranslate"><span class="pre">Analysis.view_init()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Analysis.view_last"><code class="docutils literal notranslate"><span class="pre">Analysis.view_last()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Analysis.get_conf_count"><code class="docutils literal notranslate"><span class="pre">Analysis.get_conf_count()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Analysis.get_conf"><code class="docutils literal notranslate"><span class="pre">Analysis.get_conf()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Analysis.current_step"><code class="docutils literal notranslate"><span class="pre">Analysis.current_step()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Analysis.view_conf"><code class="docutils literal notranslate"><span class="pre">Analysis.view_conf()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Analysis.plot_energy"><code class="docutils literal notranslate"><span class="pre">Analysis.plot_energy()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Force"><code class="docutils literal notranslate"><span class="pre">Force</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Force.mutual_trap"><code class="docutils literal notranslate"><span class="pre">Force.mutual_trap()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Force.string"><code class="docutils literal notranslate"><span class="pre">Force.string()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Force.harmonic_trap"><code class="docutils literal notranslate"><span class="pre">Force.harmonic_trap()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Force.rotating_harmonic_trap"><code class="docutils literal notranslate"><span class="pre">Force.rotating_harmonic_trap()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Force.repulsion_plane"><code class="docutils literal notranslate"><span class="pre">Force.repulsion_plane()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Force.repulsion_sphere"><code class="docutils literal notranslate"><span class="pre">Force.repulsion_sphere()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="oxdna_simulation.html#oxdna_simulation.Observable"><code class="docutils literal notranslate"><span class="pre">Observable</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="umbrella_sampling.html">umbrella_sampling module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="umbrella_sampling.html#umbrella_sampling.ComUmbrellaSampling"><code class="docutils literal notranslate"><span class="pre">ComUmbrellaSampling</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="umbrella_sampling.html#umbrella_sampling.ComUmbrellaSampling.build_equlibration_runs"><code class="docutils literal notranslate"><span class="pre">ComUmbrellaSampling.build_equlibration_runs()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="umbrella_sampling.html#umbrella_sampling.ComUmbrellaSampling.build_production_runs"><code class="docutils literal notranslate"><span class="pre">ComUmbrellaSampling.build_production_runs()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="umbrella_sampling.html#umbrella_sampling.ComUmbrellaSampling.wham_run"><code class="docutils literal notranslate"><span class="pre">ComUmbrellaSampling.wham_run()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">ipy_oxdna</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">src</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="oxdna_simulation.html">oxdna_simulation module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="umbrella_sampling.html">umbrella_sampling module</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Welcome to ipy_oxdna’s documentation!</a></li>
+      <li>Next: <a href="oxdna_simulation.html" title="next chapter">oxdna_simulation module</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2023, Matthew Sample.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 7.1.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
+      
+      |
+      <a href="_sources/modules.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

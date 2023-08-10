@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>umbrella_sampling module &#8212; ipy_oxdna 0.2 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=4f649999" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=039e1c02" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=d7c963c3"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="oxdna_simulation module" href="oxdna_simulation.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="umbrella-sampling-module">
+<h1>umbrella_sampling module<a class="headerlink" href="#umbrella-sampling-module" title="Permalink to this heading">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="umbrella_sampling.ComUmbrellaSampling">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">umbrella_sampling.</span></span><span class="sig-name descname"><span class="pre">ComUmbrellaSampling</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.ComUmbrellaSampling" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="umbrella_sampling.ComUmbrellaSampling.build_equlibration_runs">
+<span class="sig-name descname"><span class="pre">build_equlibration_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simulation_manager</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_windows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">com_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence_dependant</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'com_distance.txt'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">continue_run</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protein</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.ComUmbrellaSampling.build_equlibration_runs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Build the equlibration run</p>
+<dl>
+<dt>Parameters:</dt><dd><p>simulation_manager (SimulationManager): pass a simulation manager.</p>
+<p>n_windows (int): number of simulation windows.</p>
+<p>com_list (str): comma speperated list of nucleotide indexes.</p>
+<p>ref_list (str): comma speperated list of nucleotide indexex.</p>
+<p>stiff (float): stiffness of the umbrella potential.</p>
+<p>xmin (float): smallest value of the order parameter to be sampled.</p>
+<p>xmax (float): largest value of the order parameter to be sampled.</p>
+<p>input_parameters (dict): dictonary of oxDNA parameters.</p>
+<p>observable (bool): Boolean to determine if you want to print the observable for the equlibration simulations.</p>
+<p>sequence_dependant (bool): Boolean to use sequence dependant parameters.</p>
+<p>print_every (float): how often to print the order parameter.</p>
+<p>name (str): depreciated.</p>
+<p>continue_run (float): number of steps to continue umbrella sampling (i.e 1e7).</p>
+<p>protein (bool): Use a protein par file and run with the ANM oxDNA interaction potentials.</p>
+<p>force_file (bool): Add an external force to the umbrella simulations.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="umbrella_sampling.ComUmbrellaSampling.build_production_runs">
+<span class="sig-name descname"><span class="pre">build_production_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simulation_manager</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_windows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">com_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence_dependant</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'com_distance.txt'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">continue_run</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protein</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.ComUmbrellaSampling.build_production_runs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Build the production run</p>
+<dl>
+<dt>Parameters:</dt><dd><p>simulation_manager (SimulationManager): pass a simulation manager.</p>
+<p>n_windows (int): number of simulation windows.</p>
+<p>com_list (str): comma speperated list of nucleotide indexes.</p>
+<p>ref_list (str): comma speperated list of nucleotide indexex.</p>
+<p>stiff (float): stiffness of the umbrella potential.</p>
+<p>xmin (float): smallest value of the order parameter to be sampled.</p>
+<p>xmax (float): largest value of the order parameter to be sampled.</p>
+<p>input_parameters (dict): dictonary of oxDNA parameters.</p>
+<p>observable (bool): Boolean to determine if you want to print the observable for the equlibration simulations, make sure to not have this as false for production run.</p>
+<p>sequence_dependant (bool): Boolean to use sequence dependant parameters.</p>
+<p>print_every (float): how often to print the order parameter.</p>
+<p>name (str): depreciated.</p>
+<p>continue_run (float): number of steps to continue umbrella sampling (i.e 1e7).</p>
+<p>protein (bool): Use a protein par file and run with the ANM oxDNA interaction potentials.</p>
+<p>force_file (bool): Add an external force to the umbrella simulations.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="umbrella_sampling.ComUmbrellaSampling.wham_run">
+<span class="sig-name descname"><span class="pre">wham_run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">wham_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">umbrella_stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_boot</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.ComUmbrellaSampling.wham_run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the weighted histogram analysis technique (Grossfield, Alan <a class="reference external" href="http://membrane.urmc.rochester.edu/?page_id=126">http://membrane.urmc.rochester.edu/?page_id=126</a>)</p>
+<dl>
+<dt>Parameters:</dt><dd><p>wham_dir (str): directory in which wham is complied using the install_wham.sh script.</p>
+<p>xmin (str): smallest value of the order parameter to be sampled.</p>
+<p>xmax (str): largest value of the order parameter to be sample.</p>
+<p>umbrella_stiff (str): stiffness of the umbrella potential.</p>
+<p>n_bins (str): number of bins of the resultant free energy profile.</p>
+<p>tol (str): the tolerance of convergence for the WHAM technique.</p>
+<p>n_boot (str): number of monte carlo bootstrapping steps to take.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">ipy_oxdna</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">src</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="oxdna_simulation.html">oxdna_simulation module</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">umbrella_sampling module</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="modules.html">src</a><ul>
+      <li>Previous: <a href="oxdna_simulation.html" title="previous chapter">oxdna_simulation module</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2023, Matthew Sample.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 7.1.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
+      
+      |
+      <a href="_sources/umbrella_sampling.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

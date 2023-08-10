@@ -1,7 +1,8 @@
 umbrella\_sampling module
 =========================
 
-.. automodule:: umbrella_sampling
-   :members:
-   :undoc-members:
-   :show-inheritance:
+
+.. autoclass:: umbrella_sampling.ComUmbrellaSampling
+   :members: build_equlibration_runs, build_production_runs, wham_run
+
+

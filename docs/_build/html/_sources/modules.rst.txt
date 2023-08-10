@@ -6,4 +6,3 @@ src
 
    oxdna_simulation
    umbrella_sampling
-   wham_analysis

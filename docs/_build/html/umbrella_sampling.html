@@ -13,7 +13,6 @@
     <script src="_static/sphinx_highlight.js?v=4825356b"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="wham_analysis module" href="wham_analysis.html" />
     <link rel="prev" title="oxdna_simulation module" href="oxdna_simulation.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
@@ -31,285 +30,74 @@
 
           <div class="body" role="main">
             
-  <section id="module-umbrella_sampling">
-<span id="umbrella-sampling-module"></span><h1>umbrella_sampling module<a class="headerlink" href="#module-umbrella_sampling" title="Permalink to this heading">¶</a></h1>
-<dl class="py class">
-<dt class="sig sig-object py" id="umbrella_sampling.BaseUmbrellaSampling">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">umbrella_sampling.</span></span><span class="sig-name descname"><span class="pre">BaseUmbrellaSampling</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.BaseUmbrellaSampling" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.BaseUmbrellaSampling.queue_sims">
-<span class="sig-name descname"><span class="pre">queue_sims</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simulation_manager</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sim_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">continue_run</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.BaseUmbrellaSampling.queue_sims" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.BaseUmbrellaSampling.read_progress">
-<span class="sig-name descname"><span class="pre">read_progress</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.BaseUmbrellaSampling.read_progress" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.BaseUmbrellaSampling.wham_run">
-<span class="sig-name descname"><span class="pre">wham_run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">wham_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">umbrella_stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_boot</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.BaseUmbrellaSampling.wham_run" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
+  <section id="umbrella-sampling-module">
+<h1>umbrella_sampling module<a class="headerlink" href="#umbrella-sampling-module" title="Permalink to this heading">¶</a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="umbrella_sampling.ComUmbrellaSampling">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">umbrella_sampling.</span></span><span class="sig-name descname"><span class="pre">ComUmbrellaSampling</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.ComUmbrellaSampling" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#umbrella_sampling.BaseUmbrellaSampling" title="umbrella_sampling.BaseUmbrellaSampling"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseUmbrellaSampling</span></code></a></p>
-<dl class="py method">
+<dd><dl class="py method">
 <dt class="sig sig-object py" id="umbrella_sampling.ComUmbrellaSampling.build_equlibration_runs">
 <span class="sig-name descname"><span class="pre">build_equlibration_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simulation_manager</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_windows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">com_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence_dependant</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'com_distance.txt'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">continue_run</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protein</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.ComUmbrellaSampling.build_equlibration_runs" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Build the equlibration run</p>
+<dl>
+<dt>Parameters:</dt><dd><p>simulation_manager (SimulationManager): pass a simulation manager.</p>
+<p>n_windows (int): number of simulation windows.</p>
+<p>com_list (str): comma speperated list of nucleotide indexes.</p>
+<p>ref_list (str): comma speperated list of nucleotide indexex.</p>
+<p>stiff (float): stiffness of the umbrella potential.</p>
+<p>xmin (float): smallest value of the order parameter to be sampled.</p>
+<p>xmax (float): largest value of the order parameter to be sampled.</p>
+<p>input_parameters (dict): dictonary of oxDNA parameters.</p>
+<p>observable (bool): Boolean to determine if you want to print the observable for the equlibration simulations.</p>
+<p>sequence_dependant (bool): Boolean to use sequence dependant parameters.</p>
+<p>print_every (float): how often to print the order parameter.</p>
+<p>name (str): depreciated.</p>
+<p>continue_run (float): number of steps to continue umbrella sampling (i.e 1e7).</p>
+<p>protein (bool): Use a protein par file and run with the ANM oxDNA interaction potentials.</p>
+<p>force_file (bool): Add an external force to the umbrella simulations.</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="umbrella_sampling.ComUmbrellaSampling.build_production_runs">
 <span class="sig-name descname"><span class="pre">build_production_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simulation_manager</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_windows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">com_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence_dependant</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'com_distance.txt'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">continue_run</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protein</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.ComUmbrellaSampling.build_production_runs" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.ComUmbrellaSampling.com_distance_observable">
-<span class="sig-name descname"><span class="pre">com_distance_observable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">com_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'com_distance.txt'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.ComUmbrellaSampling.com_distance_observable" title="Permalink to this definition">¶</a></dt>
-<dd><p>Build center of mass observable</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.ComUmbrellaSampling.fig_ax">
-<span class="sig-name descname"><span class="pre">fig_ax</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.ComUmbrellaSampling.fig_ax" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.ComUmbrellaSampling.plot_free">
-<span class="sig-name descname"><span class="pre">plot_free</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Free</span> <span class="pre">Energy</span> <span class="pre">Profile'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fmt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.ComUmbrellaSampling.plot_free" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.ComUmbrellaSampling.plot_free_mod">
-<span class="sig-name descname"><span class="pre">plot_free_mod</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">negative</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Free</span> <span class="pre">Energy</span> <span class="pre">Profile'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.ComUmbrellaSampling.plot_free_mod" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.ComUmbrellaSampling.umbrella_forces">
-<span class="sig-name descname"><span class="pre">umbrella_forces</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">com_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_windows</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.ComUmbrellaSampling.umbrella_forces" title="Permalink to this definition">¶</a></dt>
-<dd><p>Build Umbrella potentials</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="umbrella_sampling.CustomObsWham">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">umbrella_sampling.</span></span><span class="sig-name descname"><span class="pre">CustomObsWham</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_umbrella</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.CustomObsWham" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#umbrella_sampling.WhamAnalysis" title="umbrella_sampling.WhamAnalysis"><code class="xref py py-class docutils literal notranslate"><span class="pre">WhamAnalysis</span></code></a></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.CustomObsWham.run_wham">
-<span class="sig-name descname"><span class="pre">run_wham</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">opp_umbrella</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wham_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">umbrella_stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_boot</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.CustomObsWham.run_wham" title="Permalink to this definition">¶</a></dt>
-<dd><p>Run Weighted Histogram Analysis Method on production windows.</p>
-<dl class="simple">
-<dt>Parameters:</dt><dd><p>wham_dir (str): Path to wham executable.
-xmin (str): Minimum distance of center of mass order parameter in simulation units.
-xmax (str): Maximum distance of center of mass order parameter in simulation units.
-umbrella_stiff (str): The parameter used to modified the stiffness of the center of mass spring potential
-n_bins (str): number of histogram bins to use.
-tol (str): Convergence tolerance for the WHAM calculations.
-n_boot (str): Number of monte carlo bootstrapping error analysis iterations to preform.</p>
+<dd><p>Build the production run</p>
+<dl>
+<dt>Parameters:</dt><dd><p>simulation_manager (SimulationManager): pass a simulation manager.</p>
+<p>n_windows (int): number of simulation windows.</p>
+<p>com_list (str): comma speperated list of nucleotide indexes.</p>
+<p>ref_list (str): comma speperated list of nucleotide indexex.</p>
+<p>stiff (float): stiffness of the umbrella potential.</p>
+<p>xmin (float): smallest value of the order parameter to be sampled.</p>
+<p>xmax (float): largest value of the order parameter to be sampled.</p>
+<p>input_parameters (dict): dictonary of oxDNA parameters.</p>
+<p>observable (bool): Boolean to determine if you want to print the observable for the equlibration simulations, make sure to not have this as false for production run.</p>
+<p>sequence_dependant (bool): Boolean to use sequence dependant parameters.</p>
+<p>print_every (float): how often to print the order parameter.</p>
+<p>name (str): depreciated.</p>
+<p>continue_run (float): number of steps to continue umbrella sampling (i.e 1e7).</p>
+<p>protein (bool): Use a protein par file and run with the ANM oxDNA interaction potentials.</p>
+<p>force_file (bool): Add an external force to the umbrella simulations.</p>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.CustomObsWham.to_si">
-<span class="sig-name descname"><span class="pre">to_si</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_bins</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.CustomObsWham.to_si" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="umbrella_sampling.CustomObservableUmbrellaSampling">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">umbrella_sampling.</span></span><span class="sig-name descname"><span class="pre">CustomObservableUmbrellaSampling</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.CustomObservableUmbrellaSampling" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#umbrella_sampling.ComUmbrellaSampling" title="umbrella_sampling.ComUmbrellaSampling"><code class="xref py py-class docutils literal notranslate"><span class="pre">ComUmbrellaSampling</span></code></a></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.CustomObservableUmbrellaSampling.build_equlibration_runs">
-<span class="sig-name descname"><span class="pre">build_equlibration_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simulation_manager</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_windows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">com_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cms_observable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence_dependant</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'com_distance.txt'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">continue_run</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protein</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.CustomObservableUmbrellaSampling.build_equlibration_runs" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.CustomObservableUmbrellaSampling.build_production_runs">
-<span class="sig-name descname"><span class="pre">build_production_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simulation_manager</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_windows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">com_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cms_observable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence_dependant</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'com_distance.txt'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">continue_run</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protein</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.CustomObservableUmbrellaSampling.build_production_runs" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="umbrella_sampling.MeltingUmbrellaSampling">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">umbrella_sampling.</span></span><span class="sig-name descname"><span class="pre">MeltingUmbrellaSampling</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.MeltingUmbrellaSampling" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#umbrella_sampling.ComUmbrellaSampling" title="umbrella_sampling.ComUmbrellaSampling"><code class="xref py py-class docutils literal notranslate"><span class="pre">ComUmbrellaSampling</span></code></a></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.MeltingUmbrellaSampling.build_equlibration_runs">
-<span class="sig-name descname"><span class="pre">build_equlibration_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simulation_manager</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_windows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">com_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence_dependant</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'com_distance.txt'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">continue_run</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protein</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.MeltingUmbrellaSampling.build_equlibration_runs" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.MeltingUmbrellaSampling.build_production_runs">
-<span class="sig-name descname"><span class="pre">build_production_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simulation_manager</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_windows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">com_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence_dependant</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'com_distance.txt'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">continue_run</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protein</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.MeltingUmbrellaSampling.build_production_runs" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.MeltingUmbrellaSampling.hb_list_observable">
-<span class="sig-name descname"><span class="pre">hb_list_observable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'hb_observable.txt'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">only_count</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'true'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.MeltingUmbrellaSampling.hb_list_observable" title="Permalink to this definition">¶</a></dt>
-<dd><p>Build center of mass observable</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="umbrella_sampling.UmbrellaAnalysis">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">umbrella_sampling.</span></span><span class="sig-name descname"><span class="pre">UmbrellaAnalysis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_umbrella</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.UmbrellaAnalysis" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.UmbrellaAnalysis.combine_hist_observable">
-<span class="sig-name descname"><span class="pre">combine_hist_observable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">observable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idxes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fig</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.UmbrellaAnalysis.combine_hist_observable" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.UmbrellaAnalysis.hist_cms">
-<span class="sig-name descname"><span class="pre">hist_cms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idx</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fig</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.UmbrellaAnalysis.hist_cms" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.UmbrellaAnalysis.hist_observable">
-<span class="sig-name descname"><span class="pre">hist_observable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idx</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.UmbrellaAnalysis.hist_observable" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.UmbrellaAnalysis.view_cms">
-<span class="sig-name descname"><span class="pre">view_cms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idx</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sliding_window</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fig</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.UmbrellaAnalysis.view_cms" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.UmbrellaAnalysis.view_conf">
-<span class="sig-name descname"><span class="pre">view_conf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.UmbrellaAnalysis.view_conf" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.UmbrellaAnalysis.view_observable">
-<span class="sig-name descname"><span class="pre">view_observable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idx</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sliding_window</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.UmbrellaAnalysis.view_observable" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.UmbrellaAnalysis.view_observables">
-<span class="sig-name descname"><span class="pre">view_observables</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sim_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sliding_window</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.UmbrellaAnalysis.view_observables" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="umbrella_sampling.UmbrellaBuild">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">umbrella_sampling.</span></span><span class="sig-name descname"><span class="pre">UmbrellaBuild</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_umbrella</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.UmbrellaBuild" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.UmbrellaBuild.build">
-<span class="sig-name descname"><span class="pre">build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sims</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">forces_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observables_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence_dependant</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cms_observable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protein</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.UmbrellaBuild.build" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="umbrella_sampling.UmbrellaWindow">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">umbrella_sampling.</span></span><span class="sig-name descname"><span class="pre">UmbrellaWindow</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_umbrella</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.UmbrellaWindow" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.UmbrellaWindow.equlibration_windows">
-<span class="sig-name descname"><span class="pre">equlibration_windows</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_windows</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.UmbrellaWindow.equlibration_windows" title="Permalink to this definition">¶</a></dt>
-<dd><p>Sets a attribute called equlibration_sims containing simulation objects for all equlibration windows.</p>
-<dl class="simple">
-<dt>Parameters:</dt><dd><p>n_windows (int): Number of umbrella sampling windows.</p>
+<dt class="sig sig-object py" id="umbrella_sampling.ComUmbrellaSampling.wham_run">
+<span class="sig-name descname"><span class="pre">wham_run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">wham_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">umbrella_stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_boot</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.ComUmbrellaSampling.wham_run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the weighted histogram analysis technique (Grossfield, Alan <a class="reference external" href="http://membrane.urmc.rochester.edu/?page_id=126">http://membrane.urmc.rochester.edu/?page_id=126</a>)</p>
+<dl>
+<dt>Parameters:</dt><dd><p>wham_dir (str): directory in which wham is complied using the install_wham.sh script.</p>
+<p>xmin (str): smallest value of the order parameter to be sampled.</p>
+<p>xmax (str): largest value of the order parameter to be sample.</p>
+<p>umbrella_stiff (str): stiffness of the umbrella potential.</p>
+<p>n_bins (str): number of bins of the resultant free energy profile.</p>
+<p>tol (str): the tolerance of convergence for the WHAM technique.</p>
+<p>n_boot (str): number of monte carlo bootstrapping steps to take.</p>
 </dd>
 </dl>
 </dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.UmbrellaWindow.production_windows">
-<span class="sig-name descname"><span class="pre">production_windows</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_windows</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.UmbrellaWindow.production_windows" title="Permalink to this definition">¶</a></dt>
-<dd><p>Sets a attribute called production_sims containing simulation objects for all production windows.</p>
-<dl class="simple">
-<dt>Parameters:</dt><dd><p>n_windows (int): Number of umbrella sampling windows.</p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="umbrella_sampling.WhamAnalysis">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">umbrella_sampling.</span></span><span class="sig-name descname"><span class="pre">WhamAnalysis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_umbrella</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.WhamAnalysis" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.WhamAnalysis.bootstrap_w_mean_error">
-<span class="sig-name descname"><span class="pre">bootstrap_w_mean_error</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.WhamAnalysis.bootstrap_w_mean_error" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.WhamAnalysis.plot_free_energy">
-<span class="sig-name descname"><span class="pre">plot_free_energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Free</span> <span class="pre">Energy</span> <span class="pre">Profile'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">errorevery</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.WhamAnalysis.plot_free_energy" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.WhamAnalysis.plot_free_energy_mod">
-<span class="sig-name descname"><span class="pre">plot_free_energy_mod</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">negative</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Free</span> <span class="pre">Energy</span> <span class="pre">Profile'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'black'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">errorevery</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.WhamAnalysis.plot_free_energy_mod" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.WhamAnalysis.plot_indicator">
-<span class="sig-name descname"><span class="pre">plot_indicator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">indicator</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'black'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.WhamAnalysis.plot_indicator" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.WhamAnalysis.plot_probability">
-<span class="sig-name descname"><span class="pre">plot_probability</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Probability</span> <span class="pre">Distribution'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">errorevery</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.WhamAnalysis.plot_probability" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.WhamAnalysis.plt_fig">
-<span class="sig-name descname"><span class="pre">plt_fig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Free</span> <span class="pre">Energy</span> <span class="pre">Profile'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xlabel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'End-to-End</span> <span class="pre">Distance</span> <span class="pre">(nm)'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylabel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Free</span> <span class="pre">Energy</span> <span class="pre">/</span> <span class="pre">k$_B$T'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.WhamAnalysis.plt_fig" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.WhamAnalysis.prob_plot_indicator">
-<span class="sig-name descname"><span class="pre">prob_plot_indicator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">indicator</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.WhamAnalysis.prob_plot_indicator" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.WhamAnalysis.run_wham">
-<span class="sig-name descname"><span class="pre">run_wham</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">wham_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">umbrella_stiff</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_boot</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.WhamAnalysis.run_wham" title="Permalink to this definition">¶</a></dt>
-<dd><p>Run Weighted Histogram Analysis Method on production windows.</p>
-<dl class="simple">
-<dt>Parameters:</dt><dd><p>wham_dir (str): Path to wham executable.
-xmin (str): Minimum distance of center of mass order parameter in simulation units.
-xmax (str): Maximum distance of center of mass order parameter in simulation units.
-umbrella_stiff (str): The parameter used to modified the stiffness of the center of mass spring potential
-n_bins (str): number of histogram bins to use.
-tol (str): Convergence tolerance for the WHAM calculations.
-n_boot (str): Number of monte carlo bootstrapping error analysis iterations to preform.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.WhamAnalysis.spawn">
-<span class="sig-name descname"><span class="pre">spawn</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.WhamAnalysis.spawn" title="Permalink to this definition">¶</a></dt>
-<dd><p>Spawn subprocess</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.WhamAnalysis.to_si">
-<span class="sig-name descname"><span class="pre">to_si</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_bins</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.WhamAnalysis.to_si" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="umbrella_sampling.WhamAnalysis.w_mean">
-<span class="sig-name descname"><span class="pre">w_mean</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#umbrella_sampling.WhamAnalysis.w_mean" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
 
 </dd></dl>
 
@@ -337,7 +125,6 @@ n_boot (str): Number of monte carlo bootstrapping error analysis iterations to p
 <li class="toctree-l1 current"><a class="reference internal" href="modules.html">src</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="oxdna_simulation.html">oxdna_simulation module</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">umbrella_sampling module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="wham_analysis.html">wham_analysis module</a></li>
 </ul>
 </li>
 </ul>
@@ -348,7 +135,6 @@ n_boot (str): Number of monte carlo bootstrapping error analysis iterations to p
   <li><a href="index.html">Documentation overview</a><ul>
   <li><a href="modules.html">src</a><ul>
       <li>Previous: <a href="oxdna_simulation.html" title="previous chapter">oxdna_simulation module</a></li>
-      <li>Next: <a href="wham_analysis.html" title="next chapter">wham_analysis module</a></li>
   </ul></li>
   </ul></li>
 </ul>

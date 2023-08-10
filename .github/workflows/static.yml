@@ -41,6 +41,7 @@ jobs:
       - name: Build Sphinx documentation
         run: |
           cd docs # Change to your documentation directory if needed
+          make clean
           make html
 
       - name: Setup Pages

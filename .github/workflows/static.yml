@@ -35,7 +35,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install sphinx sphinx_rtd_theme science-plots
+          pip install sphinx sphinx_rtd_theme SciencePlots
 
       - name: Build Sphinx documentation
         run: |

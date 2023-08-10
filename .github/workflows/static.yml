@@ -34,9 +34,20 @@ jobs:
           cd docs # Change to your documentation directory if needed
           make html
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
         with:
-          github_token: ${{ secrets.GH_PAGES_TOKEN}}
-          publish_dir: ./docs/_build/html # Change to the path of your built HTML files
+          path: './docs/_build/html'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+
+
+
+
+
 

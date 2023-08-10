@@ -2,9 +2,9 @@
 name: Deploy static content to Pages
 
 on:
-  # Runs on pushes targeting the default branch
+  # Runs on pushes targeting the source branch (change to your source branch)
   push:
-    branches: ["gh-pages"]
+    branches: ["main"] # Change to the branch that contains your source code
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -13,10 +13,8 @@ on:
 permissions:
   contents: read
   pages: write
-  id-token: write
 
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
   group: "pages"
   cancel-in-progress: false
@@ -36,7 +34,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install sphinx sphinx_rtd_theme
-          # Add any other dependencies you need for your documentation
 
       - name: Build Sphinx documentation
         run: |
@@ -48,4 +45,4 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/_build/html 
+          publish_dir: ./docs/_build/html # Change to the path of your built HTML files

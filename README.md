@@ -27,7 +27,7 @@ oxDNA is a molecular dynamics simulation code that can be used to study the mech
 Before using this code, you will need to have the following installed:
 - A full Docker image is available that will compile oxDNA with Python bindings, as well as all the needed Python packages on [Dockerhub](https://hub.docker.com/repository/docker/mlsample/ipy_oxdna/general). The Docker container is now the recommended way to use. You can run a Jupyter server by:
 `docker pull mlsample/ipy_oxdna:v0.2`
-`docker run -p 8888:8888 mlsample/ipy_oxdna:v0.2 jupyter lab --ip 0.0.0.0 --allow-root`
+`docker run -p 8888:8888 mlsample/ipy_oxdna:v0.2 jupyter lab --ip 0.0.0.0 --allow-root -v $(pwd):/workspace --notebook-dir=/workspace`
 
 - conda/mamba environment with packages specified in `./oxdna.yml` (`conda env create -f oxdna.yml`)
 - oxDNA installed with Python bindings (https://github.com/lorenzo-rovigatti/oxDNA)

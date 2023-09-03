@@ -10,6 +10,9 @@ extensions = [
 html_theme = 'sphinx_rtd_theme'
 autodoc_member_order = 'bysource'
 html_logo = os.path.abspath('../src/oxDNA.png')
+html_domain_indices = True
+
+
 # Configuration file for the Sphinx documentation builder.
 #
 # For the full list of built-in configuration values, see the documentation:

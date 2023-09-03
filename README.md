@@ -5,14 +5,13 @@
 
 This repository contains Python code for running oxDNA umbrella sampling and large throughput simulations. This code is complementary to the article:
 
-"Hairygami: Analysis of DNA Nanostructure's Conformational Change Driven by Functionalizable Overhangs"
-
-Matthew Sample, Michael Matthies, and Petr Sulc
+Sample, Matthew, Michael Matthies, and Petr Šulc. "Hairygami: Analysis of DNA Nanostructure's Conformational Change Driven by Functionalizable Overhangs." arXiv preprint arXiv:2302.09109 (2023).
 
 Within the `src` folder exist Jupyter notebook tutorials and examples. The full documentation can be found [here](https://mlsample.github.io/ipy_oxDNA/index.html).
 
 ## Contents
 - [Introduction](#introduction)
+- [NVIDIA Multiprocessing Service (mps)](#how-to-run-nvidia-multiprocessing-service-mps)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -22,6 +21,15 @@ Within the `src` folder exist Jupyter notebook tutorials and examples. The full 
 
 ## Introduction
 oxDNA is a molecular dynamics simulation code that can be used to study the mechanical and thermodynamic properties of DNA and RNA molecules. Umbrella sampling is a highly parallelizable simulation technique that is used to calculate the free energy profiles between two particles or groups of particles. The `ipy_oxDNA` repository provides a Python interface for running oxDNA umbrella sampling simulations, allowing users to easily perform these simulations and analyze their results.
+
+## How to run NVIDIA Multiprocessing Service (mps)
+```bash
+export CUDA_MPS_PIPE_DIRECTORY=/tmp/mps-pipe_$SLURM_TASK_PID
+export CUDA_MPS_LOG_DIRECTORY=/tmp/mps-log_$SLURM_TASK_PID
+mkdir -p $CUDA_MPS_PIPE_DIRECTORY
+mkdir -p $CUDA_MPS_LOG_DIRECTORY
+nvidia-cuda-mps-control -d
+```
 
 ## Prerequisites
 Before using this code, you will need to have the following installed:

@@ -39,8 +39,11 @@ class BaseUmbrellaSampling:
             simulation_manager.queue_sim(sim, continue_run=continue_run)        
             
     def wham_run(self, wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot):
+<<<<<<< HEAD
 <<<<<<< Updated upstream
 =======
+=======
+>>>>>>> 7a099b60142c38b617b557731d8f34de4512dfa0
         """
         Run the weighted histogram analysis technique (Grossfield, Alan http://membrane.urmc.rochester.edu/?page_id=126)
         
@@ -59,6 +62,7 @@ class BaseUmbrellaSampling:
             
             n_boot (str): number of monte carlo bootstrapping steps to take.
         """
+<<<<<<< HEAD
         self.wham.wham_dir = wham_dir
         self.wham.xmin = xmin
         self.wham.xmax = xmax
@@ -68,6 +72,8 @@ class BaseUmbrellaSampling:
         self.wham.n_boot = n_boot
         
 >>>>>>> Stashed changes
+=======
+>>>>>>> 7a099b60142c38b617b557731d8f34de4512dfa0
         self.wham.run_wham(wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot)
         self.free = self.wham.to_si(n_bins, self.com_dir)
         self.mean = self.wham.w_mean(self.free)
@@ -280,6 +286,40 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
     def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
                                 observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
                                 protein=None, force_file=None):
+        """
+        Build the equlibration run
+        
+        Parameters:
+            simulation_manager (SimulationManager): pass a simulation manager.
+            
+            n_windows (int): number of simulation windows.
+            
+            com_list (str): comma speperated list of nucleotide indexes.
+            
+            ref_list (str): comma speperated list of nucleotide indexex.
+            
+            stiff (float): stiffness of the umbrella potential.
+            
+            xmin (float): smallest value of the order parameter to be sampled.
+            
+            xmax (float): largest value of the order parameter to be sampled.
+            
+            input_parameters (dict): dictonary of oxDNA parameters.
+            
+            observable (bool): Boolean to determine if you want to print the observable for the equlibration simulations.
+            
+            sequence_dependant (bool): Boolean to use sequence dependant parameters.
+            
+            print_every (float): how often to print the order parameter.
+            
+            name (str): depreciated.
+            
+            continue_run (float): number of steps to continue umbrella sampling (i.e 1e7).
+            
+            protein (bool): Use a protein par file and run with the ANM oxDNA interaction potentials.
+            
+            force_file (bool): Add an external force to the umbrella simulations.
+        """
         self.windows.equlibration_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
@@ -293,6 +333,40 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
     def build_production_runs(self, simulation_manager, n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
                               observable=True, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
                               protein=None, force_file=None):
+        """
+        Build the production run
+        
+        Parameters:
+            simulation_manager (SimulationManager): pass a simulation manager.
+            
+            n_windows (int): number of simulation windows.
+            
+            com_list (str): comma speperated list of nucleotide indexes.
+            
+            ref_list (str): comma speperated list of nucleotide indexex.
+            
+            stiff (float): stiffness of the umbrella potential.
+            
+            xmin (float): smallest value of the order parameter to be sampled.
+            
+            xmax (float): largest value of the order parameter to be sampled.
+            
+            input_parameters (dict): dictonary of oxDNA parameters.
+            
+            observable (bool): Boolean to determine if you want to print the observable for the equlibration simulations, make sure to not have this as false for production run.
+            
+            sequence_dependant (bool): Boolean to use sequence dependant parameters.
+            
+            print_every (float): how often to print the order parameter.
+            
+            name (str): depreciated.
+            
+            continue_run (float): number of steps to continue umbrella sampling (i.e 1e7).
+            
+            protein (bool): Use a protein par file and run with the ANM oxDNA interaction potentials.
+            
+            force_file (bool): Add an external force to the umbrella simulations.
+        """
         self.windows.equlibration_windows(n_windows)
         self.windows.production_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)

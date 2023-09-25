@@ -20,7 +20,7 @@ import re
 import time
 import queue
 
-
+# import cupy
 
 class Simulation:
     """
@@ -28,6 +28,7 @@ class Simulation:
     
     Parameters:
         file_dir (str): Path to directory containing inital oxDNA dat and top files.
+        
         sim_dir (str): Path to directory where a simulation will be run using inital files.
     """
     def __init__(self, file_dir, sim_dir):
@@ -81,14 +82,14 @@ class Simulation:
     
     def add_protein_par(self):
         """
-        Add a parfile from file_dir to sim_dir
+        Add a parfile from file_dir to sim_dir and add file name to input file
         """
         self.build_sim.build_par()
         self.protein.par_input()
     
     def add_force_file(self):
         """
-        Add a external force file from file_dir to sim_dir
+        Add a external force file from file_dir to sim_dir and add file name to input
         """
         self.build_sim.get_force_file()
         self.build_sim.build_force_from_file()
@@ -134,12 +135,20 @@ class Simulation:
 
         
 class GenerateReplicas:
-    "Methods to generate multisystem replicas"
-    
-    def __init__(self):
-        pass
+    """
+    Methods to generate multisystem replicas
+    """
     
     def multisystem_replica(self, systems, n_replicas_per_system, file_dir_list, sim_dir_list):
+        """
+        Create simulation replicas, with across multiple systems with diffrent inital files
+        
+        Parameters:
+            systems (list): List of strings, where the strings are the name of the directory which will hold the inital files
+            n_replicas_per_system (int): number of replicas to make per system
+            file_dir_list (list): List of strings with path to intial files
+            sim_dir_list (list): List of simulation directory paths
+        """
         self.systems = systems
         self.n_replicas_per_system = n_replicas_per_system
         self.file_dir_list = file_dir_list
@@ -188,34 +197,15 @@ class GenerateReplicas:
         return sim_list_file_dir, concat_dir
         
     def concat_all_system_traj(self):
+        "Concatenate the trajectory of multiple replicas for each system"
         self.concat_sim_dirs = []
         self.concat_file_dirs = []
         for system in self.systems:
             file_dir, concat_dir = self.concat_single_system_traj(system)
             self.concat_sim_dirs.append(concat_dir)
-            self.concat_file_dirs.append(file_dir)
-class Replica:
-    "Methods used to preform analysis of multiple simulation replicas pertaining to a single system"
-    def __init__(self, sim_list):
-        self.sim_list = sim_list
-        self.n_sims = len(sim_list)
-        self.sim_list_file_dir = sim_list[0].file_dir
-        self.sim_paths = [sim.sim_dir for sim in sim_list]
-    
-        
-    def concat_trajectory(self,concat_dir='concat_dir'):
-        "Concatenate the trajectory of multiple replicas"
-        self.concat_dir = os.path.abspath(os.path.join(self.sim_list_file_dir, concat_dir))
-        if not os.path.exists(self.concat_dir):
-            os.mkdir(self.concat_dir)
+            self.concat_file_dirs.append(file_dir)                  
             
-        with open(f'{self.concat_dir}/trajectory.dat', 'wb') as outfile:
-            for f in self.sim_paths:
-                with open(f'{f}/trajectory.dat', 'rb') as infile:
-                    outfile.write(infile.read())
-        shutil.copyfile(self.sim_list[0].sim_files.top, self.concat_dir+'/concat.top')
-                  
-            
+
 class Protein:
     "Methods used to enable anm simulations with proteins"
     def __init__(self, sim):
@@ -636,7 +626,7 @@ class SimulationManager:
         Begin nvidia-cuda-mps-server.
         
         Parameters:
-            pipe (str): of of directory to pipe control server information to. Defaults to PID of a slurm allocation
+            pipe (str): directory to pipe control server information to. Defaults to PID of a slurm allocation
         """
         with open('launch_mps.tmp', 'w') as f:
             f.write(f"""#!/bin/bash
@@ -850,6 +840,9 @@ class OxdnaAnalysisTools:
         self.sim = sim            
     
     def align(self, outfile='aligned.dat', args='', join=False):
+        """
+        Align trajectory to mean strucutre
+        """
         if args == '-h':
             os.system('oat align -h')
             return None
@@ -906,6 +899,9 @@ class OxdnaAnalysisTools:
     #         p.join()
             
     def centroid(self, reference_structure='mean.dat', args='', join=False):
+        """
+        Extract conformation most similar to reference strucutre (mean.dat by default). centroid is actually a misnomer for this function.
+        """
         if args == '-h':
             os.system('oat centroid -h')
             return None
@@ -976,6 +972,9 @@ class OxdnaAnalysisTools:
 #             p.join()
             
     def decimate(self, outfile='strided_trajectory.dat', args='', join=False):
+        """
+        Modify trajectory file, mostly to decrease file size. Use args='-h' for more details
+        """
         if args == '-h':
             os.system('oat decimate -h')
             return None
@@ -990,6 +989,9 @@ class OxdnaAnalysisTools:
             p.join()
             
     def deviations(self, mean_structure='mean.dat', args='', join=False):
+        """
+        Calculate rmsf and rmsd with respect to the mean strucutre Use args='-h' for more details.
+        """
         if args == '-h':
             os.system('oat deviations -h')
             return None
@@ -1088,6 +1090,9 @@ class OxdnaAnalysisTools:
 #             p.join()
             
     def mean(self, traj='trajectory.dat', args='', join=False):
+        """
+        Compute the mean strucutre. Use args='-h' for more details
+        """
         if args == '-h':
             os.system('oat mean -h')
             return None
@@ -1102,6 +1107,9 @@ class OxdnaAnalysisTools:
             p.join()
             
     def minify(self, traj='trajectory.dat', outfile='mini_trajectory.dat', args='', join=False):
+        """
+        Reduce trajectory file size. Use args='-h' for more details.
+        """
         if args == '-h':
             os.system('oat minify -h')
             return None
@@ -1144,6 +1152,9 @@ class OxdnaAnalysisTools:
 #             p.join()
             
     def oxDNA_PDB(self, configuration='mean.dat', direction='35', pdbfiles='', args='', join=False):
+        """
+        Turn a oxDNA file into a PDB file. Use args='-h' for more details
+        """
         if args == '-h':
             os.system('oat oxDNA_PDB -h')
             return None
@@ -1158,6 +1169,9 @@ class OxdnaAnalysisTools:
             p.join()
             
     def pca(self, meanfile='mean.dat', outfile='pca.json', args='', join=False):
+        """
+        Preform principle componet analysis. Use args='-h' for more details
+        """
         if args == '-h':
             os.system('oat pca -h')
             return None
@@ -1172,8 +1186,11 @@ class OxdnaAnalysisTools:
             p.join()
 
     def conformational_entropy(self, traj='trajectory.dat', meanfile='mean.dat', outfile='conformational_entropy.json', args='', join=False):
+        """
+        Calculate a strucutres conformational entropy (not currently supported in general). Use args='-h' for more details.
+        """
         if args == '-h':
-            os.system('oat pca -h')
+            os.system('oat conformational_entropy -h')
             return None
         def run_conformational_entropy(self,traj, meanfile, outfile, args=''):
             start_dir = os.getcwd()
@@ -1214,6 +1231,9 @@ class OxdnaAnalysisTools:
 #             p.join()
             
     def subset_trajectory(self, args='', join=False):
+        """
+        Extract specificed indexes from a trajectory, creating a new trajectory. Use args='-h' for more details
+        """
         if args == '-h':
             os.system('oat subset_trajectory -h')
             return None
@@ -1241,6 +1261,9 @@ class OxdnaAnalysisTools:
 #         if join == True:
 #             p.join()  
     def com_distance(self, base_list_file_1=None, base_list_file_2=None, base_list_1=None, base_list_2=None, args='', join=False):
+        """
+        Find the distance between the center of mass of two groups of particles (currently not supported generally). Use args='-h' for more details
+        """
         if args == '-h':
             os.system('oat com_distance -h')
             return None
@@ -1548,6 +1571,9 @@ class Observable:
     """ Currently implemented observables for this oxDNA wrapper."""
     @staticmethod
     def distance(particle_1=None, particle_2=None, PBC=None,print_every=None, name=None):
+        """
+        Calculate the distance between two (groups) of particles
+        """
         return({
             "output": {
                 "print_every": print_every,
@@ -1564,7 +1590,10 @@ class Observable:
         })
     
     @staticmethod 
-    def hb_list(print_every=None, name=None, only_count=None):       
+    def hb_list(print_every=None, name=None, only_count=None):
+        """
+        Compute the number of hydrogen bonds between the specified particles
+        """
         return({
             "output": {
                 "print_every": print_every,
@@ -1581,6 +1610,9 @@ class Observable:
     
     @staticmethod 
     def particle_position(particle_id=None, orientation=None, absolute=None, print_every=None, name=None):
+        """
+        Return the x,y,z postions of specified particles
+        """
         return({
             "output": {
                 "print_every": print_every,
@@ -1601,6 +1633,7 @@ class Force:
     """ Currently implemented external forces for this oxDNA wrapper."""
     @staticmethod
     def morse(particle=None, ref_particle=None, a=None, D=None, r0=None, PBC=None):
+        "Morse potential"
         return({"force":{
                 "type":'morse',
                 "particle": f'{particle}',
@@ -1614,6 +1647,7 @@ class Force:
     
     @staticmethod
     def skew_force(particle=None, ref_particle=None, stdev=None, r0=None, shape=None, PBC=None):
+        "Skewed Gaussian potential"
         return({"force":{
                 "type":'skew_trap',
                 "particle": f'{particle}',
@@ -1627,6 +1661,7 @@ class Force:
     
     @staticmethod
     def com_force(com_list=None, ref_list=None, stiff=None, r0=None, PBC=None, rate=None):
+        "Harmonic trap between two groups"
         return({"force":{
                 "type":'com',
                 "com_list": f'{com_list}',

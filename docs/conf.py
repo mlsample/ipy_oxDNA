@@ -1,13 +1,17 @@
 import sys
 import os
-
+import sphinx_rtd_theme
 sys.path.insert(0, os.path.abspath('../src'))
 
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx_rtd_theme'
 ]
-
+html_theme = 'sphinx_rtd_theme'
 autodoc_member_order = 'bysource'
+html_logo = os.path.abspath('../src/oxDNA.png')
+html_domain_indices = True
+
 
 # Configuration file for the Sphinx documentation builder.
 #
@@ -33,5 +37,4 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'alabaster'
 html_static_path = ['_static']

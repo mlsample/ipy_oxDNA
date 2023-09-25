@@ -13,5 +13,4 @@ dependencies:
   - pandas
   - nvidia-ml-py3
   - statsmodels
-  - scienceplots
 prefix: /home/mlsample/.conda/envs/oxdna

@@ -39,11 +39,6 @@ class BaseUmbrellaSampling:
             simulation_manager.queue_sim(sim, continue_run=continue_run)        
             
     def wham_run(self, wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot):
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-=======
-=======
->>>>>>> 7a099b60142c38b617b557731d8f34de4512dfa0
         """
         Run the weighted histogram analysis technique (Grossfield, Alan http://membrane.urmc.rochester.edu/?page_id=126)
         
@@ -62,7 +57,6 @@ class BaseUmbrellaSampling:
             
             n_boot (str): number of monte carlo bootstrapping steps to take.
         """
-<<<<<<< HEAD
         self.wham.wham_dir = wham_dir
         self.wham.xmin = xmin
         self.wham.xmax = xmax
@@ -71,9 +65,6 @@ class BaseUmbrellaSampling:
         self.wham.tol = tol
         self.wham.n_boot = n_boot
         
->>>>>>> Stashed changes
-=======
->>>>>>> 7a099b60142c38b617b557731d8f34de4512dfa0
         self.wham.run_wham(wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot)
         self.free = self.wham.to_si(n_bins, self.com_dir)
         self.mean = self.wham.w_mean(self.free)

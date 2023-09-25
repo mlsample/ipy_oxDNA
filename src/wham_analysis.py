@@ -22,11 +22,27 @@ def copy_com_files(sim_dir, com_dir):
                     shutil.copyfile(os.path.join(sim_dir, window, file),
                                     os.path.join(com_dir, f'com_distance_{window}.txt'))
     return None
+
+def copy_h_bond_files(sim_dir, com_dir):
+    # copy com files from each to window to separate directory
+    if os.path.exists(f'{com_dir}/h_bonds'):
+        shutil.rmtree(f'{com_dir}/h_bonds')
+    if not os.path.exists(f'{com_dir}/h_bonds'):
+        os.mkdir(f'{com_dir}/h_bonds')
+    windows = [w for w in os.listdir(sim_dir) if w.isdigit()]
+    for window in windows:
+        if os.path.isdir(os.path.join(sim_dir, window)):
+            for file in os.listdir(os.path.join(sim_dir, window)):
+                if 'hb_observable' in file:
+                    shutil.copyfile(os.path.join(sim_dir, window, file),
+                                    os.path.join(f'{com_dir}/h_bonds', f'hb_list_{window}.txt'))
+    return None
     
 def collect_coms(com_dir):
     # create a list of dataframes for each window
     com_list = []
     com_files = [f for f in os.listdir(com_dir) if f.endswith('.txt')]
+    com_files.sort(key=sort_coms)
     for window, file in enumerate(com_files):
         com_list.append(pd.read_csv(os.path.join(com_dir, file), header=None, names=[window], usecols=[0]))
     return com_list
@@ -115,9 +131,33 @@ def format_freefile(time_dir):
             f.write(line)
     return None
 
+
 def wham_analysis(wham_dir, sim_dir, com_dir, xmin, xmax, k, n_bins, tol, n_boot, temp):
     print('Running WHAM analysis...')
     copy_com_files(sim_dir, com_dir)
+    com_list = collect_coms(com_dir)
+    autocorrelation_list = autocorrelation(com_list)
+    time_dir = number_com_lines(com_dir)
+    r0_list = get_r0_list(xmin, xmax, sim_dir)
+    create_metadata(time_dir, autocorrelation_list, r0_list, k)
+    output = run_wham(wham_dir, time_dir, xmin, xmax, n_bins, tol, n_boot, temp)
+    # print(output)
+    format_freefile(time_dir)
+    print('WHAM analysis completed')
+    return output
+
+def chunk_com_file(chunk_lower_bound, chunk_upper_bound, com_dir):
+    com_files = [os.path.join(com_dir, f) for f in os.listdir(com_dir) if f.endswith('.txt')]
+    for file in com_files:
+        for line in fileinput.input(file, inplace=True):
+            if (int(fileinput.filelineno()) >= chunk_lower_bound) and (int(fileinput.filelineno()) <= chunk_upper_bound):
+                sys.stdout.write(f'{line}')
+    return None
+
+def chunked_wham_analysis(chunk_lower_bound, chunk_upper_bound, wham_dir, sim_dir, com_dir, xmin, xmax, k, n_bins, tol, n_boot, temp):
+    print('Running WHAM analysis...')
+    copy_com_files(sim_dir, com_dir)
+    chunk_com_file(chunk_lower_bound, chunk_upper_bound, com_dir)
     com_list = collect_coms(com_dir)
     autocorrelation_list = autocorrelation(com_list)
     time_dir = number_com_lines(com_dir)
@@ -128,6 +168,17 @@ def wham_analysis(wham_dir, sim_dir, com_dir, xmin, xmax, k, n_bins, tol, n_boot
     format_freefile(time_dir)
     print('WHAM analysis completed')
     return output
+    
+    
+
+#I want to be able to check the convergence of the free energy profile by creating multiple freefiles
+#within the com_dir, I can create a folder called convergence analysis that will hold subfolders, where each subfolder will be named based on the subset of data it holds
+#There will be two types of convergence analysis
+#One type where I seperate my data into N chunks, and run WHAM for each chuck
+#Another type where I use the first i * ((n_data / 10) - 1) points itr over 1 to 10
+
+#The easiest way to do this is to create a new wham_analysis function that will
+# def check_convergence
 
 
 def get_up_down(x_max:float, com_dist_file:str, pos_file:str):
@@ -230,6 +281,26 @@ def get_xmax(com_dir_1, com_dir_2):
     xmax = max(xmax_1, xmax_2)
     return xmax
 
+
+
+
+def cms_wham_analysis(wham_dir, mod_com_dir, xmin, xmax, k, n_bins, tol, n_boot, temp):
+    r0_list = get_r0_list_mod(xmin, xmax, sim_dir)
+    create_metadata(mod_com_dir, autocorrelation_list, r0_list, k)
+    output = run_wham(wham_dir, mod_com_dir, xmin, xmax, n_bins, tol, n_boot, temp)
+    format_freefile(mod_com_dir)
+    print('WHAM analysis completed')
+    return None
+
+#create function that takes in two autocorrelation_lists, two mod_com_dirs
+def two_sided_wham(wham_dir, auto_1, auto_2, mod_com_dir_1, mod_com_dir_2, xmin, xmax, k, n_bins, tol, n_boot, temp):
+    r0_list_1 = np.round(np.linspace(-float(xmax), 0, len(auto_1) +1), 3)[1:]
+    r0_list_2 = np.round(np.linspace(float(0), float(xmax), len(auto_2)+1), 3)[:-1][::-1]
+    mod_create_metadata(mod_com_dir_1, mod_com_dir_2, auto_1, auto_2, r0_list_2, r0_list_1, k)
+    output = run_wham(wham_dir, mod_com_dir_1, str(-float(xmax)), xmax, n_bins, tol, n_boot, temp)
+    format_freefile(mod_com_dir_1)
+    print('WHAM analysis completed')
+
 def modifed_coms(xmax, com_dir, pos_dir, mod_com_dir):
     if os.path.exists(mod_com_dir):
         shutil.rmtree(mod_com_dir)
@@ -282,33 +353,6 @@ def mod_create_metadata(mod_com_dir_1, mod_com_dir_2, auto_1, auto_2, r0_list_1,
         for file, r0, auto in zip(com_files_2, r0_list_2, auto_2):
             f.write(f'{file} {r0} {k} {auto}\n')
     return None
-
-def run_wham(wham_dir, time_dir, xmin, xmax, n_bins, tol, n_boot, temp):
-    # Run WHAM analysis on metadata file to create free energy file
-    wham = os.path.join(wham_dir, 'wham')
-    seed = str(np.random.randint(0, 1000000))
-    os.chdir(time_dir)
-    output = subprocess.run([wham, xmin, xmax, n_bins, tol, temp, '0', 'metadata', 'freefile', n_boot, seed], capture_output=True)
-    return output
-
-#create function that takes in two autocorrelation_lists, two mod_com_dirs
-def two_sided_wham(wham_dir, auto_1, auto_2, mod_com_dir_1, mod_com_dir_2, xmin, xmax, k, n_bins, tol, n_boot, temp):
-    r0_list_1 = np.round(np.linspace(-float(xmax), 0, len(auto_1) +1), 3)[1:]
-    r0_list_2 = np.round(np.linspace(float(0), float(xmax), len(auto_2)+1), 3)[:-1][::-1]
-    mod_create_metadata(mod_com_dir_1, mod_com_dir_2, auto_1, auto_2, r0_list_2, r0_list_1, k)
-    output = run_wham(wham_dir, mod_com_dir_1, str(-float(xmax)), xmax, n_bins, tol, n_boot, temp)
-    format_freefile(mod_com_dir_1)
-    print('WHAM analysis completed')
-
-
-def cms_wham_analysis(wham_dir, mod_com_dir, xmin, xmax, k, n_bins, tol, n_boot, temp):
-    r0_list = get_r0_list_mod(xmin, xmax, sim_dir)
-    create_metadata(mod_com_dir, autocorrelation_list, r0_list, k)
-    output = run_wham(wham_dir, mod_com_dir, xmin, xmax, n_bins, tol, n_boot, temp)
-    format_freefile(mod_com_dir)
-    print('WHAM analysis completed')
-    return None
-
 
 
 

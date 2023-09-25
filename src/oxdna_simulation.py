@@ -59,7 +59,10 @@ class Simulation:
                     print('Remove optional argument clean_build and rerun to continue')
                     return None           
             elif clean_build == 'force':                    
-                    shutil.rmtree(self.sim_dir)                
+                    shutil.rmtree(self.sim_dir)
+            elif clean_build == False:
+                print('The simulation directory already exists, if you wish to write over the directory set clean_build=force')
+                return None  
         self.build_sim.build_sim_dir()
         self.build_sim.build_dat_top()
         self.build_sim.build_input()
@@ -553,7 +556,7 @@ class SimulationManager:
         self.sim_queue.put(sim) 
         
                     
-    def worker_manager(self, gpu_mem_block=True, custom_observables=None, run_when_failed=False):
+    def worker_manager(self, gpu_mem_block=True, custom_observables=None, run_when_failed=False, cpu_run=False):
         """ Head process in charge of allocating queued simulations to processes and gpu memory."""
         tic = timeit.default_timer()
         self.custom_observables = custom_observables
@@ -570,8 +573,10 @@ class SimulationManager:
                     print(self.terminate_queue.get())
             self.process_queue.put('Simulation worker finished')
             sim = self.sim_queue.get()
-            free_gpu_memory, gpu_idx = self.gpu_resources()
-            sim.input_file({'CUDA_device': str(gpu_idx)})
+            gpu_idx = None
+            if cpu_run is False:
+                free_gpu_memory, gpu_idx = self.gpu_resources()
+                sim.input_file({'CUDA_device': str(gpu_idx)})
             p = mp.Process(target=self.worker_job, args=(sim, gpu_idx,), kwargs={'gpu_mem_block':gpu_mem_block})
             p.start()
             self.worker_process_list.append(p)
@@ -605,10 +610,10 @@ class SimulationManager:
             self.terminate_queue.put(f'Simulation exception encountered in {sim.sim_dir}:\n{sim.oxpy_run.error_message}')
         self.process_queue.get()
     
-    def run(self, log=None, join=False, gpu_mem_block=True, custom_observables=None, run_when_failed=False):
+    def run(self, log=None, join=False, gpu_mem_block=True, custom_observables=None, run_when_failed=False, cpu_run=False):
         """ Run the worker manager in a subprocess"""
         print('spawning')
-        p = mp.Process(target=self.worker_manager, args=(), kwargs={'gpu_mem_block':gpu_mem_block, 'custom_observables':custom_observables, 'run_when_failed':run_when_failed}) 
+        p = mp.Process(target=self.worker_manager, args=(), kwargs={'gpu_mem_block':gpu_mem_block, 'custom_observables':custom_observables, 'run_when_failed':run_when_failed, 'cpu_run':cpu_run}) 
         self.manager_process = p
         p.start()
         if join == True:
@@ -1795,7 +1800,7 @@ class SimFiles:
                     self.traj = os.path.abspath(os.path.join(self.sim_dir, file))
                 elif file == 'last_conf.dat':
                     self.last_conf = os.path.abspath(os.path.join(self.sim_dir, file))
-                elif (file.endswith(('.dat'))) and not (file.endswith(('energy.dat'))) and not (file.endswith(('trajectory.dat'))) and not (file.endswith(('error_conf.dat'))):
+                elif (file.endswith(('.dat'))) and not (file.endswith(('energy.dat'))) and not (file.endswith(('trajectory.dat'))) and not (file.endswith(('error_conf.dat'))) and not (file.endswith(('last_hist.dat'))) and not (file.endswith(('traj_hist.dat'))) and not (file.endswith(('last_conf.dat'))):
                     self.dat = os.path.abspath(os.path.join(self.sim_dir, file))
                 elif (file.endswith(('.top'))):
                     self.top = os.path.abspath(os.path.join(self.sim_dir, file))
@@ -1819,4 +1824,8 @@ class SimFiles:
                     self.cms_positions = os.path.abspath(os.path.join(self.sim_dir, file))
                 elif 'par' in file:
                     self.par = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif 'last_hist.dat' in file:
+                    self.last_hist = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif 'hb_observable.txt' in file:
+                    self.hb_observable = os.path.abspath(os.path.join(self.sim_dir, file))
 

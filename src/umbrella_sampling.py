@@ -6,13 +6,15 @@ from os.path import join, exists
 import numpy as np
 import shutil
 import pandas as pd
-from scipy.stats import multivariate_normal
+from scipy.stats import multivariate_normal, norm
 import matplotlib.pyplot as plt
 import scienceplots
 
 
+
 class BaseUmbrellaSampling:
-    def __init__(self, file_dir, system):
+    def __init__(self, file_dir, system, clean_build=False):
+        self.clean_build = clean_build
         self.system = system
         self.file_dir = file_dir
         self.system_dir = join(self.file_dir, self.system)
@@ -28,19 +30,109 @@ class BaseUmbrellaSampling:
         self.obs = Observable()
         
         self.read_progress()
+        
+        self.umbrella_bias = None
+        self.com_by_window = None
     
     def queue_sims(self, simulation_manager, sim_list, continue_run=False):
         for sim in sim_list:
             simulation_manager.queue_sim(sim, continue_run=continue_run)        
             
     def wham_run(self, wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot):
+<<<<<<< Updated upstream
+=======
+        """
+        Run the weighted histogram analysis technique (Grossfield, Alan http://membrane.urmc.rochester.edu/?page_id=126)
+        
+        Parameters:
+            wham_dir (str): directory in which wham is complied using the install_wham.sh script.
+            
+            xmin (str): smallest value of the order parameter to be sampled.
+            
+            xmax (str): largest value of the order parameter to be sample.
+            
+            umbrella_stiff (str): stiffness of the umbrella potential.
+            
+            n_bins (str): number of bins of the resultant free energy profile.
+            
+            tol (str): the tolerance of convergence for the WHAM technique.
+            
+            n_boot (str): number of monte carlo bootstrapping steps to take.
+        """
+        self.wham.wham_dir = wham_dir
+        self.wham.xmin = xmin
+        self.wham.xmax = xmax
+        self.wham.umbrella_stiff = umbrella_stiff
+        self.wham.n_bins = n_bins
+        self.wham.tol = tol
+        self.wham.n_boot = n_boot
+        
+>>>>>>> Stashed changes
         self.wham.run_wham(wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot)
-        self.wham.to_si(n_bins)
-        self.wham.w_mean()
+        self.free = self.wham.to_si(n_bins, self.com_dir)
+        self.mean = self.wham.w_mean(self.free)
         try:
-            self.wham.bootstrap_w_mean_error()
+            self.standard_error, self.confidence_interval = self.wham.bootstrap_w_mean_error(self.free)
         except:
             self.standard_error = 'failed'
+            
+    def convergence_analysis(self, n_chunks, data_added_per_iteration, wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot):
+        """
+        Split your data into a set number of chunks to check convergence.
+        If all chunks are the same your free energy profile if probabily converged
+        Also create datasets with iteraterativly more data, to check convergence progress
+        """
+        self.wham.wham_dir = wham_dir
+        self.wham.xmin = xmin
+        self.wham.xmax = xmax
+        self.wham.umbrella_stiff = umbrella_stiff
+        self.wham.n_bins = n_bins
+        self.wham.tol = tol
+        self.wham.n_boot = n_boot
+        
+        if not exists(self.com_dir):
+            self.wham_run(wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot)
+            
+        self.convergence_dir = join(self.com_dir, 'convergence_dir')
+        self.chunk_convergence_analysis_dir = join(self.convergence_dir, 'chunk_convergence_analysis_dir')
+        self.data_truncated_convergence_analysis_dir = join(self.convergence_dir, 'data_truncated_convergence_analysis_dir')
+        
+        if exists(self.convergence_dir):
+            shutil.rmtree(self.convergence_dir)
+            
+        if not exists(self.convergence_dir):
+            os.mkdir(self.convergence_dir)
+            os.mkdir(self.chunk_convergence_analysis_dir)
+            os.mkdir(self.data_truncated_convergence_analysis_dir) 
+  
+        self.wham.chunk_convergence_analysis(n_chunks)
+        
+        self.chunk_dirs_free = [self.wham.to_si(self.wham.n_bins, chunk_dir) for chunk_dir in self.wham.chunk_dirs]
+        self.chunk_dirs_mean = [self.wham.w_mean(free_energy) for free_energy in self.chunk_dirs_free]
+        try:
+            self.chunk_dirs_standard_error, self.chunk_dirs_confidence_interval = zip(
+                *[self.wham.bootstrap_w_mean_error(free_energy) for free_energy in self.chunk_dirs_free]
+            )
+        except:
+            self.chunk_dirs_standard_error = ['failed' for _ in range(len(self.chunk_dirs_free))]
+            self.chunk_dirs_confidence_interval = ['failed' for _ in range(len(self.chunk_dirs_free))]
+
+
+        
+        self.wham.data_truncated_convergence_analysis(data_added_per_iteration)
+        
+        self.data_truncated_free = [self.wham.to_si(self.wham.n_bins, chunk_dir) for chunk_dir in self.wham.data_truncated_dirs]
+        self.data_truncated_mean = [self.wham.w_mean(free_energy) for free_energy in self.data_truncated_free]
+        try:
+            self.data_truncated_standard_error, self.data_truncated_confidence_interval = zip(
+                *[self.wham.bootstrap_w_mean_error(free_energy) for free_energy in self.data_truncated_free]
+            )
+        except:
+            self.data_truncated_standard_error = ['failed' for _ in range(len(self.data_truncated_free))]
+            self.data_truncated_confidence_interval = ['failed' for _ in range(len(self.data_truncated_free))]
+        
+        return None
+                                    
     
     def read_progress(self):   
         if exists(join(self.system_dir, 'equlibration')):
@@ -59,21 +151,130 @@ class BaseUmbrellaSampling:
                 self.production_sims.append(Simulation(self.equlibration_sims[window].sim_dir, str(window_dir))) 
         
         if exists(join(self.system_dir, 'production', 'com_dir', 'freefile')):
+            self.com_dir = join(self.system_dir, 'production', 'com_dir')
             with open(join(self.production_sim_dir, 'com_dir', 'freefile'), 'r') as f:
                 file = f.readlines()
             file = [line for line in file if not line.startswith('#')]
-            n_bins = len(file)
-            self.wham.to_si(n_bins)
-            self.wham.w_mean()
+            self.n_bins = len(file)
+            self.wham.get_n_data_per_com_file()
+            self.free = self.wham.to_si(self.n_bins, self.com_dir)
+            self.mean = self.wham.w_mean(self.free)
             try:
-                self.wham.bootstrap_w_mean_error()
+                self.standard_error, self.confidence_interval = self.wham.bootstrap_w_mean_error(self.free)
             except:
-                self.standard_error = 'failed'
+                self.standard_error, self.confidence_interval = ('failed', 'failed')
+        
+        if exists(join(self.system_dir, 'production', 'com_dir', 'convergence_dir')):
+            self.convergence_dir = join(self.com_dir, 'convergence_dir')
+            self.chunk_convergence_analysis_dir = join(self.convergence_dir, 'chunk_convergence_analysis_dir')
+            self.data_truncated_convergence_analysis_dir = join(self.convergence_dir, 'data_truncated_convergence_analysis_dir')  
+            self.wham.chunk_dirs = [join(self.chunk_convergence_analysis_dir, chunk_dir) for chunk_dir in os.listdir(self.chunk_convergence_analysis_dir)]
+            self.wham.data_truncated_dirs = [join(self.data_truncated_convergence_analysis_dir, chunk_dir) for chunk_dir in os.listdir(self.data_truncated_convergence_analysis_dir)]
             
+            self.chunk_dirs_free = [self.wham.to_si(self.n_bins, chunk_dir) for chunk_dir in self.wham.chunk_dirs]
+            self.chunk_dirs_mean = [self.wham.w_mean(free_energy) for free_energy in self.chunk_dirs_free]
+            try:
+                self.chunk_dirs_standard_error, self.chunk_dirs_confidence_interval = zip(
+                    *[self.wham.bootstrap_w_mean_error(free_energy) for free_energy in self.chunk_dirs_free]
+                )
+            except:
+                self.chunk_dirs_standard_error = ['failed' for _ in range(len(self.chunk_dirs_free))]
+                self.chunk_dirs_confidence_interval = ['failed' for _ in range(len(self.chunk_dirs_free))]
+
+                
+            self.data_truncated_free = [self.wham.to_si(self.n_bins, chunk_dir) for chunk_dir in self.wham.data_truncated_dirs]
+            self.data_truncated_mean = [self.wham.w_mean(free_energy) for free_energy in self.data_truncated_free]
+            try:
+                self.data_truncated_standard_error, self.data_truncated_confidence_interval = zip(
+                    *[self.wham.bootstrap_w_mean_error(free_energy) for free_energy in self.data_truncated_free]
+                )
+            except:
+                self.data_truncated_standard_error = ['failed' for _ in range(len(self.data_truncated_free))]
+                self.data_truncated_confidence_interval = ['failed' for _ in range(len(self.data_truncated_free))]
+                
+    def get_biases(self):
+        #I need to get the freefile
+        #The free file is in the com_dim
+        with open(f'{self.com_dir}/freefile', 'r') as f:
+            data = f.readlines()
+            
+        for idx, line in enumerate(data):
+            if '#Window' in line:
+                break
+            else:
+                pass
+        data = data[idx:]
+        data = [line[1:] for line in data]
+        data = [line.replace('\t', ' ') for line in data]
+        data = data[1:]
+        data = [line.split() for line in data]
+        data = [line[1] for line in data]
+ 
+        return data
+   
+    def get_com_distance_by_window(self):
+        com_distance_by_window = {}
+        for idx,sim in enumerate(self.production_sims):
+            sim.sim_files.parse_current_files()
+            df = pd.read_csv(sim.sim_files.com_distance, header=None)
+            com_distance_by_window[idx] = df
+        self.com_by_window = com_distance_by_window
+
+    
+    def get_bias_potential_value(self, xmin, xmax, n_windows, stiff):
+        x_range = np.round(np.linspace(xmin, xmax, (n_windows + 1))[1:], 3)
+        umbrella_bias = [0.5 * stiff * (com_values - eq_pos)**2 for com_values, eq_pos in zip(self.com_by_window.values(), x_range)]
+        self.umbrella_bias = umbrella_bias
+    
+    def copy_last_conf_from_eq_to_prod(self):
+        for eq_sim, prod_sim in zip(self.equlibration_sims, self.production_sims):
+            shutil.copyfile(eq_sim.sim_files.last_conf, f'{prod_sim.sim_dir}/last_conf.dat')
+
+            
+class UmbrellaBuild:
+    def __init__(self, base_umbrella):
+        self.base_umbrella = base_umbrella
+    
+    def build(self, sims, input_parameters, forces_list, observables_list,
+              observable=False, sequence_dependant=False, cms_observable=False, protein=None, force_file=None):
+        
+        if exists(self.base_umbrella.system_dir):
+            if self.base_umbrella.clean_build is True:
+                answer = input('Are you sure you want to delete all simulation files? Type y/yes to continue or anything else to return use UmbrellaSampling(clean_build=str(force) to skip this message')
+                if (answer == 'y') or (answer == 'yes'):
+                    pass
+                else:
+                    sys.exit('\nRemove optional argument clean_build and continue a previous umbrella simulation using:\nsimulation_manager.run(continue_run=int(n_steps))')    
+            elif self.base_umbrella.clean_build == 'force':                    
+                    pass
+            elif self.base_umbrella.clean_build == False:
+                sys.exit('\nThe simulation directory already exists, if you wish to write over the directory set:\nUmbrellaSampling(clean_build=str(force)).\n\nTo continue a previous umbrella simulation use:\nsimulation_manager.run(continue_run=int(n_steps))')  
+            
+        for sim, forces in zip(sims, forces_list):
+            sim.build(clean_build='force')
+            
+            if protein is not None:
+                sim.add_protein_par()
+            if force_file is not None:
+                sim.add_force_file()
+            for force in forces:
+                sim.add_force(force)
+            if observable == True:
+                for observables in observables_list:
+                    sim.add_observable(observables)
+            if cms_observable is not False:
+                for cms_obs_dict in cms_observable:
+                    sim.oxpy_run.cms_obs(cms_obs_dict['idx'],
+                                         name=cms_obs_dict['name'],
+                                         print_every=cms_obs_dict['print_every'])
+            sim.input_file(input_parameters)
+            if sequence_dependant is True:
+                sim.sequence_dependant()
+                
 
 class ComUmbrellaSampling(BaseUmbrellaSampling):
-    def __init__(self, file_dir, system):
-        super().__init__(file_dir, system)
+    def __init__(self, file_dir, system, clean_build=False):
+        super().__init__(file_dir, system, clean_build=clean_build)
         self.observables_list = []
         
     def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
@@ -177,8 +378,8 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
 
         
 class CustomObservableUmbrellaSampling(ComUmbrellaSampling):
-    def __init__(self, file_dir, system):
-        super().__init__(file_dir, system)
+    def __init__(self, file_dir, system, clean_build=False):
+        super().__init__(file_dir, system, clean_build=clean_build)
         self.wham = CustomObsWham(self)
     
     def build_equlibration_runs(self, simulation_manager,  n_windows, 
@@ -216,8 +417,9 @@ class CustomObservableUmbrellaSampling(ComUmbrellaSampling):
     
 
 class MeltingUmbrellaSampling(ComUmbrellaSampling):
-    def __init__(self, file_dir, system):
-        super().__init__(file_dir, system)
+    def __init__(self, file_dir, system, clean_build=False):
+        super().__init__(file_dir, system, clean_build=clean_build)
+        self.hb_by_window = None
         
     def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
                                 observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
@@ -259,6 +461,122 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             only_count='true'
            )
         self.observables_list.append(hb_obs)
+        
+    def copy_hb_list_to_com_dir(self):
+        copy_h_bond_files(self.production_sim_dir, self.com_dir)
+
+    def get_hb_list_by_window(self):
+        hb_list_by_window = {}
+        for idx,sim in enumerate(self.production_sims):
+            sim.sim_files.parse_current_files()
+            df = pd.read_csv(sim.sim_files.hb_observable, header=None)
+            hb_list_by_window[idx] = df
+        self.hb_by_window = hb_list_by_window
+            
+    
+    def unbias_com_to_hb(self, xmin, xmax, n_windows, stiff, max_hb):
+        if self.com_by_window is None:
+            self.get_com_distance_by_window()
+        if self.hb_by_window is None:
+            self.get_hb_by_window()
+        if self.umbrella_bias is None:
+            self.get_bias_potential_value(xmin, xmax, n_windows, stiff)
+
+        
+        com_by_window = self.com_by_window
+        hb_by_window = self.hb_by_window
+        umbrella_bias = self.umbrella_bias
+        
+        unbiased_discrete_window = {idx:np.zeros(int(max_hb + 1)) for idx in range(n_windows)}
+        for idx in range(n_windows):
+            index_to_add_at = np.array(hb_by_window[idx].values.T[0])
+            
+            biases = np.array([value if value != 0 else 1 for value in umbrella_bias[idx].values.T[0]])
+            value_to_add = 1 / biases
+            
+            np.add.at(unbiased_discrete_window[idx], index_to_add_at, value_to_add)
+        
+        print(len(com_by_window[0]))
+        print(len(hb_by_window[0]))
+        print(len(umbrella_bias[0]))
+        print(unbiased_discrete_window)
+        self.unbiased_discrete_windows = unbiased_discrete_window
+
+    def make_last_hist_files(self):
+        for idx,sim in enumerate(self.production_sims):
+            hist = self.unbiased_discrete_windows[idx]
+            with open(join(sim.sim_dir, 'last_hist.dat'), 'w') as f:
+                f.write(f'#t = 0 {sim.input.input["T"]} \n')
+                for idx, n_hb in enumerate(hist):
+                    f.write(f"{idx} {n_hb} {n_hb} \n")
+    
+    def run_wham_discete(self, max_hb):
+        invocation = 'python3 '
+        script_location = '/scratch/mlsample/ipy_oxDNA/ipy_oxdna_examples/duplex_melting/us_melting_52_no_non_canonical/wham.py 2 '
+        wfile_location = '/scratch/mlsample/ipy_oxDNA/ipy_oxdna_examples/duplex_melting/us_melting_52_no_non_canonical/wfile.txt '
+        last_hist_location = [join(sim.sim_dir, 'last_hist.dat') for sim in self.production_sims]
+        
+        invocation += script_location
+        for last_hist_path in last_hist_location:
+            invocation += wfile_location
+            invocation += (last_hist_path + ' ')
+        x = subprocess.check_output(invocation, shell=True)
+        print(x.decode())
+        # hbs = map(float, x.decode().split()[-(max_hb + 1)*2:][::2])
+        # prob = map(float, x.decode().split()[-(max_hb + 1)*2:][1::2])
+        # self.discrete_hist = {key:value for key,value in zip(hbs, prob)}
+        
+    def modify_topology_for_unique_pairing(self):
+        """
+        Modify the topology file to ensure that each nucleotide can only bind to its original partner.
+        """
+        for sim in self.equlibration_sims:
+            topology_file_path = sim.sim_files.top  # Assuming this is the absolute path to the topology file
+            
+            # Read the existing topology file
+            with open(topology_file_path, 'r') as f:
+                lines = f.readlines()
+            
+            # Initialize variables
+            new_lines = []
+            next_available_base_type = 13  # Start from 13 as per your example
+            
+            # Process the header
+            new_lines.append(lines[0])  # Keep the header as is
+            
+            num_base_pairs = len(lines[1:])
+            bp_per_strand = num_base_pairs // 2
+            if int(num_base_pairs / bp_per_strand) != 2:
+                return print('Even number of base pairs required')
+            
+            # Process the first strand
+            for line in lines[1:bp_per_strand +1]:  
+                parts = line.split()
+                strand_id, base_type, prev_idx, next_idx = parts
+                
+                # Modify the base type to ensure unique pairing
+                unique_base_type = next_available_base_type
+                next_available_base_type += 1  # Increment for the next base
+                
+                new_line = f"{strand_id} {unique_base_type} {prev_idx} {next_idx}\n"
+                new_lines.append(new_line)
+            
+            second_strand_base_type = -next_available_base_type + 4
+            # Generate the complementary strand with negative unique base types
+            for line in lines[bp_per_strand+1:]:
+                parts = line.split()
+                strand_id, base_type, prev_idx, next_idx = parts
+                
+                # Modify the base type for the complementary strand
+                unique_base_type = int(second_strand_base_type)
+                second_strand_base_type += 1
+                
+                new_line = f"{strand_id} {unique_base_type} {prev_idx} {next_idx}\n"
+                new_lines.append(new_line)
+            
+            # Write the modified topology back to the file
+            with open(topology_file_path, 'w') as f:
+                f.writelines(new_lines)    
 
 
 
@@ -369,33 +687,6 @@ class UmbrellaWindow:
         for s, window_dir, window in zip(self.base_umbrella.equlibration_sims, self.base_umbrella.production_window_dirs, range(n_windows)):
             self.base_umbrella.production_sims.append(Simulation(self.base_umbrella.equlibration_sims[window].sim_dir, str(window_dir)))
     
-    
-class UmbrellaBuild:
-    def __init__(self, base_umbrella):
-        pass
-    
-    def build(self, sims, input_parameters, forces_list, observables_list,
-              observable=False, sequence_dependant=False, cms_observable=False, protein=None, force_file=None):
-        for sim, forces in zip(sims, forces_list):
-            sim.build(clean_build='force')
-            
-            if protein is not None:
-                sim.add_protein_par()
-            if force_file is not None:
-                sim.add_force_file()
-            for force in forces:
-                sim.add_force(force)
-            if observable == True:
-                for observables in observables_list:
-                    sim.add_observable(observables)
-            if cms_observable is not False:
-                for cms_obs_dict in cms_observable:
-                    sim.oxpy_run.cms_obs(cms_obs_dict['idx'],
-                                         name=cms_obs_dict['name'],
-                                         print_every=cms_obs_dict['print_every'])
-            sim.input_file(input_parameters)
-            if sequence_dependant is True:
-                sim.sequence_dependant()
 
 
 class WhamAnalysis:
@@ -425,6 +716,7 @@ class WhamAnalysis:
             n_boot (str): Number of monte carlo bootstrapping error analysis iterations to preform.
 
         """
+
         
         self.base_umbrella.com_dir = join(self.base_umbrella.production_sim_dir, 'com_dir')
         pre_temp = self.base_umbrella.production_sims[0].input.input['T']
@@ -442,36 +734,132 @@ class WhamAnalysis:
                       str(tol),
                       str(n_boot),
                       str(self.base_umbrella.temperature))
+        
+        self.get_n_data_per_com_file()
+
+    def get_n_data_per_com_file(self):
+        com_dist_file = [file for file in os.listdir(self.base_umbrella.com_dir) if 'com_distance' in file][0]
+        first_com_distance_file_name = join(self.base_umbrella.com_dir, com_dist_file)
+        with open(first_com_distance_file_name, 'rb') as f:
+            try:  # catch OSError in case of a one line file 
+                f.seek(-2, os.SEEK_END)
+                while f.read(1) != b'\n':
+                    f.seek(-2, os.SEEK_CUR)
+            except OSError:
+                f.seek(0)
+            last_line = f.readline().decode()
+        self.base_umbrella.n_data_per_com_file = int(last_line.split()[0])
+    
+    def chunk_convergence_analysis(self, n_chunks):
+        """
+        Seperate your data into equal chunks
+        """
+        chunk_size = (self.base_umbrella.n_data_per_com_file // n_chunks)
+        chunk_ends = [chunk_size * n_chunk for n_chunk in range(n_chunks + 1)]
+        
+        for idx, chunk in enumerate(chunk_ends):
+            if chunk == 0:
+                pass
+            else:
+                chunk_dir = join(self.base_umbrella.chunk_convergence_analysis_dir, f'{chunk_ends[idx - 1]}_{chunk}')
+                if not exists(chunk_dir):
+                    os.mkdir(chunk_dir)
+        
+        print(chunk_ends)
+        
+        self.chunk_dirs = []
+        
+        for idx, chunk in enumerate(chunk_ends):
+            chunk_lower_bound = chunk_ends[idx - 1]
+            chunk_upper_bound = chunk
+            if chunk == 0:
+                pass
+            else:
+                chunk_dir = join(self.base_umbrella.chunk_convergence_analysis_dir, f'{chunk_ends[idx - 1]}_{chunk}')
+                self.chunk_dirs.append(chunk_dir)
+                chunked_wham_analysis(chunk_lower_bound, chunk_upper_bound,
+                                      self.wham_dir,
+                                      self.base_umbrella.production_sim_dir,
+                                      chunk_dir,
+                                      str(self.xmin),
+                                      str(self.xmax),
+                                      str(self.umbrella_stiff),
+                                      str(self.n_bins),
+                                      str(self.tol),
+                                      str(self.n_boot),
+                                      str(self.base_umbrella.temperature))
+                        
+        return print(f'chunk convergence analysis')
+    
+    def data_truncated_convergence_analysis(self, data_added_per_iteration):
+        """
+        Seperate your data into equal chunks
+        """
+        chunk_size = (self.base_umbrella.n_data_per_com_file // data_added_per_iteration)
+        chunk_ends = [chunk_size * n_chunk for n_chunk in range(data_added_per_iteration + 1)]
+        
+        for idx, chunk in enumerate(chunk_ends):
+            if chunk == 0:
+                pass
+            else:
+                chunk_dir = join(self.base_umbrella.data_truncated_convergence_analysis_dir, f'0_{chunk}')
+                if not exists(chunk_dir):
+                    os.mkdir(chunk_dir)
+        
+        print(chunk_ends)
+        
+        self.data_truncated_dirs = []
+        
+        for idx, chunk in enumerate(chunk_ends):
+            chunk_lower_bound = 0
+            chunk_upper_bound = chunk
+            if chunk == 0:
+                pass
+            else:
+                chunk_dir = join(self.base_umbrella.data_truncated_convergence_analysis_dir, f'0_{chunk}')
+                self.data_truncated_dirs.append(chunk_dir)
+                chunked_wham_analysis(chunk_lower_bound, chunk_upper_bound,
+                                      self.wham_dir,
+                                      self.base_umbrella.production_sim_dir,
+                                      chunk_dir,
+                                      str(self.xmin),
+                                      str(self.xmax),
+                                      str(self.umbrella_stiff),
+                                      str(self.n_bins),
+                                      str(self.tol),
+                                      str(self.n_boot),
+                                      str(self.base_umbrella.temperature))
+                        
+        return print(f'chunk convergence analysis')  
     
     
-    def to_si(self, n_bins):
-        self.base_umbrella.com_dir = join(self.base_umbrella.production_sim_dir, 'com_dir')
+    def to_si(self, n_bins, com_dir):
         pre_temp = self.base_umbrella.production_sims[0].input.input['T']
         if ('C'.upper() in pre_temp) or ('C'.lower() in pre_temp):
             self.base_umbrella.temperature = (float(pre_temp[:-1]) + 273.15) / 3000
         elif ('K'.upper() in pre_temp) or ('K'.lower() in pre_temp):
              self.base_umbrella.temperature = float(pre_temp[:-1]) / 3000
-        free = pd.read_csv(f'{self.base_umbrella.system_dir}/production/com_dir/freefile', sep='\t', nrows=int(n_bins))
+        free = pd.read_csv(f'{com_dir}/freefile', sep='\t', nrows=int(n_bins))
         free['Free'] = free['Free'].div(self.base_umbrella.temperature)
         free['+/-'] = free['+/-'].div(self.base_umbrella.temperature)
         free['#Coor'] *= 0.8518
-        self.base_umbrella.free = free     
+        return free     
     
     
-    def w_mean(self):
-        free = self.base_umbrella.free.loc[:, 'Free']
-        coord = self.base_umbrella.free.loc[:, '#Coor']
+    def w_mean(self, free_energy):
+        free = free_energy.loc[:, 'Free']
+        coord = free_energy.loc[:, '#Coor']
         prob = np.exp(-free) / sum(np.exp(-free))
         mean = sum(coord * prob)
-        self.base_umbrella.mean = mean
+        return mean
     
     
-    def bootstrap_w_mean_error(self):
-        coord = self.base_umbrella.free.loc[:, '#Coor']
-        free = self.base_umbrella.free.loc[:, 'Free'] 
+    def bootstrap_w_mean_error(self, free_energy, confidence_level=0.99):
+        coord = free_energy.loc[:, '#Coor']
+        free = free_energy.loc[:, 'Free'] 
         prob = np.exp(-free) / sum(np.exp(-free))
     
-        err = self.base_umbrella.free.loc[:, '+/-']
+        err = free_energy.loc[:, '+/-']
         mask = np.isnan(err)
         err[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), err[~mask])
         cov = np.diag(err**2)
@@ -480,7 +868,9 @@ class WhamAnalysis:
         est_prob = [np.exp(-est) / sum(np.exp(-est)) for est in estimate]
         means = [sum(coord * e_prob) for e_prob in est_prob]
         standard_error = np.std(means)
-        self.base_umbrella.standard_error = standard_error
+        z_score = norm.ppf(1 - (1 - confidence_level) / 2)
+        confidence_interval = z_score * (standard_error / np.sqrt(len(means)))
+        return standard_error, confidence_interval
         
     def plt_fig(self, title='Free Energy Profile', xlabel='End-to-End Distance (nm)', ylabel='Free Energy / k$_B$T'):
         from matplotlib.ticker import MultipleLocator
@@ -518,24 +908,63 @@ class WhamAnalysis:
         ax.scatter(x_val, y_val, s=50)
         return None
     
+    def plot_chunks_free_energy(self, ax=None, title='Free Energy Profile', label=None,errorevery=1):
+        if ax is None:
+            ax = self.plt_fig()
+        for idx, df in enumerate(self.base_umbrella.chunk_dirs_free):
+            # if label is None:
+            label = self.chunk_dirs[idx].split('/')[-1]
+
+            indicator = [self.base_umbrella.chunk_dirs_mean[idx], self.base_umbrella.chunk_dirs_standard_error[idx]]
+            try:
+                ax.errorbar(df.loc[:, '#Coor'], df.loc[:, 'Free'],
+                         yerr=df.loc[:, '+/-'], capsize=2.5, capthick=1.2,
+                         linewidth=1.5, errorevery=errorevery, label=f'{label} {indicator[0]:.2f} nm \u00B1 {indicator[1]:.2f} nm')
+                if indicator is not None:
+                    self.plot_indicator(indicator, ax, label=label)
+            except:
+                ax.plot(df.loc[:, '#Coor'], df.loc[:, 'Free'], label=label)  
+                
+    def plot_truncated_free_energy(self, ax=None, title='Free Energy Profile', label=None,errorevery=1):
+        if ax is None:
+            ax = self.plt_fig()
+        for idx, df in enumerate(self.base_umbrella.data_truncated_free):
+            # if label is None:
+            label = self.data_truncated_dirs[idx].split('/')[-1]
+
+            indicator = [self.base_umbrella.data_truncated_mean[idx], self.base_umbrella.data_truncated_standard_error[idx]]
+            try:
+                ax.errorbar(df.loc[:, '#Coor'], df.loc[:, 'Free'],
+                         yerr=df.loc[:, '+/-'], capsize=2.5, capthick=1.2,
+                         linewidth=1.5, errorevery=errorevery, label=f'{label} {indicator[0]:.2f} nm \u00B1 {indicator[1]:.2f} nm')
+                if indicator is not None:
+                    self.plot_indicator(indicator, ax, label=label)
+            except:
+                ax.plot(df.loc[:, '#Coor'], df.loc[:, 'Free'], label=label)  
     
-    def plot_free_energy(self, ax=None, title='Free Energy Profile', label=None,errorevery=1):
+    def plot_free_energy(self, ax=None, title='Free Energy Profile', label=None, errorevery=1, confidence_level=0.95):
         if ax is None:
             ax = self.plt_fig()
         if label is None:
             label = self.base_umbrella.system
-        # if c is None:
-        #     c = '#00429d'
-        indicator = [self.base_umbrella.mean, self.base_umbrella.standard_error]
+    
         df = self.base_umbrella.free
         try:
+            # Calculate the Z-value from the confidence level
+            z_value = norm.ppf(1 - (1 - confidence_level) / 2)
+    
+            # Calculate the confidence interval
+            confidence_interval = z_value * self.base_umbrella.standard_error
             ax.errorbar(df.loc[:, '#Coor'], df.loc[:, 'Free'],
-                     yerr=df.loc[:, '+/-'], capsize=2.5, capthick=1.2,
-                     linewidth=1.5, errorevery=errorevery, label=f'{label} {indicator[0]:.2f} nm \u00B1 {indicator[1]:.2f} nm')
-            if indicator is not None:
-                self.plot_indicator(indicator, ax, label=label)
+                        yerr=confidence_interval,  # Use confidence_interval here
+                        capsize=2.5, capthick=1.2,
+                        linewidth=1.5, errorevery=errorevery,
+                        label=f'{label} {self.base_umbrella.mean:.2f} nm \u00B1 {confidence_interval:.2f} nm')
+            if self.base_umbrella.mean is not None:
+                self.plot_indicator([self.base_umbrella.mean, confidence_interval], ax, label=label)
         except:
-            ax.plot(df.loc[:, '#Coor'], df.loc[:, 'Free'], label=label)   
+            ax.plot(df.loc[:, '#Coor'], df.loc[:, 'Free'], label=label)
+  
         
 
     def prob_plot_indicator(self, indicator, ax, label=None):

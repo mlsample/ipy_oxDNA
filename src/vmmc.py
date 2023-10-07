@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import math
 from scipy.optimize import curve_fit
 import scienceplots
-from scipy.stats import norm
+from scipy.stats import norm, t, sem
 
 def sigmoid(x, L, x0, k, b):
     return L / (1 + np.exp(-k * (x - x0))) + b
@@ -164,7 +164,13 @@ class VmmcObservables:
         
         
 class VmmcReplicas(GenerateReplicas):
-
+    def __init__(self):
+        self.prev_num_bins = None
+        self.prev_confidence_level = None
+        self.replica_histograms = None
+        self.all_free_energies = None
+        self.sem_free_energy = None
+        
     def multisystem_replica(self, systems, n_replicas_per_system, file_dir_list, sim_dir_list):
         """
         Create simulation replicas, with across multiple systems with diffrent inital files
@@ -211,12 +217,22 @@ class VmmcReplicas(GenerateReplicas):
             confidence_level (float): Confidence level for confidence intervals.
             ax (matplotlib axis, optional): Axis on which to plot the graph.
         """
-        # Step 1: Collect histograms from each replica
-        self.collect_replica_histograms(num_bins=num_bins)
-        # Step 2: Calculate individual free energies based on histograms
-        self.calculate_individual_free_energies()
-        # Step 3: Calculate SEM for free energy
-        self.calculate_sem_free_energy()
+        recompute = (
+            self.prev_num_bins != num_bins or 
+            self.prev_confidence_level != confidence_level or 
+            self.replica_histograms is None or 
+            self.all_free_energies is None or 
+            self.sem_free_energy is None
+        )
+
+        if recompute:
+            self.collect_replica_histograms(num_bins=num_bins)
+            self.calculate_individual_free_energies()
+            self.calculate_sem_free_energy()
+
+        # Update previous values
+        self.prev_num_bins = num_bins
+        self.prev_confidence_level = confidence_level
         # Step 4: Calculate Z-score for the given confidence level
         z_score = norm.ppf(1 - (1 - confidence_level) / 2)
         
@@ -235,6 +251,7 @@ class VmmcReplicas(GenerateReplicas):
             label = 'VMMC free energy made discrete'
         with plt.style.context(['science', 'no-latex', 'bright']):
             ax.errorbar(bin_centers * 0.85, mean_free_energy, yerr=confidence_interval, fmt='-', capsize=2.5, capthick=1.2, linewidth=1.5, label=label, errorevery=errorevery)
+            # ax.fill_between(bin_centers * 0.85, mean_free_energy - confidence_interval, mean_free_energy + confidence_interval, color='gray', alpha=0.5)
             # ax.set_xlabel('COM Distance')
             # ax.set_ylabel('Free Energy')
             # ax.set_title(f'Mean Free Energy Landscape with {int(confidence_level*100)}% Confidence Intervals')
@@ -259,8 +276,8 @@ class VmmcReplicas(GenerateReplicas):
                 min_val = np.nanmin(non_zero_min)
                 histogram[histogram == 0] = min_val
             else:
-                print(histogram)
-                print(idx)
+                # print(histogram)
+                # print(idx)
                 print("No non-zero minimum value found.")
 
             # Calculate free energy
@@ -297,8 +314,8 @@ class VmmcReplicas(GenerateReplicas):
 
     def analyze_histogram_convergence_and_errors(self):
         # Calculate the mean, standard deviation, and SEM across replicas
-        self.mean_histogram = np.mean(self.replica_histograms, axis=0)
-        self.std_histogram = np.std(self.replica_histograms, axis=0)
+        self.mean_histogram = np.nanmean(self.replica_histograms, axis=0)
+        self.std_histogram = np.nanstd(self.replica_histograms, axis=0)
         self.sem_histogram = self.std_histogram / np.sqrt(len(self.sim_list))
 
     def plot_histogram_convergence_and_errors(self, num_bins=50):
@@ -320,8 +337,98 @@ class VmmcReplicas(GenerateReplicas):
         plt.title('Histogram Convergence and Error Analysis')
         plt.legend()
         plt.show()
-                
         
+    def statistical_analysis_and_plot(self, confidence_level=0.999):
+        """
+        Perform statistical analysis over all simulation replicas and plot the results.
+        """
+        for sim in self.sim_list:
+            sim.analysis.read_vmmc_op_data()
+            sim.analysis.calculate_sampling_and_probabilities()
+            sim.analysis.calculate_and_estimate_melting_profiles()
+        
+        wt_prod = np.array([sim.statistics['wt_prob'].values for sim in self.sim_list])
+        wt_free = np.array([sim.statistics['wt_free'].values for sim in self.sim_list])
+        sampling_percent = np.array([sim.statistics['sampling_percent'].values for sim in self.sim_list])
+        
+        temp_columns_prob = [[col for col in sim.statistics.columns if '_prob' in col and 'wt_occ' in col] for sim in self.sim_list]
+        heat_map = [sim.statistics[columns].values for sim, columns in zip(self.sim_list, temp_columns_prob)]
+        
+        x_fit = sim.analysis.x_fit
+        y_fit = np.array([sim.analysis.y_fit for sim in self.sim_list])
+        inverted_finfs = np.array([sim.analysis.inverted_finfs for sim in self.sim_list])
+        tm = np.array([sim.Tm for sim in self.sim_list])
+        temperatures = self.sim_list[0].analysis.temperatures
+        
+        df = len(tm) - 1
+        
+        wt_prob_mean = np.mean(wt_prod, axis=0)
+        wt_prob_sem = sem(wt_prod, axis=0)
+        wt_prob_ci = t.interval(confidence_level, df, loc=wt_prob_mean, scale=wt_prob_sem)
+        
+        wt_free_mean = np.mean(wt_free, axis=0)
+        wt_free_sem = sem(wt_free, axis=0)
+        wt_free_ci = t.interval(confidence_level, df, loc=wt_free_mean, scale=wt_free_sem)
+
+        sampling_percent_mean = np.mean(sampling_percent, axis=0)
+        sampling_percent_sem = sem(sampling_percent, axis=0)
+        sampling_percent_ci = t.interval(confidence_level, df, loc=sampling_percent_mean, scale=sampling_percent_sem)
+        
+        heat_map_mean = np.mean(heat_map, axis=0)
+
+        y_fit_mean = np.mean(y_fit, axis=0)
+        y_fit_sem = sem(y_fit, axis=0)
+        y_fit_ci = t.interval(confidence_level, df, loc=y_fit_mean, scale=y_fit_sem)
+
+        inverted_finfs_mean = np.mean(inverted_finfs, axis=0)
+        inverted_finfs_sem = sem(inverted_finfs, axis=0)
+        inverted_finfs_ci = t.interval(confidence_level, df, loc=inverted_finfs_mean, scale=inverted_finfs_sem)
+
+        tm_mean = np.mean(tm)
+        tm_sem = sem(tm)
+        tm_ci = t.interval(confidence_level, df, loc=tm_mean, scale=tm_sem)
+
+        n_bonds = list(range(len(sampling_percent_mean)))
+        
+        fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(15, 10))
+        axes[0, 0].plot(n_bonds, wt_prob_mean)
+        axes[0, 0].fill_between(range(9), wt_prob_ci[0], wt_prob_ci[1], interpolate=True, color='gray', alpha=0.5)
+        axes[0, 0].set_xlabel('Number of Hydrogen Bonds')
+        axes[0, 0].set_ylabel('wt_prob')
+        
+        
+        axes[0, 1].plot(n_bonds, wt_free_mean)
+        axes[0, 1].fill_between(range(len(sampling_percent_mean)), wt_free_ci[0], wt_free_ci[1], interpolate=True, color='gray', alpha=0.5)
+        axes[0, 1].set_xlabel('Number of Hydrogen Bonds')
+        axes[0, 1].set_ylabel('wt_free')
+        
+        axes[1, 0].bar(n_bonds, sampling_percent_mean)
+        # axes[1, 0].fill_between(range(9), sampling_percent_ci[0], sampling_percent_ci[1], color='gray', alpha=0.5)
+        axes[1, 0].set_xlabel('Number of Hydrogen Bonds')
+        axes[1, 0].set_ylabel('Probability')
+        
+        extent = [min(temperatures), max(temperatures), min(n_bonds), max(n_bonds)]
+        im = axes[1, 1].imshow(heat_map_mean, extent=extent, cmap='viridis', aspect='auto')
+        axes[1, 1].set_title('Heatmap of wt_prob across Temperatures')
+        axes[1, 1].set_xlabel('Temperature')
+        axes[1, 1].set_ylabel('Number of Hydrogen Bonds')
+        plt.colorbar(im, ax=axes[1, 1])
+        
+        plt.figure()
+        plt.scatter(temperatures, inverted_finfs_mean, marker='o', label='Data Mean')
+        plt.plot(x_fit, y_fit_mean, linestyle='--', linewidth=2, label='Sigmoid Fit')
+        plt.fill_between(temperatures, inverted_finfs_ci[0], inverted_finfs_ci[1], interpolate=True, color='gray', alpha=0.5)
+        plt.axvline(x=tm_mean, color='r', linestyle='--', linewidth=2, label=f'Tm = {tm_mean:.2f} \u00b1 {tm_ci[1] - tm_mean:.2f} °C')
+        plt.xlabel('Temperature (°C)')
+        plt.ylabel('Fraction of ssDNA')
+        plt.title(f'Melting Profile')
+        
+        # Set y-axis limits
+        plt.ylim(0, 1.1)
+        
+        plt.legend()
+        plt.grid(True)
+                
 class VmmcAnalysis(Analysis):
     """ Methods used to interface with oxDNA simulation in jupyter notebook (currently in work)"""
     def __init__(self, simulation):
@@ -379,7 +486,7 @@ class VmmcAnalysis(Analysis):
         self.weighted_histogram /= np.sum(self.weighted_histogram)
         
         # Adding a small constant to avoid log(0)
-        epsilon = 0
+        epsilon = 1e-15
         self.free_energy = -np.log(self.weighted_histogram + epsilon)
         
         # Shift the free energy profile so that the minimum value is 0
@@ -472,7 +579,7 @@ class VmmcAnalysis(Analysis):
         # self.sim.statistics['wt_prob'][self.sim.statistics['wt_prob'] == 0] = epsilon
         
         # Calculate the -log(probability) for each state
-        self.sim.statistics['wt_free'] = -np.log(self.sim.statistics['wt_prob'])
+        self.sim.statistics['wt_free'] = -np.log(self.sim.statistics['wt_prob'] + epsilon)
         # Shift the free energy values so that the lowest is zero
         min_wt_free = self.sim.statistics['wt_free'].min()
         self.sim.statistics['wt_free'] -= min_wt_free
@@ -486,7 +593,7 @@ class VmmcAnalysis(Analysis):
             
             self.sim.statistics[prob_col] = self.sim.vmmc_df[col] / total_temp_occ
             # self.sim.statistics[prob_col][self.sim.statistics[prob_col] == 0] = epsilon
-            self.sim.statistics[neglog_prob_col] = -np.log(self.sim.statistics[prob_col])
+            self.sim.statistics[neglog_prob_col] = -np.log(self.sim.statistics[prob_col] + epsilon)
             
             # Shift the free energy values so that the lowest is zero for each temperature
             min_temp_free = self.sim.statistics[neglog_prob_col].min()
@@ -569,7 +676,22 @@ class VmmcAnalysis(Analysis):
     
         # Estimate Tm based on finfs
         self.sim.Tm = self._get_Tm(self.temperatures, self.finfs)
-        print(f"Estimated Melting Temperature (Tm) = {self.sim.Tm} °C")
+        # print(f"Estimated Melting Temperature (Tm) = {self.sim.Tm} °C")
+        
+        # Invert the finfs to get the fraction of ssDNA
+        self.inverted_finfs = [1 - finf for finf in self.finfs]
+    
+        # Fit the sigmoid function to the inverted data
+        p0 = [max(self.inverted_finfs), np.median(self.temperatures), 1, min(self.inverted_finfs)]  # initial guesses for L, x0, k, b
+        popt, _ = curve_fit(sigmoid, self.temperatures, self.inverted_finfs, p0, method='dogbox')
+    
+        # Generate fitted data
+        self.x_fit = np.linspace(min(self.temperatures), max(self.temperatures), 500)
+        self.y_fit = sigmoid(self.x_fit, *popt)
+        
+        idx = np.argmin(np.abs(self.y_fit - 0.5))
+        self.sim.Tm = self.x_fit[idx]
+        
 
     def _get_Tm(self, temps, finfs):
         """
@@ -587,21 +709,10 @@ class VmmcAnalysis(Analysis):
         # Ensure melting profiles are calculated
         self.calculate_and_estimate_melting_profiles()
     
-        # Invert the finfs to get the fraction of ssDNA
-        inverted_finfs = [1 - finf for finf in self.finfs]
-    
-        # Fit the sigmoid function to the inverted data
-        p0 = [max(inverted_finfs), np.median(self.temperatures), 1, min(inverted_finfs)]  # initial guesses for L, x0, k, b
-        popt, _ = curve_fit(sigmoid, self.temperatures, inverted_finfs, p0, method='dogbox')
-    
-        # Generate fitted data
-        x_fit = np.linspace(min(self.temperatures), max(self.temperatures), 500)
-        y_fit = sigmoid(x_fit, *popt)
-    
         # Plotting
         plt.figure(figsize=(10, 6))
-        plt.scatter(self.temperatures, inverted_finfs, marker='o', label='Data')
-        plt.plot(x_fit, y_fit, linestyle='--', linewidth=2, label='Sigmoid Fit')
+        plt.scatter(self.temperatures, self.inverted_finfs, marker='o', label='Data')
+        plt.plot(self.x_fit, self.y_fit, linestyle='--', linewidth=2, label='Sigmoid Fit')
         
         # Add a vertical line at the melting temperature
         plt.axvline(x=self.sim.Tm, color='r', linestyle='--', linewidth=2, label=f'Tm = {self.sim.Tm:.2f} °C')

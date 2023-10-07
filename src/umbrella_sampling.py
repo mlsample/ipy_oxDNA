@@ -9,7 +9,8 @@ import pandas as pd
 from scipy.stats import multivariate_normal, norm
 import matplotlib.pyplot as plt
 import scienceplots
-
+import copy
+from vmmc import VirtualMoveMonteCarlo
 
 
 class BaseUmbrellaSampling:
@@ -115,7 +116,6 @@ class BaseUmbrellaSampling:
             self.chunk_dirs_confidence_interval = ['failed' for _ in range(len(self.chunk_dirs_free))]
 
 
-        
         self.wham.data_truncated_convergence_analysis(data_added_per_iteration)
         
         self.data_truncated_free = [self.wham.to_si(self.wham.n_bins, chunk_dir) for chunk_dir in self.wham.data_truncated_dirs]
@@ -153,7 +153,7 @@ class BaseUmbrellaSampling:
                 file = f.readlines()
             file = [line for line in file if not line.startswith('#')]
             self.n_bins = len(file)
-            self.wham.get_n_data_per_com_file()
+            # self.wham.get_n_data_per_com_file()
             self.free = self.wham.to_si(self.n_bins, self.com_dir)
             self.mean = self.wham.w_mean(self.free)
             try:
@@ -162,32 +162,35 @@ class BaseUmbrellaSampling:
                 self.standard_error, self.confidence_interval = ('failed', 'failed')
         
         if exists(join(self.system_dir, 'production', 'com_dir', 'convergence_dir')):
-            self.convergence_dir = join(self.com_dir, 'convergence_dir')
-            self.chunk_convergence_analysis_dir = join(self.convergence_dir, 'chunk_convergence_analysis_dir')
-            self.data_truncated_convergence_analysis_dir = join(self.convergence_dir, 'data_truncated_convergence_analysis_dir')  
-            self.wham.chunk_dirs = [join(self.chunk_convergence_analysis_dir, chunk_dir) for chunk_dir in os.listdir(self.chunk_convergence_analysis_dir)]
-            self.wham.data_truncated_dirs = [join(self.data_truncated_convergence_analysis_dir, chunk_dir) for chunk_dir in os.listdir(self.data_truncated_convergence_analysis_dir)]
-            
-            self.chunk_dirs_free = [self.wham.to_si(self.n_bins, chunk_dir) for chunk_dir in self.wham.chunk_dirs]
-            self.chunk_dirs_mean = [self.wham.w_mean(free_energy) for free_energy in self.chunk_dirs_free]
             try:
-                self.chunk_dirs_standard_error, self.chunk_dirs_confidence_interval = zip(
-                    *[self.wham.bootstrap_w_mean_error(free_energy) for free_energy in self.chunk_dirs_free]
-                )
-            except:
-                self.chunk_dirs_standard_error = ['failed' for _ in range(len(self.chunk_dirs_free))]
-                self.chunk_dirs_confidence_interval = ['failed' for _ in range(len(self.chunk_dirs_free))]
-
+                self.convergence_dir = join(self.com_dir, 'convergence_dir')
+                self.chunk_convergence_analysis_dir = join(self.convergence_dir, 'chunk_convergence_analysis_dir')
+                self.data_truncated_convergence_analysis_dir = join(self.convergence_dir, 'data_truncated_convergence_analysis_dir')  
+                self.wham.chunk_dirs = [join(self.chunk_convergence_analysis_dir, chunk_dir) for chunk_dir in os.listdir(self.chunk_convergence_analysis_dir)]
+                self.wham.data_truncated_dirs = [join(self.data_truncated_convergence_analysis_dir, chunk_dir) for chunk_dir in os.listdir(self.data_truncated_convergence_analysis_dir)]
                 
-            self.data_truncated_free = [self.wham.to_si(self.n_bins, chunk_dir) for chunk_dir in self.wham.data_truncated_dirs]
-            self.data_truncated_mean = [self.wham.w_mean(free_energy) for free_energy in self.data_truncated_free]
-            try:
-                self.data_truncated_standard_error, self.data_truncated_confidence_interval = zip(
-                    *[self.wham.bootstrap_w_mean_error(free_energy) for free_energy in self.data_truncated_free]
-                )
+                self.chunk_dirs_free = [self.wham.to_si(self.n_bins, chunk_dir) for chunk_dir in self.wham.chunk_dirs]
+                self.chunk_dirs_mean = [self.wham.w_mean(free_energy) for free_energy in self.chunk_dirs_free]
+                try:
+                    self.chunk_dirs_standard_error, self.chunk_dirs_confidence_interval = zip(
+                        *[self.wham.bootstrap_w_mean_error(free_energy) for free_energy in self.chunk_dirs_free]
+                    )
+                except:
+                    self.chunk_dirs_standard_error = ['failed' for _ in range(len(self.chunk_dirs_free))]
+                    self.chunk_dirs_confidence_interval = ['failed' for _ in range(len(self.chunk_dirs_free))]
+    
+                    
+                self.data_truncated_free = [self.wham.to_si(self.n_bins, chunk_dir) for chunk_dir in self.wham.data_truncated_dirs]
+                self.data_truncated_mean = [self.wham.w_mean(free_energy) for free_energy in self.data_truncated_free]
+                try:
+                    self.data_truncated_standard_error, self.data_truncated_confidence_interval = zip(
+                        *[self.wham.bootstrap_w_mean_error(free_energy) for free_energy in self.data_truncated_free]
+                    )
+                except:
+                    self.data_truncated_standard_error = ['failed' for _ in range(len(self.data_truncated_free))]
+                    self.data_truncated_confidence_interval = ['failed' for _ in range(len(self.data_truncated_free))]
             except:
-                self.data_truncated_standard_error = ['failed' for _ in range(len(self.data_truncated_free))]
-                self.data_truncated_confidence_interval = ['failed' for _ in range(len(self.data_truncated_free))]
+                pass
                 
     def get_biases(self):
         #I need to get the freefile
@@ -213,7 +216,7 @@ class BaseUmbrellaSampling:
         com_distance_by_window = {}
         for idx,sim in enumerate(self.production_sims):
             sim.sim_files.parse_current_files()
-            df = pd.read_csv(sim.sim_files.com_distance, header=None)
+            df = pd.read_csv(sim.sim_files.com_distance, header=None, engine="pyarrow")
             com_distance_by_window[idx] = df
         self.com_by_window = com_distance_by_window
 
@@ -235,7 +238,7 @@ class UmbrellaBuild:
     def build(self, sims, input_parameters, forces_list, observables_list,
               observable=False, sequence_dependant=False, cms_observable=False, protein=None, force_file=None):
         
-        if exists(self.base_umbrella.system_dir):
+        if exists(join(self.base_umbrella.system_dir, 'production')):
             if self.base_umbrella.clean_build is True:
                 answer = input('Are you sure you want to delete all simulation files? Type y/yes to continue or anything else to return use UmbrellaSampling(clean_build=str(force) to skip this message')
                 if (answer == 'y') or (answer == 'yes'):
@@ -366,27 +369,8 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
             self.us_build.build(self.production_sims, input_parameters,
                                 self.forces_list, self.observables_list,
                                 observable=observable, sequence_dependant=sequence_dependant, protein=protein, force_file=force_file) 
-            
-            # self.validate_production_build(n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
-            #            observable, sequence_dependant, print_every, name, continue_run,
-            #            protein, force_file)
         
-        self.queue_sims(simulation_manager, self.production_sims, continue_run=continue_run)   
-    
-    
-#     def validate_production_build(self, simulation_manager, n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
-#                        observable, sequence_dependant, print_every, name, continue_run,
-#                        protein, force_file):
-#         #I want to check if all of the required files are in the window folder for the equlibration and production, other wise return a print stament leting me know that the build has failed.
-#         for sim in self.production_sims:
-#             sim.sim_files.parse_current_files()
-        
-#         #First, I can get all of the files in each production sim folder ??
-#         if force_file is not None:
-#             for sim in self.production_sims:
-#                 sim.sim_file
-            
-        
+        self.queue_sims(simulation_manager, self.production_sims, continue_run=continue_run)         
     
     def com_distance_observable(self, com_list, ref_list,  print_every=1e4, name='com_distance.txt'):
         """ Build center of mass observable"""
@@ -521,7 +505,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
     def hb_list_observable(self, print_every=1e4, name='hb_observable.txt', only_count='true'):
         """ Build center of mass observable"""
         hb_obs = self.obs.hb_list(
-            print_every='1e3',
+            print_every=str(print_every),
             name='hb_observable.txt',
             only_count='true'
            )
@@ -534,39 +518,135 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         hb_list_by_window = {}
         for idx,sim in enumerate(self.production_sims):
             sim.sim_files.parse_current_files()
-            df = pd.read_csv(sim.sim_files.hb_observable, header=None)
+            df = pd.read_csv(sim.sim_files.hb_observable, header=None, engine="pyarrow")
             hb_list_by_window[idx] = df
         self.hb_by_window = hb_list_by_window
+
+    def calculate_melting_temperature_using_vmmc(self):
+        self.vmmc_dir = join(self.production_sim_dir, 'vmmc_dir')
+        self.vmmc_sim = VirtualMoveMonteCarlo(self.file_dir, self.vmmc_dir)
+        if not exists(self.vmmc_dir):
+            self.vmmc_sim.build('0', '1')
+        print( not hasattr(self.vmmc_sim.sim_files, 'last_hist'))
+        if not hasattr(self.vmmc_sim.sim_files, 'last_hist'):
+            if hasattr(self, 'counts_discrete'):
+                with open(join(self.vmmc_sim.sim_dir,'last_hist.dat'), 'w') as f:
+                    temp = (float(self.production_sims[0].input.input["T"][:-1]) + 237.15) / 3000
+                    f.write(f'#t = 0; extr. Ts: {temp} \n')
+                    for idx, n_hb in enumerate(self.counts_discrete):
+                        f.write(f"{idx} {n_hb} {n_hb} {n_hb} \n")
+        self.vmmc_sim.sim_files.parse_current_files()
+        
+        self.vmmc_sim.analysis.read_vmmc_op_data()
+        self.vmmc_sim.analysis.calculate_sampling_and_probabilities()
+        self.vmmc_sim.analysis.plot_melting_profiles()
             
     
     def unbias_com_to_hb(self, xmin, xmax, n_windows, stiff, max_hb):
         if self.com_by_window is None:
             self.get_com_distance_by_window()
         if self.hb_by_window is None:
-            self.get_hb_by_window()
+            self.get_hb_list_by_window()
         if self.umbrella_bias is None:
             self.get_bias_potential_value(xmin, xmax, n_windows, stiff)
-
         
-        com_by_window = self.com_by_window
-        hb_by_window = self.hb_by_window
-        umbrella_bias = self.umbrella_bias
+        pre_temp = self.production_sims[0].input.input['T']
+        if ('C'.upper() in pre_temp) or ('C'.lower() in pre_temp):
+            self.temperature = (float(pre_temp[:-1]) + 273.15) / 3000
+        elif ('K'.upper() in pre_temp) or ('K'.lower() in pre_temp):
+             self.temperature = float(pre_temp[:-1]) / 3000
         
+        com_by_window = copy.deepcopy(self.com_by_window)
+        hb_by_window = copy.deepcopy(self.hb_by_window)
+        umbrella_bias = copy.deepcopy(self.umbrella_bias)
+        shift = np.array(self.get_biases(), dtype=float)
+        umbrella_bias = [np.exp(-bias / self.temperature) for bias, shift in zip(umbrella_bias, shift)]
+        print(self.temperature)
+        for idx in hb_by_window.keys():
+            hb_values = np.array(hb_by_window[idx].values.T[0])
+            to_remove = np.where(hb_values > max_hb)[0]  # Indices where hb_values > max_hb
+            if len(to_remove > 0):
+            # Remove rows from hb_by_window DataFrame
+                hb_by_window[idx].drop(index=to_remove, inplace=True)
+                hb_by_window[idx].reset_index(drop=True, inplace=True)
+                
+                # Remove corresponding rows from umbrella_bias DataFrame
+                umbrella_bias[idx].drop(index=to_remove, inplace=True)
+                umbrella_bias[idx].reset_index(drop=True, inplace=True)
+            
         unbiased_discrete_window = {idx:np.zeros(int(max_hb + 1)) for idx in range(n_windows)}
         for idx in range(n_windows):
             index_to_add_at = np.array(hb_by_window[idx].values.T[0])
-            
-            biases = np.array([value if value != 0 else 1 for value in umbrella_bias[idx].values.T[0]])
+            biases = np.array([value for value in umbrella_bias[idx].values.T[0]])
             value_to_add = 1 / biases
-            
             np.add.at(unbiased_discrete_window[idx], index_to_add_at, value_to_add)
         
-        print(len(com_by_window[0]))
-        print(len(hb_by_window[0]))
-        print(len(umbrella_bias[0]))
-        print(unbiased_discrete_window)
         self.unbiased_discrete_windows = unbiased_discrete_window
 
+    def homebrew_discrete_wham(self, max_hb):
+        windows = len(self.unbiased_discrete_windows)
+
+        counters = [sum(hist) for hist in self.unbiased_discrete_windows.values()]
+        last_hists = [hist / count for hist,count in zip(self.unbiased_discrete_windows.values(), counters)]
+        biases = np.exp( -1 * np.array(self.get_biases(), dtype=float))
+        weights = [[1 for _ in range(max_hb + 1)] for _ in range(windows)]
+        # expminuslogf = np.ones(windows)
+        # expminuslogfnew = copy.deepcopy(expminuslogf)
+        
+#         normalization = np.zeros(max_hb)
+#         for bias, count, hist in zip(biases, counters, new_hist):
+#             normalization += hist * count
+#         normalization /= sum(normalization)
+        
+        
+#         print(normalization)
+#         resulting_hist = {}    
+        
+        expminuslogf = np.ones(windows)
+        expminuslogfnew = copy.deepcopy(expminuslogf)
+        epsilon = 1e-9
+        rho = {}
+        keys = range(max_hb)
+        n_iterations = 0
+        
+        
+        while (n_iterations < 10):# or ((np.abs(expminuslogfnew - expminuslogf) > epsilon).any() and (n_iterations < 10)):
+            
+            n_iterations += 1
+            expminuslogf = copy.deepcopy(expminuslogfnew)
+            for op in keys:
+                num = 0
+                denum = 0
+                for i in range(windows):
+                    weight = weights[i][op]
+                    pom = last_hists[i][op]
+                    counter = counters[i]
+                    num += pom * counter  
+                    denum += weight * counter / expminuslogf[i]
+                if denum == 0:
+                    rho[op] = 0.
+                else:
+                    rho[op] = float(num)/denum
+                
+            total = sum(rho.values())
+            
+            for key in rho.keys():
+                    rho[key] /= float(total)
+                
+            expminuslogfnew = np.zeros(windows)
+            for i in range(windows):
+                for op in keys:
+                    expminuslogfnew[i] += weights[i][op] * rho[op]    
+                
+                print(f"{rho=}")
+                print(f"{expminuslogf=}")
+                print(f"{expminuslogfnew=}")
+                print(f"{np.abs(expminuslogfnew - expminuslogf)}")
+            
+        print(f'#Converged after {n_iterations} iterations')
+        print(f'{rho=}')
+        return rho
+        
     def make_last_hist_files(self):
         for idx,sim in enumerate(self.production_sims):
             hist = self.unbiased_discrete_windows[idx]
@@ -587,9 +667,9 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             invocation += (last_hist_path + ' ')
         x = subprocess.check_output(invocation, shell=True)
         print(x.decode())
-        # hbs = map(float, x.decode().split()[-(max_hb + 1)*2:][::2])
-        # prob = map(float, x.decode().split()[-(max_hb + 1)*2:][1::2])
-        # self.discrete_hist = {key:value for key,value in zip(hbs, prob)}
+        hbs = map(float, x.decode().split()[-(max_hb + 1)*2:][::2])
+        prob = map(float, x.decode().split()[-(max_hb + 1)*2:][1::2])
+        self.discrete_hist = {key:value for key,value in zip(hbs, prob)}
         
     def modify_topology_for_unique_pairing(self):
         """

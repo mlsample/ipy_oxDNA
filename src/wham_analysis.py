@@ -51,7 +51,7 @@ def autocorrelation(com_list):
     # create a list of autocorrelation values for each window
     autocorrelation_list = []
     for com in com_list:
-        de = sm.tsa.acf(com, nlags=50000)
+        de = sm.tsa.acf(com, nlags=500000)
         low = next(x[0] for x in enumerate(list(de)) if abs(x[1]) < (1 / np.e))
         if int(low) == 1:
             low = 2
@@ -63,10 +63,10 @@ def number_com_lines(com_dir):
     # Create time_series directory and add com files with line number
     if os.path.exists(com_dir):
         os.chdir(com_dir)
-        files = os.listdir(os.getcwd())
-        for file in files:
-            for line in fileinput.input(file, inplace=True):
-                sys.stdout.write(f'{fileinput.filelineno()} {line}')
+        # files = os.listdir(os.getcwd())
+        files = [os.path.join(com_dir, filename) for filename in os.listdir(com_dir) if os.path.isfile(os.path.join(com_dir, filename))]
+        for line in fileinput.input(files, inplace=True):
+            sys.stdout.write(f'{fileinput.filelineno()} {line}')
     else:
         print('com_dir does not exist')
         return None
@@ -108,8 +108,12 @@ def create_metadata(time_dir, autocorrelation_list, r0_list, k):
     com_files = [file for file in os.listdir(os.getcwd()) if 'com_distance' in file]
     com_files.sort(key=sort_coms)
     with open(os.path.join(os.getcwd(), 'metadata'), 'w') as f:
-        for file, r0, auto in zip(com_files, r0_list, autocorrelation_list):
-            f.write(f'{file} {r0} {k} {auto}\n')
+        if autocorrelation_list is None:
+            for file, r0 in zip(com_files, r0_list):
+                f.write(f'{file} {r0} {k}\n')
+        else:
+            for file, r0, auto in zip(com_files, r0_list, autocorrelation_list):
+                f.write(f'{file} {r0} {k} {auto}\n')
     return None
 
 def run_wham(wham_dir, time_dir, xmin, xmax, n_bins, tol, n_boot, temp):
@@ -135,8 +139,11 @@ def format_freefile(time_dir):
 def wham_analysis(wham_dir, sim_dir, com_dir, xmin, xmax, k, n_bins, tol, n_boot, temp):
     print('Running WHAM analysis...')
     copy_com_files(sim_dir, com_dir)
-    com_list = collect_coms(com_dir)
-    autocorrelation_list = autocorrelation(com_list)
+    if int(n_boot) > 0:
+        com_list = collect_coms(com_dir)
+        autocorrelation_list = autocorrelation(com_list)
+    else:
+        autocorrelation_list = None
     time_dir = number_com_lines(com_dir)
     r0_list = get_r0_list(xmin, xmax, sim_dir)
     create_metadata(time_dir, autocorrelation_list, r0_list, k)

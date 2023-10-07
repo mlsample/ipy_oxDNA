@@ -582,7 +582,9 @@ class SimulationManager:
                             print('gpu memory freed')
                             wait_for_gpu_memory = False      
             else:
-                sleep(1)
+                if cpu_run is False:
+                    sleep(1)
+
         while not self.process_queue.empty():
             sleep(1)
         toc = timeit.default_timer()

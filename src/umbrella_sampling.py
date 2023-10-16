@@ -131,22 +131,41 @@ class BaseUmbrellaSampling:
         return None
                                     
     
-    def read_progress(self):   
+    def read_progress(self):
+        self.read_pre_equlibration_progress()
+        self.read_equlibration_progress()
+        self.read_production_progress()
+        self.read_wham_progress()
+        self.read_convergence_analysis_progress()
+        self.read_melting_temperature_progress()
+        
+    def read_pre_equlibration_progress(self):
+        if exists(join(self.system_dir, 'pre_equlibration')):
+            self.pre_equlibration_sim_dir = join(self.system_dir, 'pre_equlibration')
+            n_windows = len(os.listdir(self.pre_equlibration_sim_dir))
+            self.pre_equlibration_sims = []
+            for window in range(n_windows):
+                self.pre_equlibration_sims.append(Simulation(join(self.pre_equlibration_sim_dir, str(window)), join(self.pre_equlibration_sim_dir, str(window))))
+
+    def read_equlibration_progress(self):
         if exists(join(self.system_dir, 'equlibration')):
             self.equlibration_sim_dir = join(self.system_dir, 'equlibration')
-            n_windows = len(os.listdir(self.equlibration_sim_dir))
+            self.n_windows = len(os.listdir(self.equlibration_sim_dir))
             self.equlibration_sims = []
-            for window in range(n_windows):
+            for window in range(self.n_windows):
                 self.equlibration_sims.append(Simulation(join(self.equlibration_sim_dir, str(window)), join(self.equlibration_sim_dir, str(window))))
-                
+    
+    def read_production_progress(self):              
         if exists(join(self.system_dir, 'production')):
             self.production_sim_dir = join(self.system_dir, 'production')
-            self.production_window_dirs = [join(self.production_sim_dir, str(window)) for window in range(n_windows)]
             n_windows = len(self.equlibration_sims)
+            self.production_window_dirs = [join(self.production_sim_dir, str(window)) for window in range(n_windows)]
+            
             self.production_sims = []
             for s, window_dir, window in zip(self.equlibration_sims, self.production_window_dirs, range(n_windows)):
                 self.production_sims.append(Simulation(self.equlibration_sims[window].sim_dir, str(window_dir))) 
-        
+    
+    def read_wham_progress(self):          
         if exists(join(self.system_dir, 'production', 'com_dir', 'freefile')):
             self.com_dir = join(self.system_dir, 'production', 'com_dir')
             with open(join(self.production_sim_dir, 'com_dir', 'freefile'), 'r') as f:
@@ -161,6 +180,7 @@ class BaseUmbrellaSampling:
             except:
                 self.standard_error, self.confidence_interval = ('failed', 'failed')
         
+    def read_convergence_analysis_progress(self):   
         if exists(join(self.system_dir, 'production', 'com_dir', 'convergence_dir')):
             try:
                 self.convergence_dir = join(self.com_dir, 'convergence_dir')
@@ -191,6 +211,14 @@ class BaseUmbrellaSampling:
                     self.data_truncated_confidence_interval = ['failed' for _ in range(len(self.data_truncated_free))]
             except:
                 pass
+    
+    def read_melting_temperature_progress(self):
+        if exists(join(self.system_dir, 'production', 'vmmc_dir')):
+            self.vmmc_dir = join(self.system_dir, 'production', 'vmmc_dir')
+            self.vmmc_sim = VirtualMoveMonteCarlo(self.file_dir, self.vmmc_dir)
+            self.vmmc_sim.analysis.read_vmmc_op_data()
+            self.vmmc_sim.analysis.calculate_sampling_and_probabilities()
+            self.vmmc_sim.analysis.calculate_and_estimate_melting_profiles()
                 
     def get_biases(self):
         #I need to get the freefile
@@ -216,14 +244,15 @@ class BaseUmbrellaSampling:
         com_distance_by_window = {}
         for idx,sim in enumerate(self.production_sims):
             sim.sim_files.parse_current_files()
-            df = pd.read_csv(sim.sim_files.com_distance, header=None, engine="pyarrow")
+            df = pd.read_csv(sim.sim_files.com_distance, header=None)
             com_distance_by_window[idx] = df
         self.com_by_window = com_distance_by_window
 
     
     def get_bias_potential_value(self, xmin, xmax, n_windows, stiff):
         x_range = np.round(np.linspace(xmin, xmax, (n_windows + 1))[1:], 3)
-        umbrella_bias = [0.5 * stiff * (com_values - eq_pos)**2 for com_values, eq_pos in zip(self.com_by_window.values(), x_range)]
+        print(x_range)
+        umbrella_bias = [0.5 * float(stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(self.com_by_window.values(), x_range)]
         self.umbrella_bias = umbrella_bias
     
     def copy_last_conf_from_eq_to_prod(self):
@@ -276,7 +305,17 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
     def __init__(self, file_dir, system, clean_build=False):
         super().__init__(file_dir, system, clean_build=clean_build)
         self.observables_list = []
-        
+     
+    def build_pre_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters, starting_r0, steps, observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False, protein=None, force_file=None):
+        self.windows.pre_equlibration_windows(n_windows)
+        self.rate_umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows, starting_r0, steps)
+        self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
+        if continue_run is False:
+            self.us_build.build(self.pre_equlibration_sims, input_parameters,
+                                self.forces_list, self.observables_list,
+                                observable=observable, sequence_dependant=sequence_dependant, protein=protein, force_file=force_file)
+        self.queue_sims(simulation_manager, self.pre_equlibration_sims, continue_run=continue_run)
+    
     def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
                                 observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
                                 protein=None, force_file=None):
@@ -314,6 +353,7 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
             
             force_file (bool): Add an external force to the umbrella simulations.
         """
+        self.n_windows = n_windows
         self.windows.equlibration_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
@@ -412,7 +452,41 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
             )
             umbrella_forces_2.append(self.umbrella_force_2)  
         self.forces_list = np.transpose(np.array([umbrella_forces_1, umbrella_forces_2]))     
-               
+
+    def rate_umbrella_forces(self, com_list, ref_list, stiff, xmin, xmax, n_windows, starting_r0, steps):
+        """ Build Umbrella potentials"""
+        
+        x_range = np.round(np.linspace(xmin, xmax, (n_windows + 1))[1:], 3)
+        
+        umbrella_forces_1 = []
+        umbrella_forces_2 = []
+        
+        for x_val in x_range:   
+            force_rate_for_x_val = (x_val - starting_r0) / steps
+            
+            self.umbrella_force_1 = self.f.com_force(
+                com_list=com_list,                        
+                ref_list=ref_list,                        
+                stiff=f'{stiff}',                    
+                r0=f'{starting_r0}',                       
+                PBC='1',                         
+                rate=f'{force_rate_for_x_val}',
+            )        
+            umbrella_forces_1.append(self.umbrella_force_1)
+            
+            self.umbrella_force_2= self.f.com_force(
+                com_list=ref_list,                        
+                ref_list=com_list,                        
+                stiff=f'{stiff}',                    
+                r0=f'{starting_r0}',                       
+                PBC='1',                          
+                rate=f'{force_rate_for_x_val}',
+            )
+            umbrella_forces_2.append(self.umbrella_force_2)  
+        self.forces_list = np.transpose(np.array([umbrella_forces_1, umbrella_forces_2])) 
+        
+
+        
     
     def fig_ax(self):
         self.ax = self.wham.plt_fig(title='Free Energy Profile', xlabel='End-to-End Distance (nm)', ylabel='Free Energy / k$_B$T')
@@ -469,6 +543,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
     def __init__(self, file_dir, system, clean_build=False):
         super().__init__(file_dir, system, clean_build=clean_build)
         self.hb_by_window = None
+        self.potential_energy_by_window = None
         
     def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
                                 observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
@@ -477,6 +552,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         self.hb_list_observable(print_every=print_every, only_count='true')
+        self.potential_energy_observable(print_every=print_every)
         if continue_run is False:
             self.us_build.build(self.equlibration_sims, input_parameters,
                                 self.forces_list, self.observables_list,
@@ -494,6 +570,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         self.hb_list_observable(print_every=print_every, only_count='true')
+        self.potential_energy_observable(print_every=print_every)
         if continue_run is False:
             self.us_build.build(self.production_sims, input_parameters,
                                 self.forces_list, self.observables_list,
@@ -511,6 +588,15 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
            )
         self.observables_list.append(hb_obs)
         
+    def potential_energy_observable(self, print_every=1e4, name='potential_energy.txt', split='True'):
+        """ Build potential energy observable for temperature interpolation"""
+        pot_obs = self.obs.potential_energy(
+            print_every=str(print_every),
+            split=str(split),
+            name=str(name)
+        )
+        self.observables_list.append(pot_obs)
+                                    
     def copy_hb_list_to_com_dir(self):
         copy_h_bond_files(self.production_sim_dir, self.com_dir)
 
@@ -518,10 +604,56 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         hb_list_by_window = {}
         for idx,sim in enumerate(self.production_sims):
             sim.sim_files.parse_current_files()
-            df = pd.read_csv(sim.sim_files.hb_observable, header=None, engine="pyarrow")
+            df = pd.read_csv(sim.sim_files.hb_observable, header=None)
             hb_list_by_window[idx] = df
         self.hb_by_window = hb_list_by_window
 
+    def continuous_to_discrete_unbiasing(self, max_hb):
+        def count_division_normalize(arr):
+            row_sums = np.sum(arr, axis=1, keepdims=True)
+            return arr / row_sums
+        
+        if self.com_by_window is None:
+            self.get_com_distance_by_window()
+        if self.hb_by_window is None:
+            self.get_hb_list_by_window()
+        if self.umbrella_bias is None:
+            self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
+        
+        for idx in self.hb_by_window.keys():
+            hb_values = np.array(self.hb_by_window[idx].values.T[0])
+            to_remove = np.where(hb_values > max_hb)[0]  # Indices where hb_values > max_hb
+            if len(to_remove > 0):
+            # Remove rows from hb_by_window DataFrame
+                self.hb_by_window[idx].drop(index=to_remove, inplace=True)
+                self.hb_by_window[idx].reset_index(drop=True, inplace=True)
+                
+                # Remove corresponding rows from umbrella_bias DataFrame
+                self.umbrella_bias[idx].drop(index=to_remove, inplace=True)
+                self.umbrella_bias[idx].reset_index(drop=True, inplace=True)
+                
+        unbiased_discrete_window = np.array([np.zeros(max_hb + 1) for _ in range(self.n_windows)])
+        bias = np.array([1 / np.exp(-window /self.temperature) for window in self.umbrella_bias])
+        index_to_add_at = np.array([np.array(self.hb_by_window[idx].values.T[0]) for idx in range(self.n_windows)])
+        
+        for idx in range(self.n_windows):
+            np.add.at(unbiased_discrete_window[idx], index_to_add_at[idx], bias[idx][0])
+        unbiased_discrete_window = unbiased_discrete_window
+        
+        normalized_array = count_division_normalize(unbiased_discrete_window)
+        new_array_v2 = np.zeros(unbiased_discrete_window.shape[1])
+        
+        # Iterate through each row and index
+        for i, row in enumerate(normalized_array):
+            new_array_v2 += row * unbiased_discrete_window[i]
+        self.counts_discrete = new_array_v2
+        # Normalize the new array using count division normalization
+        new_array_sum_v2 = np.sum(new_array_v2)
+        normalized_new_array_v2 = new_array_v2 / new_array_sum_v2
+        self.free_energy_discrete = -np.log(normalized_new_array_v2)
+        self.free_energy_discrete -= min(self.free_energy_discrete)
+        self.prob_discrete = normalized_new_array_v2       
+        
     def calculate_melting_temperature_using_vmmc(self):
         self.vmmc_dir = join(self.production_sim_dir, 'vmmc_dir')
         self.vmmc_sim = VirtualMoveMonteCarlo(self.file_dir, self.vmmc_dir)
@@ -539,49 +671,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
         self.vmmc_sim.analysis.read_vmmc_op_data()
         self.vmmc_sim.analysis.calculate_sampling_and_probabilities()
-        self.vmmc_sim.analysis.plot_melting_profiles()
-            
-    
-    def unbias_com_to_hb(self, xmin, xmax, n_windows, stiff, max_hb):
-        if self.com_by_window is None:
-            self.get_com_distance_by_window()
-        if self.hb_by_window is None:
-            self.get_hb_list_by_window()
-        if self.umbrella_bias is None:
-            self.get_bias_potential_value(xmin, xmax, n_windows, stiff)
-        
-        pre_temp = self.production_sims[0].input.input['T']
-        if ('C'.upper() in pre_temp) or ('C'.lower() in pre_temp):
-            self.temperature = (float(pre_temp[:-1]) + 273.15) / 3000
-        elif ('K'.upper() in pre_temp) or ('K'.lower() in pre_temp):
-             self.temperature = float(pre_temp[:-1]) / 3000
-        
-        com_by_window = copy.deepcopy(self.com_by_window)
-        hb_by_window = copy.deepcopy(self.hb_by_window)
-        umbrella_bias = copy.deepcopy(self.umbrella_bias)
-        shift = np.array(self.get_biases(), dtype=float)
-        umbrella_bias = [np.exp(-bias / self.temperature) for bias, shift in zip(umbrella_bias, shift)]
-        print(self.temperature)
-        for idx in hb_by_window.keys():
-            hb_values = np.array(hb_by_window[idx].values.T[0])
-            to_remove = np.where(hb_values > max_hb)[0]  # Indices where hb_values > max_hb
-            if len(to_remove > 0):
-            # Remove rows from hb_by_window DataFrame
-                hb_by_window[idx].drop(index=to_remove, inplace=True)
-                hb_by_window[idx].reset_index(drop=True, inplace=True)
-                
-                # Remove corresponding rows from umbrella_bias DataFrame
-                umbrella_bias[idx].drop(index=to_remove, inplace=True)
-                umbrella_bias[idx].reset_index(drop=True, inplace=True)
-            
-        unbiased_discrete_window = {idx:np.zeros(int(max_hb + 1)) for idx in range(n_windows)}
-        for idx in range(n_windows):
-            index_to_add_at = np.array(hb_by_window[idx].values.T[0])
-            biases = np.array([value for value in umbrella_bias[idx].values.T[0]])
-            value_to_add = 1 / biases
-            np.add.at(unbiased_discrete_window[idx], index_to_add_at, value_to_add)
-        
-        self.unbiased_discrete_windows = unbiased_discrete_window
+        self.vmmc_sim.analysis.calculate_and_estimate_melting_profiles()
 
     def homebrew_discrete_wham(self, max_hb):
         windows = len(self.unbiased_discrete_windows)
@@ -722,7 +812,105 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             # Write the modified topology back to the file
             with open(topology_file_path, 'w') as f:
                 f.writelines(new_lines)    
-
+                
+    def termperature_interpolation(self):
+        #I need to write a function that will take the values in last_hist.dat and perform the temperature interpolation
+        #To do this I can use the split potential energy and then read the files
+        #Next, I need to somehow take the simulation counts which were unbiased and then reweight them
+        #I now have the unbiased windows
+        # I can then simply reweight the counts of each num_h_bond nope, I need to do it for each state based on the states energy
+        def count_division_normalize(arr):
+            row_sums = np.sum(arr, axis=1, keepdims=True)
+            return arr / row_sums
+        
+        if self.com_by_window is None:
+            self.get_com_distance_by_window()
+        if self.hb_by_window is None:
+            self.get_hb_list_by_window()
+        if self.umbrella_bias is None:
+            self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
+        if self.potential_energy_by_window is None:
+            self.read_potential_energy()
+        
+        for idx in self.hb_by_window.keys():
+            hb_values = np.array(self.hb_by_window[idx].values.T[0])
+            to_remove = np.where(hb_values > max_hb)[0]  # Indices where hb_values > max_hb
+            if len(to_remove > 0):
+            # Remove rows from hb_by_window DataFrame
+                self.hb_by_window[idx].drop(index=to_remove, inplace=True)
+                self.hb_by_window[idx].reset_index(drop=True, inplace=True)
+                
+                # Remove corresponding rows from umbrella_bias DataFrame
+                self.umbrella_bias[idx].drop(index=to_remove, inplace=True)
+                self.umbrella_bias[idx].reset_index(drop=True, inplace=True)
+                
+        unbiased_discrete_window = np.array([np.zeros(max_hb + 1) for _ in range(self.n_windows)])
+        
+        _calculate_new_potentail_energy
+        energy_bias = np.arr
+        bias = np.array([1 / np.exp(-window /self.temperature) for window in self.umbrella_bias])
+        index_to_add_at = np.array([np.array(self.hb_by_window[idx].values.T[0]) for idx in range(self.n_windows)])
+        
+        for idx in range(self.n_windows):
+            np.add.at(unbiased_discrete_window[idx], index_to_add_at[idx], bias[idx][0])
+        unbiased_discrete_window = unbiased_discrete_window
+        
+        normalized_array = count_division_normalize(unbiased_discrete_window)
+        new_array_v2 = np.zeros(unbiased_discrete_window.shape[1])
+        
+        # Iterate through each row and index
+        for i, row in enumerate(normalized_array):
+            new_array_v2 += row * unbiased_discrete_window[i]
+        self.counts_discrete = new_array_v2
+        # Normalize the new array using count division normalization
+        new_array_sum_v2 = np.sum(new_array_v2)
+        normalized_new_array_v2 = new_array_v2 / new_array_sum_v2
+        self.free_energy_discrete = -np.log(normalized_new_array_v2)
+        self.free_energy_discrete -= min(self.free_energy_discrete)
+        self.prob_discrete = normalized_new_array_v2     
+    
+    def read_potential_energy(self):
+        self.potential_energy_by_window = {}
+        for idx, sim in enumerate(self.production_sims):
+            sim.sim_files.parse_current_files()
+            df = pd.read_csv(sim.sim_files.potential_energy, header=None, names=['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel'], engine='pyarrow')
+#             df ={}
+#             names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+#             for name in names:
+#                 df[name] = []
+                
+#             with open(sim.sim_files.potential_energy, 'r') as f:
+#                 for line in f:
+#                     line_floats = [float(value) for value in line.split()]
+#                     for value, name in zip(line_floats, names):
+#                         df[name].append(value)
+            return print(df)
+        self.potential_energy_by_window[idx] = df
+    
+    def _calculate_energy_bias(self, temperature_range):
+        temperature_range = np.array(temperature_range)
+        
+        
+        old_temperature = (self.temperature + 273.15) / 3000
+        new_temperatures = (temperature_range + 273.15) / 3000
+        
+        old_epsilons = 1.3448 + 2.6568 * old_temperature
+        new_epsilon = 1.3448 + 2.6568 * new_temperatures
+        
+        epsilon_ratio = old_epsilons / new_epsilon
+        
+        old_potential_energies = [all_pot_energy for all_pot_energy in self.potential_energy_by_window.values()]
+        old_stacking_energies = [all_pot_energy['stacking'] for all_pot_energy in self.potential_energy_by_window.values()]
+        
+        new_stacking_energies = [old_stacking / epsilon_ratio for old_stacking in old_stacking_energies]
+        
+        old_potential_energies_minus_old_stacking = [df.drop(columns=['stacking']).sum() for df in old_potential_energies]
+        
+        new_potential_energies = [old_pot_min_stacking.add(new_stacking) for old_pot_min_stacking, new_stacking in zip(old_potential_energies_minus_old_stacking, new_stacking_energies)]
+        
+        energy_bias_per_window_per_temperature = [[np.exp((old_potential / old_temperature) - (new_potential / new_temp)) for new_temp in new_temperatures] for old_potential, new_potential in zip(old_potential_energies.sum(), new_potential_energies)]
+        
+        return energy_bias_per_window_per_temperature
 
 
 class UmbrellaAnalysis:
@@ -804,6 +992,12 @@ class UmbrellaWindow:
     def __init__(self, base_umbrella):
         self.base_umbrella = base_umbrella
     
+    def pre_equlibration_windows(self, n_windows):
+        self.base_umbrella.pre_equlibration_sim_dir = join(self.base_umbrella.system_dir, 'pre_equlibration')
+        if not exists(self.base_umbrella.pre_equlibration_sim_dir):
+            os.mkdir(self.base_umbrella.pre_equlibration_sim_dir)
+        self.base_umbrella.pre_equlibration_sims = [Simulation(self.base_umbrella.file_dir, join(self.base_umbrella.pre_equlibration_sim_dir, str(window))) for window in range(n_windows)]
+    
     def equlibration_windows(self, n_windows):
         """ 
         Sets a attribute called equlibration_sims containing simulation objects for all equlibration windows.
@@ -814,7 +1008,12 @@ class UmbrellaWindow:
         self.base_umbrella.equlibration_sim_dir = join(self.base_umbrella.system_dir, 'equlibration')
         if not exists(self.base_umbrella.equlibration_sim_dir):
             os.mkdir(self.base_umbrella.equlibration_sim_dir)
-        self.base_umbrella.equlibration_sims = [Simulation(self.base_umbrella.file_dir,join(self.base_umbrella.equlibration_sim_dir, str(window))) for window in range(n_windows)]
+        
+        if exists(self.base_umbrella.pre_equlibration_sim_dir):
+            self.base_umbrella.equlibration_sims = [Simulation(sim.sim_dir, join(self.base_umbrella.equlibration_sim_dir, sim.sim_dir.split('/')[-1])) for sim in self.base_umbrella.pre_equlibration_sims]
+        
+        else:
+            self.base_umbrella.equlibration_sims = [Simulation(self.base_umbrella.file_dir,join(self.base_umbrella.equlibration_sim_dir, str(window))) for window in range(n_windows)]
      
     
     def production_windows(self, n_windows):

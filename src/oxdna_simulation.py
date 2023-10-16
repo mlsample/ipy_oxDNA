@@ -1399,7 +1399,7 @@ class Analysis:
             plt.figure(figsize=(15,3)) 
         plt.xlabel('steps')
         plt.ylabel(f'{os.path.splitext(file_name)[0]} (sim units)')
-        plt.plot(sim_conf_times, df, label=self.sim.sim_dir.split("/")[-1])
+        plt.plot(sim_conf_times, df, label=self.sim.sim_dir.split("/")[-1], rasterized=True)
 
     def hist_observable(self, observable, bins=10, fig=True):
         file_name = observable['output']['name']
@@ -1629,7 +1629,24 @@ class Observable:
                 ]
             }
         })
-              
+    @staticmethod
+    def potential_energy(print_every=None, split=None, name=None):
+        """
+        Return the x,y,z postions of specified particles
+        """
+        return({
+            "output": {
+                "print_every": f'{print_every}',
+                "name": name,
+                "cols": [
+                    {
+                        "type": "potential_energy",
+                        "split": f"{split}" 
+                    }
+                ]
+            }
+        })
+        
         
 class Force:
     """ Currently implemented external forces for this oxDNA wrapper."""
@@ -1853,7 +1870,7 @@ class SimFiles:
                     self.run_file = os.path.abspath(os.path.join(self.sim_dir, file))
                 elif (file.startswith(('slurm'))):
                     self.run_file = os.path.abspath(os.path.join(self.sim_dir, file))
-                elif 'energy' in file:
+                elif 'energy.dat' in file:
                     self.energy = os.path.abspath(os.path.join(self.sim_dir, file))
                 elif 'com_distance' in file:
                     self.com_distance = os.path.abspath(os.path.join(self.sim_dir, file))
@@ -1865,4 +1882,6 @@ class SimFiles:
                     self.last_hist = os.path.abspath(os.path.join(self.sim_dir, file))
                 elif 'hb_observable.txt' in file:
                     self.hb_observable = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif 'potential_energy.txt' in file:
+                    self.potential_energy = os.path.abspath(os.path.join(self.sim_dir, file))
 

@@ -261,6 +261,8 @@ class BaseUmbrellaSampling:
  
         return data
    
+
+   
     def get_com_distance_by_window(self):
         com_distance_by_window = {}
         for idx,sim in enumerate(self.production_sims):
@@ -726,8 +728,8 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
 
         self.free_energy_discrete = np.array([-free for free in self.log_prob_discrete])
         self.free_energy_discrete -= self.free_energy_discrete[0]
-        # self.free_energy_discrete[0] -= self.volume_correction
-        # self.free_energy_discrete += self.volume_correction
+        self.free_energy_discrete[0] -= self.volume_correction
+        self.free_energy_discrete += self.volume_correction
         
         self.normed_free_energy = -self.free_energy_discrete - logsumexp(-self.free_energy_discrete)
         
@@ -1114,11 +1116,12 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         # print(f'{potential_energy_by_window.shape=}')
 
 
-        # return None
-
+        # return None        
+        
         hb_by_window = np.array(list(self.hb_by_window.values())).squeeze(-1)
         hb_by_window = np.where(hb_by_window <= max_hb, hb_by_window, max_hb)
         index_to_add_at = hb_by_window
+        
         temperature = np.array(self.temperature, dtype=np.longdouble)
         beta = 1 / temperature
         bias = [[[] for _ in range(len(temp_range))] for _ in range(self.n_windows)]
@@ -1131,102 +1134,111 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             
             for temp_idx, temp_bias in enumerate(temperature_bias):
                 # print(f'{temp_bias=}{temp_idx=}{win_idx=}')
-                temp_weight = temp_bias * beta #/ ((temp_range[temp_idx] + 273.15) / 3000)
-                temp_scaled_bias_values = np.exp(bias_vals + temp_weight)
+                temp_weight = temp_bias * beta# / ((temp_range[temp_idx] + 273.15) / 3000)
+                temp_scaled_bias_values =  bias_vals + temp_weight
                 bias[win_idx][temp_idx].append(temp_scaled_bias_values)
         
         bias = np.array(bias).squeeze(2)        
         self.bias = bias
-        print(f'{np.array(bias).shape=}')
-        print(f'{np.array(index_to_add_at).shape=}')
 
-
-
-        # beta_u_hb_list = [[[[] for _ in range(max_hb + 1)] for _ in range(len(temp_range))] for _ in range(self.n_windows)] 
+        beta_u_hb_list = [[[[] for _ in range(max_hb + 1)] for _ in range(len(temp_range))] for _ in range(self.n_windows)] 
         
-        # for win_idx, (b_u_win, hb_win) in enumerate(zip(bias, index_to_add_at)):
+        for win_idx, (b_u_win, hb_win) in enumerate(zip(bias, index_to_add_at)):
             
-        #     for temp_idx, b_u_temp in enumerate(b_u_win):
-        #         b_u_temp = b_u_temp[0]
+            for temp_idx, b_u_temp in enumerate(b_u_win):
                 
-        #         for b_u, hb in zip(b_u_temp, hb_win):
+                for b_u, hb in zip(b_u_temp, hb_win):
                     
-        #             beta_u_hb_list[win_idx][temp_idx][hb].append(b_u)
+                    beta_u_hb_list[win_idx][temp_idx][hb].append(b_u)
                     
-        # self.beta_u_hb_list = beta_u_hb_list
+        self.beta_u_hb_list = beta_u_hb_list
         
-        # log_e_beta_u = np.empty((self.n_windows, len(temp_range), max_hb+1), dtype=np.longdouble)
+        log_e_beta_u = np.empty((self.n_windows, len(temp_range), max_hb+1), dtype=np.longdouble)
 
-        # for win_idx, b_u_hb_win in enumerate(beta_u_hb_list):
+        for win_idx, b_u_hb_win in enumerate(beta_u_hb_list):
             
-        #     for temp_idx, b_u_hb_temp in enumerate(b_u_hb_win):
+            for temp_idx, b_u_hb_temp in enumerate(b_u_hb_win):
 
-        #         for hb_idx, b_u_hb in enumerate(b_u_hb_temp):
+                for hb_idx, b_u_hb in enumerate(b_u_hb_temp):
                     
-        #             if len(b_u_hb) > 0:
-        #                 log_e_beta_u[win_idx][temp_idx][hb_idx] = logsumexp(b_u_hb)
-        #             else:
-        #                 log_e_beta_u[win_idx][temp_idx][hb_idx] = 0
-        # self.log_e_beta_u = log_e_beta_u
+                    if len(b_u_hb) > 0:
+                        log_e_beta_u[win_idx][temp_idx][hb_idx] = logsumexp(b_u_hb)
+                    else:
+                        log_e_beta_u[win_idx][temp_idx][hb_idx] = 0
+        self.log_e_beta_u = log_e_beta_u
         
-        # log_e_beta_u_norm_factor = [[logsumexp(b_u) for b_u in b_u_temp] for b_u_temp in log_e_beta_u]
-
-        # self.log_e_beta_u_norm_factor = log_e_beta_u_norm_factor
-
-        # log_p_i_h = [[b_u - b_u_norm for b_u, b_u_norm in zip(b_u_temp, b_u_norm_temp)] for b_u_temp, b_u_norm_temp in zip(log_e_beta_u, log_e_beta_u_norm_factor)]
         
-        # self.log_p_i_h = log_p_i_h
+        f_i = self.get_biases()
+        weight = -beta * np.array(f_i)
+        weight_norm = logsumexp(weight)
+        A_i = weight - weight_norm
+        
+        self.com_max = np.max(np.array([com_dist for com_dist in self.com_by_window.values()]))
+        last_conf_file = self.production_sims[0].sim_files.last_conf
+        with open(last_conf_file, 'r') as f:
+            next(f)
+            box_info = f.readline().split(' ')
+            self.box_size = float(box_info[-1].strip())
+        
+        self.volume_correction = np.log((self.box_size**3) / ((4/3)*np.pi*self.com_max**3))
+                
+        log_p_i_h = self.log_e_beta_u - logsumexp(self.log_e_beta_u, axis=2, keepdims=True)
+        self.log_p_i_h = log_p_i_h
 
+        a_log_p_i_h = log_p_i_h.T + A_i
 
-        # self.windowed_log_prob_discrete = [[p_i + a for p_i in p_i_temp] for p_i_temp, a in zip(log_p_i_h, A_i)]
-        # #This is not finished, and is currently incorrect somewhere, one thing I thing I need to do is manipulate the the f_i value based on the temperature I am trying to interpolate too.
-        # return None
+        combine_log_p_i_h = logsumexp(a_log_p_i_h, axis=2)
+        
+        free_energy = -combine_log_p_i_h.T
+        free_energy -= free_energy.min(axis=1, keepdims=True)
+        free_energy[:,0] = free_energy[:,0] - self.volume_correction
+        self.free_energy_discrete = free_energy + self.volume_correction
+        normed_free_energy = -free_energy - logsumexp(-free_energy, axis=1, keepdims=True)
+        self.prob_discrete = np.exp(normed_free_energy)
+        
+        return None
         
         # self.free_energy_discrete = np.array([-logsumexp(hb_list) for hb_list in self.windowed_log_prob_discrete.T])
 
         
         unbiased_discrete_window = np.array([[np.zeros(max_hb + 1) for _ in range(self.n_windows) ] for _ in range(len(temp_range))])
 
-        # print(f'{unbiased_discrete_window.shape=}')
-        # print(f'{bias.shape=}')
-        # print(f'{index_to_add_at.shape=}')
-        # Step 3: Operations
-        for temp_idx in range(unbiased_discrete_window.shape[0]):
-            for window_idx in range(self.n_windows):
-                np.add.at(unbiased_discrete_window[temp_idx][window_idx], index_to_add_at[window_idx], bias[window_idx][temp_idx][0])
+        # # print(f'{unbiased_discrete_window.shape=}')
+        # # print(f'{bias.shape=}')
+        # # print(f'{index_to_add_at.shape=}')
+        # # Step 3: Operations
+        # for temp_idx in range(unbiased_discrete_window.shape[0]):
+        #     for window_idx in range(self.n_windows):
+        #         np.add.at(unbiased_discrete_window[temp_idx][window_idx], index_to_add_at[window_idx], bias[window_idx][temp_idx][0])
 
             
-        self.unbiased_discrete_window = np.array(unbiased_discrete_window)
-        print(f'{self.unbiased_discrete_window.shape=}')
+        # self.unbiased_discrete_window = np.array(unbiased_discrete_window)
+        # print(f'{self.unbiased_discrete_window.shape=}')
         
-        f_i = self.get_biases()
-        weight = -beta * np.array(f_i)
-        self.weight = weight
-        weight_norm = logsumexp(weight)
-        A_i = np.exp(weight - weight_norm)
+
         
-        normalized_arrays = []
-        for window_set in self.unbiased_discrete_window:
-            normalized_arrays.append(window_set / np.sum(window_set, axis=1, keepdims=True))
+        # normalized_arrays = []
+        # for window_set in self.unbiased_discrete_window:
+        #     normalized_arrays.append(window_set / np.sum(window_set, axis=1, keepdims=True))
                 
-        combined_windows = np.zeros((self.unbiased_discrete_window.shape[0],self.unbiased_discrete_window.shape[2]))
-        for idx, window_set in enumerate(normalized_arrays):
-            for i, row in enumerate(window_set):
-                combined_windows[idx] += row * A_i[idx]# * self.unbiased_discrete_window[idx][i]
+        # combined_windows = np.zeros((self.unbiased_discrete_window.shape[0],self.unbiased_discrete_window.shape[2]))
+        # for idx, window_set in enumerate(normalized_arrays):
+        #     for i, row in enumerate(window_set):
+        #         combined_windows[idx] += row * A_i[idx]# * self.unbiased_discrete_window[idx][i]
         
-        self.counts_discrete = combined_windows   
-        combined_windows_normed = []
-        for window_set in combined_windows:
-            combined_windows_normed.append( window_set / np.sum(window_set))
+        # self.counts_discrete = combined_windows   
+        # combined_windows_normed = []
+        # for window_set in combined_windows:
+        #     combined_windows_normed.append( window_set / np.sum(window_set))
             
-        free_energy = []
-        for window_set in combined_windows_normed:
-            free = -np.log(window_set)
-            free -= free[0]
-            free_energy.append(free) 
+        # free_energy = []
+        # for window_set in combined_windows_normed:
+        #     free = -np.log(window_set)
+        #     free -= free[0]
+        #     free_energy.append(free) 
         
-        self.prob_discrete = combined_windows_normed
-        self.free_energy_discrete = free_energy
+        # self.prob_discrete = combined_windows_normed
+        # self.free_energy_discrete = free_energy
     
     def read_potential_energy(self):
         self.potential_energy_by_window = {}

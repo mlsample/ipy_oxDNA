@@ -6,22 +6,80 @@ import shutil
 import fileinput
 import sys
 import subprocess
+from concurrent.futures import ProcessPoolExecutor
 
+
+def copy_single_file(sim_dir, window, file, com_dir):
+    shutil.copyfile(os.path.join(sim_dir, window, file),
+                    os.path.join(com_dir, f'com_distance_{window}.txt'))
+
+def unpack_and_run(args):
+    return copy_single_file(*args)
 
 def copy_com_files(sim_dir, com_dir):
-    # copy com files from each to window to separate directory
+    # Remove existing com_dir and create a new one
     if os.path.exists(com_dir):
         shutil.rmtree(com_dir)
-    if not os.path.exists(com_dir):
-        os.mkdir(com_dir)
+    os.mkdir(com_dir)
+
     windows = [w for w in os.listdir(sim_dir) if w.isdigit()]
+
+    tasks = []
     for window in windows:
         if os.path.isdir(os.path.join(sim_dir, window)):
             for file in os.listdir(os.path.join(sim_dir, window)):
                 if 'com_distance' in file:
-                    shutil.copyfile(os.path.join(sim_dir, window, file),
-                                    os.path.join(com_dir, f'com_distance_{window}.txt'))
+                    tasks.append((sim_dir, window, file, com_dir))
+
+    with ProcessPoolExecutor() as executor:
+        executor.map(unpack_and_run, tasks)
+    
     return None
+
+
+# def copy_com_files(sim_dir, com_dir):
+#     # copy com files from each to window to separate directory
+#     if os.path.exists(com_dir):
+#         shutil.rmtree(com_dir)
+#     if not os.path.exists(com_dir):
+#         os.mkdir(com_dir)
+#     windows = [w for w in os.listdir(sim_dir) if w.isdigit()]
+#     for window in windows:
+#         if os.path.isdir(os.path.join(sim_dir, window)):
+#             for file in os.listdir(os.path.join(sim_dir, window)):
+#                 if 'com_distance' in file:
+#                     shutil.copyfile(os.path.join(sim_dir, window, file),
+#                                     os.path.join(com_dir, f'com_distance_{window}.txt'))
+#     return None
+
+# def copy_h_bond_single_file(sim_dir, window, file, com_dir):
+#     if 'hb_observable' in file:
+#         dest_dir = os.path.join(com_dir, 'h_bonds')
+#         shutil.copyfile(os.path.join(sim_dir, window, file),
+#                         os.path.join(dest_dir, f'hb_list_{window}.txt'))
+
+# def copy_h_bond_files(sim_dir, com_dir):
+#     # Create or recreate the h_bonds directory
+#     h_bonds_dir = os.path.join(com_dir, 'h_bonds')
+#     if os.path.exists(h_bonds_dir):
+#         shutil.rmtree(h_bonds_dir)
+#     os.mkdir(h_bonds_dir)
+
+#     # Collect window directories
+#     windows = [w for w in os.listdir(sim_dir) if w.isdigit()]
+
+#     # Create tasks for parallel execution
+#     tasks = []
+#     for window in windows:
+#         if os.path.isdir(os.path.join(sim_dir, window)):
+#             for file in os.listdir(os.path.join(sim_dir, window)):
+#                 tasks.append((sim_dir, window, file, com_dir))
+
+#     # Execute tasks in parallel
+#     with ProcessPoolExecutor() as executor:
+#         executor.map(lambda args: copy_h_bond_single_file(*args), tasks)
+
+#     return None
 
 def copy_h_bond_files(sim_dir, com_dir):
     # copy com files from each to window to separate directory
@@ -59,36 +117,26 @@ def autocorrelation(com_list):
     return autocorrelation_list
 
 
+def process_file(filename):
+    with open(filename, 'r+') as f:
+        lines = f.readlines()
+        f.seek(0)
+        f.truncate()
+        for i, line in enumerate(lines, start=1):
+            f.write(f'{i} {line}')
+
 def number_com_lines(com_dir):
     # Create time_series directory and add com files with line number
-    if os.path.exists(com_dir):
-        os.chdir(com_dir)
-        # files = os.listdir(os.getcwd())
-        files = [os.path.join(com_dir, filename) for filename in os.listdir(com_dir) if os.path.isfile(os.path.join(com_dir, filename))]
-        for line in fileinput.input(files, inplace=True):
-            sys.stdout.write(f'{fileinput.filelineno()} {line}')
-    else:
+    if not os.path.exists(com_dir):
         print('com_dir does not exist')
         return None
+    
+    os.chdir(com_dir)
+    files = [os.path.join(com_dir, filename) for filename in os.listdir(com_dir) if os.path.isfile(os.path.join(com_dir, filename))]    
+    with ProcessPoolExecutor() as executor:
+        executor.map(process_file, files)
+
     return com_dir
-
-
-# def number_com_lines(com_dir):
-#     # Create time_series directory and add com files with line number
-#     if os.path.exists(os.path.join(com_dir, 'time_series')):
-#         pass
-#     else:
-#         os.chdir(com_dir)
-#         if 'time_series' not in os.getcwd():
-#             shutil.copytree(os.getcwd(), os.path.join(com_dir, "time_series"))
-#         if 'time_series' in os.listdir(os.getcwd()):
-#             os.chdir(os.path.join(com_dir, "time_series"))
-#             files = os.listdir(os.getcwd())
-#             for file in files:
-#                 for line in fileinput.input(file, inplace=True):
-#                     sys.stdout.write(f'{fileinput.filelineno()} {line}')
-#     time_dir = os.path.join(com_dir, 'time_series')
-#     return time_dir
 
 
 def sort_coms(file):

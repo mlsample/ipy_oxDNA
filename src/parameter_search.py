@@ -11,24 +11,26 @@ import joblib
 import multiprocessing as mp
 from skopt import Optimizer
 from skopt.space import Categorical, Space
+from copy import deepcopy
+
 
 logging.basicConfig(filename='optimization.log', level=logging.INFO)
 
-def run_baysian_hyperparameter_optimization(param_space, vmmc_ground_truth, max_hb, path, com_list, ref_list, n_iterations, batch_size, resume_state=None, subprocess=True):
+def run_baysian_hyperparameter_optimization(param_space, vmmc_ground_truth, max_hb, path, com_list, ref_list, n_iterations, batch_size, resume_state=None, inital_parameters=None, subprocess=True):
     
     if subprocess is True:
-        spawn(baysian_hyperparameter_optimization, args=(param_space, vmmc_ground_truth, max_hb, path, com_list, ref_list, n_iterations, batch_size), kwargs={'resume_state':resume_state})
+        spawn(baysian_hyperparameter_optimization, args=(param_space, vmmc_ground_truth, max_hb, path, com_list, ref_list, n_iterations, batch_size), kwargs={'resume_state':resume_state, 'inital_parameters':inital_parameters})
     else:
-        baysian_hyperparameter_optimization(param_space, vmmc_ground_truth, max_hb, path, com_list, ref_list, n_iterations, batch_size, resume_state=resume_state)
+        baysian_hyperparameter_optimization(param_space, vmmc_ground_truth, max_hb, path, com_list, ref_list, n_iterations, batch_size, resume_state=resume_state, inital_parameters=inital_parameters)
         
 def spawn(f, args=(), kwargs={}):
     """Spawn subprocess"""
     p = mp.Process(target=f, args=args, kwargs=kwargs)
     p.start()
         
-def baysian_hyperparameter_optimization(param_space, vmmc_ground_truth, max_hb, path, com_list, ref_list,  n_iterations, batch_size, resume_state=None):
+def baysian_hyperparameter_optimization(param_space, vmmc_ground_truth, max_hb, path, com_list, ref_list,  n_iterations, batch_size, resume_state=None, inital_parameters=None):
     # Instantiate the optimizer
-    
+    print(param_space)
     if resume_state is None:
         optimizer = Optimizer(
             dimensions=param_space,
@@ -54,15 +56,19 @@ def baysian_hyperparameter_optimization(param_space, vmmc_ground_truth, max_hb, 
     
     for i in range(n_iterations):
         # Ask the optimizer to suggest a batch of parameter sets
-        suggested_params_batch = optimizer.ask(n_points=batch_size)
+        if (inital_parameters is not None) and (i == 0): 
+            suggested_params_batch = deepcopy(inital_parameters)
+            suggested_params_batch_formated = np.array(suggested_params_batch, dtype='object').T.tolist()
         
-        # Convert the batch of suggested parameters to a more usable format
-        suggested_params_batch_formated = np.array(suggested_params_batch, dtype='object').T.tolist()
+        else:
+            suggested_params_batch = optimizer.ask(n_points=batch_size)
+            suggested_params_batch_formated = np.array(suggested_params_batch, dtype='object').T.tolist()
         
         # Evaluate the objective function in parallel (assuming your function can handle batch evaluations)
         losses = objective_function(vmmc_ground_truth, max_hb, path, com_list, ref_list,  *suggested_params_batch_formated)
         
         # Tell the optimizer the result
+        print(suggested_params_batch) 
         for params, loss in zip(suggested_params_batch, losses):
             optimizer.tell(params, loss)
     
@@ -80,23 +86,26 @@ def baysian_hyperparameter_optimization(param_space, vmmc_ground_truth, max_hb, 
         
 
 def objective_function(vmmc_ground_truth, max_hb, path, com_list, ref_list, k_value_list, temperature_list, unique_binding_list, print_every_list, xmax_list, production_step_list, n_window_list):
-    
+    print('run sims')
     #shape: 1 x n_parallized_predications
     us_list = run_umbrella_sampling(path, com_list, ref_list, k_value_list, temperature_list, unique_binding_list, print_every_list, xmax_list, production_step_list, n_window_list)
     
-    
+    print('sims done')
     for us in us_list:
+        print(hasattr(us, 'vmmc_dir'))
         if hasattr(us, 'vmmc_dir') is False:
             us.continuous_to_discrete_unbiasing(max_hb)
+            print('here')
             us.calculate_melting_temperature_using_vmmc()
 
 
     y_predict = np.array([1 - us.vmmc_sim.analysis.finfs[0] for us in us_list])
-    
-    y_true = vmmc_ground_truth.analysis.sigmoid(temperature_list[0], *vmmc_ground_truth.analysis.popt)
+    print(f'{temperature_list[0]=}', f'{vmmc_ground_truth.analysis.popt=}')
+    y_true = vmmc_ground_truth.analysis.sigmoid(float(temperature_list[0]), *vmmc_ground_truth.analysis.popt)
     
     #shape: 1 x n_parallized_predications
     loss = (y_true - y_predict)**2
+    print(loss)
     return loss
 
 
@@ -104,10 +113,31 @@ def objective_function(vmmc_ground_truth, max_hb, path, com_list, ref_list, k_va
 
 def run_umbrella_sampling(path, com_list, ref_list, k_value_list, temperature_list, unique_binding_list, print_every_list, xmax_list, production_step_list, n_window_list):
     
+    n_window_list = [int(n_window) for n_window in n_window_list]
     # Initialize lists to store system names and file directories
     systems = []
     file_dirs = []
     
+    
+    inital_parameters = np.array([[10.0, 25., False, 10., 5., 500000000.0, 50.],
+     [0.5, 25., False, 100., 10., 500000000.0, 50.],
+     [10.0, 70., True, 10., 20., 500000000.0, 20.]
+    ], dtype='object').tolist()
+    params = np.array([k_value_list, temperature_list, unique_binding_list, print_every_list, xmax_list, production_step_list, n_window_list], dtype='object').T
+    if (params == inital_parameters).all():
+        print('pass')     
+        #here I need to reaasign the value of all of the varaible to the int version of the variables
+        # Convert all the variables to their integer versions
+        # k_value_list = list(map(int, k_value_list))
+        temperature_list = list(map(int, temperature_list))
+        # inital_parameters
+        print_every_list = list(map(int, print_every_list))
+        xmax_list = list(map(int, xmax_list))
+        # production_step_list = list(map(int, production_step_list))
+        n_window_list = list(map(int, n_window_list))
+    else:
+        print('fail')
+
     # Create system names and file directories based on parameter combinations
     for k_value, temperature, unique_binding, print_every, xmax, production_step, n_window in zip(k_value_list, temperature_list, unique_binding_list, print_every_list, xmax_list, production_step_list, n_window_list):
         systems.append(f'{k_value}_{temperature}_{unique_binding}_{print_every}_{xmax}_{production_step}_{n_window}')

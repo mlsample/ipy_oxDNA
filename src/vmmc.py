@@ -10,9 +10,6 @@ from scipy.optimize import curve_fit
 import scienceplots
 from scipy.stats import norm, t, sem
 
-def sigmoid(x, L, x0, k, b):
-    return L / (1 + np.exp(-k * (x - x0))) + b
-
 
 class VirtualMoveMonteCarlo(Simulation):
     def __init__(self, file_dir, sim_dir):
@@ -365,11 +362,13 @@ class VmmcReplicas(GenerateReplicas):
         wt_prob_mean = np.mean(wt_prod, axis=0)
         wt_prob_sem = sem(wt_prod, axis=0)
         wt_prob_ci = t.interval(confidence_level, df, loc=wt_prob_mean, scale=wt_prob_sem)
+        self.wt_prob_mean = wt_prob_mean
         
         wt_free_mean = np.mean(wt_free, axis=0)
         wt_free_sem = sem(wt_free, axis=0)
         wt_free_ci = t.interval(confidence_level, df, loc=wt_free_mean, scale=wt_free_sem)
-
+        self.wt_free_mean = wt_free_mean
+        
         sampling_percent_mean = np.mean(sampling_percent, axis=0)
         sampling_percent_sem = sem(sampling_percent, axis=0)
         sampling_percent_ci = t.interval(confidence_level, df, loc=sampling_percent_mean, scale=sampling_percent_sem)
@@ -428,6 +427,9 @@ class VmmcReplicas(GenerateReplicas):
         
         plt.legend()
         plt.grid(True)
+        
+
+        
                 
 class VmmcAnalysis(Analysis):
     """ Methods used to interface with oxDNA simulation in jupyter notebook (currently in work)"""
@@ -631,7 +633,10 @@ class VmmcAnalysis(Analysis):
         # Show the plot
         plt.tight_layout()
         plt.show()
-        
+    
+    def sigmoid(self, x, L, x0, k, b):
+        return L / (1 + np.exp(-k * (x - x0))) + b
+    
     def calculate_and_estimate_melting_profiles(self):
         """
         Calculate the melting profiles and estimate the melting temperature (Tm).
@@ -683,11 +688,12 @@ class VmmcAnalysis(Analysis):
     
         # Fit the sigmoid function to the inverted data
         p0 = [max(self.inverted_finfs), np.median(self.temperatures), 1, min(self.inverted_finfs)]  # initial guesses for L, x0, k, b
-        popt, _ = curve_fit(sigmoid, self.temperatures, self.inverted_finfs, p0, method='dogbox')
+        self.popt, _ = curve_fit(self.sigmoid, self.temperatures, self.inverted_finfs, p0, method='dogbox')
     
         # Generate fitted data
         self.x_fit = np.linspace(min(self.temperatures), max(self.temperatures), 500)
-        self.y_fit = sigmoid(self.x_fit, *popt)
+        self.y_fit = self.sigmoid(self.x_fit, *self.popt)
+        
         
         idx = np.argmin(np.abs(self.y_fit - 0.5))
         self.sim.Tm = self.x_fit[idx]
@@ -705,17 +711,17 @@ class VmmcAnalysis(Analysis):
         f = np.interp(xin, np.array(x), np.array(y))
         return f[4]
 
-    def plot_melting_profiles(self):
+    def plot_melting_profiles(self, label=''):
         # Ensure melting profiles are calculated
         self.calculate_and_estimate_melting_profiles()
     
         # Plotting
         plt.figure(figsize=(10, 6))
-        plt.scatter(self.temperatures, self.inverted_finfs, marker='o', label='Data')
-        plt.plot(self.x_fit, self.y_fit, linestyle='--', linewidth=2, label='Sigmoid Fit')
+        plt.scatter(self.temperatures, self.inverted_finfs, marker='o', label=f'{label}Data')
+        plt.plot(self.x_fit, self.y_fit, linestyle='--', linewidth=2, label=f'{label}Sigmoid Fit')
         
         # Add a vertical line at the melting temperature
-        plt.axvline(x=self.sim.Tm, color='r', linestyle='--', linewidth=2, label=f'Tm = {self.sim.Tm:.2f} °C')
+        plt.axvline(x=self.sim.Tm, color='r', linestyle='--', linewidth=2, label=f'{label}Tm = {self.sim.Tm:.2f} °C')
         
         plt.xlabel('Temperature (°C)')
         plt.ylabel('Fraction of ssDNA')
@@ -726,7 +732,7 @@ class VmmcAnalysis(Analysis):
         
         plt.legend()
         plt.grid(True)
-        plt.show()
+        # plt.show()
 
 # I now want to read the com_distance.txt, hb_observable.txt, and wfile.txt files within self.sim_dir (which is the abspath to the directory where the simulation is being run) and then I want to create a weighted histogram using the weights in the weight file. I can because I have the time series of the number of hydrogen bonds and of the center of mass distance. But, the occurance of the center of mass distances is currently biased. The center of mass distance is according to the bias of the number of hydrogen bonds associated with the distance. For example is head of the 
 # com_distance.txt file is:

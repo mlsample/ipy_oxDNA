@@ -19,6 +19,7 @@ import traceback
 import re
 import time
 import queue
+import json
 
 # import cupy
 
@@ -130,8 +131,22 @@ class Simulation:
     
     def sequence_dependant(self):
         """ Add a sequence dependant file to simulation directory and modify input file to use it."""
-        self.input_file({'use_average_seq': 'no', 'seq_dep_file':'oxDNA2_sequence_dependent_parameters.txt'})
-        SequenceDependant(self.sim_dir)
+        int_type = self.input.input['interaction_type']
+        
+        if (int_type == 'DNA') or (int_type == 'DNA2'):
+            self.input_file({'use_average_seq': 'no', 'seq_dep_file':'oxDNA2_sequence_dependent_parameters.txt'})
+            
+        if (int_type == 'RNA') or (int_type == 'RNA2'):
+            self.input_file({'use_average_seq': 'no', 'seq_dep_file':'rna_sequence_dependent_parameters.txt'})
+            
+        if (int_type == 'DRH') :
+            self.input_file({'use_average_seq': 'no',
+                             'seq_dep_file_DNA':'oxDNA2_sequence_dependent_parameters.txt',
+                             'seq_dep_file_RNA':'rna_sequence_dependent_parameters.txt',
+                             'seq_dep_file_DRH':'DRH_sequence_dependent_parameters.txt'
+                            })
+        
+        SequenceDependant(self)
 
         
 class GenerateReplicas:
@@ -223,6 +238,7 @@ class BuildSimulation:
         self.file_dir = sim.file_dir
         self.sim_dir = sim.sim_dir
         self.force = Force()
+        self.force_cache = None
     
     def get_last_conf_top(self):
         """Set attributes containing the name of the inital conf (dat file) and topology"""
@@ -257,20 +273,20 @@ class BuildSimulation:
     def build_par(self):
         self.get_par()
         shutil.copy(os.path.join(self.file_dir, self.par), self.sim_dir)
-    
+
     def get_force_file(self):
         files = os.listdir(self.file_dir)
         force_file = [file for file in files if (file.endswith(('.txt')))][0]
         if len(force_file) > 1:
             force_file = [file for file in files if (file.endswith(('force.txt')))][0]
         self.force_file = os.path.join(self.file_dir, force_file)
-        
+
     def build_force_from_file(self):
         forces = []
         shutil.copy(self.force_file, self.sim.sim_dir)
         with open(self.force_file, 'r') as f:
             lines = f.readlines()
-        
+
         buffer = []
         for line in lines:
             if line.strip() == '{':
@@ -286,28 +302,46 @@ class BuildSimulation:
                     buffer.append(line.strip())
         for force in forces:
             self.build_force(force)
-    
+
     def build_force(self, force_js):
-        """
-        Write force file is one does not exist. If a force file exists add additional forces to the file.
+        force_file_path = os.path.join(self.sim_dir, "forces.json")
+
+        # Initialize the cache and create the file if it doesn't exist
+        if self.force_cache is None:
+            if not os.path.exists(force_file_path):
+                self.force_cache = {}
+                with open(force_file_path, 'w') as f:
+                    json.dump(self.force_cache, f, indent=4)
+                self.is_empty = True  # Set the flag to True for a new file
+            else:
+                with open(force_file_path, 'r') as f:
+                    self.force_cache = json.load(f)
+                self.is_empty = not bool(self.force_cache)  # Set the flag based on the cache
+
+        # Check for duplicates in the cache
+        for force in list(self.force_cache.values()):
+            if list(force.values())[1] == list(list(force_js.values())[0].values())[1]:
+                return
+
+        # Add the new force to the cache
+        new_key = f'force_{len(self.force_cache)}'
+        self.force_cache[new_key] = force_js['force']
+
+        # Append the new force to the existing JSON file
+        self.append_to_json_file(force_file_path, new_key, force_js['force'], self.is_empty)
+
+        self.is_empty = False  # Update the flag
         
-        Parameters:
-            force_js (dict): force dictornary obtained from the Force class methods
-        """
-        if not os.path.exists(os.path.join(self.sim_dir, "forces.json")):
-            with open(os.path.join(self.sim_dir, "forces.json"), 'w') as f:
-                f.write(dumps(force_js, indent=4))
-        else:
-            with open(os.path.join(self.sim_dir, "forces.json"), 'r') as f:
-                read_force_js = loads(f.read())
-                for force in list(read_force_js.values()):
-                    if list(force.values())[1] == list(list(force_js.values())[0].values())[1]:
-                        return None
-                read_force_js[f'force_{len(list(read_force_js.keys()))}'] = read_force_js['force']
-                del read_force_js['force']
-                read_force_js.update(force_js.items())
-                with open(os.path.join(self.sim_dir, "forces.json"), 'w') as f:
-                    f.write(dumps(read_force_js, indent=4))
+    def append_to_json_file(self, file_path, new_entry_key, new_entry_value, is_empty):
+        with open(file_path, 'rb+') as f:
+            f.seek(-1, os.SEEK_END)  # Go to the last character of the file
+            f.truncate()  # Remove the last character (should be the closing brace)
+
+            if not is_empty:
+                f.write(b',\n')  # Only add a comma if the JSON object is not empty
+
+            new_entry_str = f'    "{new_entry_key}": {json.dumps(new_entry_value, indent=4)}\n}}'
+            f.write(new_entry_str.encode('utf-8'))
     
     def build_observable(self, observable_js):
         """
@@ -584,6 +618,8 @@ class SimulationManager:
             else:
                 if cpu_run is False:
                     sleep(1)
+                elif cpu_run is True:
+                    sleep(0.1)
 
         while not self.process_queue.empty():
             sleep(1)
@@ -806,8 +842,9 @@ class Input:
         
 class SequenceDependant:
     """ Make the targeted sim_dir run a sequence dependant oxDNA simulation"""
-    def __init__(self, sim_dir):
-        self.sim_dir = sim_dir
+    def __init__(self, sim):
+        self.sim = sim
+        self.sim_dir = sim.sim_dir
         self.parameters = """STCK_FACT_EPS = 0.18
 STCK_G_C = 1.69339
 STCK_C_G = 1.74669
@@ -829,12 +866,65 @@ HYDR_A_T = 0.88537
 HYDR_T_A = 0.88537
 HYDR_C_G = 1.23238
 HYDR_G_C = 1.23238"""
+        
+        self.drh_parameters = """HYDR_A_U = 1.21
+HYDR_A_T = 1.37
+HYDR_rC_dG = 1.61
+HYDR_rG_dC = 1.77"""
+        
+        self.rna_parameters = """HYDR_A_T = 0.820419
+HYDR_C_G = 1.06444
+HYDR_G_T = 0.510558
+STCK_G_C = 1.27562
+STCK_C_G = 1.60302
+STCK_G_G = 1.49422
+STCK_C_C = 1.47301
+STCK_G_A = 1.62114
+STCK_T_C = 1.16724
+STCK_A_G = 1.39374
+STCK_C_T = 1.47145
+STCK_T_G = 1.28576
+STCK_C_A = 1.58294
+STCK_G_T = 1.57119
+STCK_A_C = 1.21041
+STCK_A_T = 1.38529
+STCK_T_A = 1.24573
+STCK_A_A = 1.31585
+STCK_T_T = 1.17518
+CROSS_A_A = 59.9626
+CROSS_A_T = 59.9626
+CROSS_T_A = 59.9626
+CROSS_A_C = 59.9626
+CROSS_C_A = 59.9626
+CROSS_A_G = 59.9626
+CROSS_G_A = 59.9626
+CROSS_G_G = 59.9626
+CROSS_G_C = 59.9626
+CROSS_C_G = 59.9626
+CROSS_G_T = 59.9626
+CROSS_T_G = 59.9626
+CROSS_C_C = 59.9626
+CROSS_C_T = 59.9626
+CROSS_T_C = 59.9626
+CROSS_T_T = 59.9626
+
+ST_T_DEP = 1.97561"""
+        
         self.write_sequence_dependant_file()
     
     def write_sequence_dependant_file(self):
-        with open(os.path.join(self.sim_dir,'oxDNA2_sequence_dependent_parameters.txt'), 'w') as f:
-            f.write(self.parameters)
-
+        int_type = self.sim.input.input['interaction_type']
+        if (int_type == 'DNA') or (int_type == 'DNA2') or (int_type == 'DRH'):
+            with open(os.path.join(self.sim_dir,'oxDNA2_sequence_dependent_parameters.txt'), 'w') as f:
+                f.write(self.parameters)
+        
+        if (int_type == 'RNA') or (int_type == 'RNA2') or (int_type == 'DRH'):
+            with open(os.path.join(self.sim_dir,'rna_sequence_dependent_parameters.txt'), 'w') as f:
+                f.write(self.rna_parameters)
+                
+        if (int_type == 'DRH'):
+            with open(os.path.join(self.sim_dir,'DRH_sequence_dependent_parameters.txt'), 'w') as f:
+                f.write(self.drh_parameters)
 
 class OxdnaAnalysisTools:
     """Interface to OAT"""
@@ -1390,7 +1480,7 @@ class Analysis:
     def plot_observable(self, observable, sliding_window=False, fig=True):
         file_name = observable['output']['name']
         conf_interval = float(observable['output']['print_every'])
-        df = pd.read_csv(f"{self.sim.sim_dir}/{file_name}", header=None)
+        df = pd.read_csv(f"{self.sim.sim_dir}/{file_name}", header=None, engine='pyarrow')
         if sliding_window is not False:
             df = df.rolling(window=sliding_window).sum().dropna().div(sliding_window)
         df = np.concatenate(np.array(df))
@@ -1704,13 +1794,14 @@ class Force:
             r0 (float): the equlibrium distance of the spring
             PBC (bool): does the force calculation take PBC into account (almost always 1)
         """
-        return({
+        return({"force":{
             "type" : "mutual_trap",
             "particle" : particle,
             "ref_particle" : ref_particle,
             "stiff" : stiff, 
             "r0" : r0,
             "PBC" : PBC
+        }
         })
     
         
@@ -1725,13 +1816,13 @@ class Force:
             rate (float or SN string): growing rate of the force (simulation units/timestep)
             dir ([float, float, float]): the direction of the force
         """
-        return({
+        return({"force":{
             "type" : "string",
             "particle" : particle, 
             "f0" : f0, 
             "rate" : rate, 
             "dir" : direction 
-        })
+        }})
     
         
     @staticmethod
@@ -1746,13 +1837,13 @@ class Force:
             rate (float): the velocity of the trap (simulation units/time step)
             direction ([float, float, float]): the direction of movement of the trap
         """
-        return({
+        return({"force":{
             "type" : "trap",
             "particle" : particle, 
             "pos0" : pos0,
             "rate" : rate,
             "dir" : direction
-        })
+        }})
     
         
     @staticmethod
@@ -1769,7 +1860,7 @@ class Force:
             axis ([float, float, float]): the rotation axis of the trap
             mask([float, float, float]): the masking vector of the trap (force vector is element-wise multiplied by mask)
         """
-        return({
+        return({"force":{
             "type" : "twist", 
             "particle" : particle,
             "stiff" : stiff,
@@ -1779,7 +1870,7 @@ class Force:
             "center" : center,
             "axis" : axis,
             "mask" : mask
-        })
+        }})
     
         
     @staticmethod
@@ -1793,13 +1884,13 @@ class Force:
             dir ([float, float, float]): the normal vecor to the plane
             position(float): position of the plane (plane is d0*x + d1*y + d2*z + position = 0)
         """
-        return({
+        return({"force":{
             "type" : "repulsion_plane",
             "particle" : particle,
             "stiff" : stiff,
             "dir" : direction,
             "position" : position
-        })
+        }})
     
         
     @staticmethod
@@ -1814,13 +1905,13 @@ class Force:
             r0 (float): radius of sphere at t=0
             rate (float): the sphere's radius changes to r = r0 + rate*t
         """
-        return({
+        return({"force":{
             "type" : "sphere",
             "center" : center,
             "stiff" : stiff,
             "r0" : r0,
             "rate" : rate
-        })
+        }})
 
 
               

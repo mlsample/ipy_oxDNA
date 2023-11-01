@@ -12,14 +12,20 @@ from skopt.space import Categorical, Space
 
 #Define umbrella sampling param space
 param_space = Space([
-    Categorical([0.5, 1, 5, 10], name='k_value'),
-    Categorical([25, 40, 52, 70], name='temperature'),
+    Categorical([0.5, 1., 5., 10.], name='k_value'),
+    Categorical([25., 40., 52., 70.], name='temperature'),
     Categorical([True, False], name='unique_binding'),
-    Categorical([1, 10, 100, 1000], name='print_every'),
-    Categorical([5, 10, 15, 20], name='xmax'),
-    Categorical([1e8, 5e8], name='production_step'),
-    Categorical([20, 50], name='n_window')
+    Categorical([10., 100., 1000.], name='print_every'),
+    Categorical([5., 10., 15., 20.], name='xmax'),
+    Categorical([1e8, 5e8, 4e9], name='production_step'),
+    Categorical([20., 50.], name='n_window')
 ])
+
+inital_parameters = [
+ [10.0, 25., False, 10., 5., 500000000.0, 50.],
+ [0.5, 25., False, 100., 10., 500000000.0, 50.],
+ [10.0, 70., True, 10., 20., 500000000.0, 20.]
+]
     
 #Define ground truth melting
 path = os.path.abspath('/scratch/mlsample/ipy_oxDNA/ipy_oxdna_examples')
@@ -63,5 +69,6 @@ run_baysian_hyperparameter_optimization(
     n_iterations,
     batch_size,
     resume_state=None,
+    inital_parameters=inital_parameters,
     subprocess=False
 )

@@ -10,7 +10,7 @@ from scipy.stats import multivariate_normal, norm
 from scipy.special import logsumexp
 import matplotlib.pyplot as plt
 import scienceplots
-import copy
+from copy import deepcopy
 from vmmc import VirtualMoveMonteCarlo
 
 
@@ -35,6 +35,7 @@ class BaseUmbrellaSampling:
         
         self.umbrella_bias = None
         self.com_by_window = None
+        self.r0 = None
     
     def queue_sims(self, simulation_manager, sim_list, continue_run=False):
         for sim in sim_list:
@@ -285,6 +286,7 @@ class BaseUmbrellaSampling:
     def copy_last_conf_from_eq_to_prod(self):
         for eq_sim, prod_sim in zip(self.equlibration_sims, self.production_sims):
             shutil.copyfile(eq_sim.sim_files.last_conf, f'{prod_sim.sim_dir}/last_conf.dat')
+            
 
             
 class UmbrellaBuild:
@@ -656,18 +658,6 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             self.get_hb_list_by_window()
         if self.umbrella_bias is None:
             self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-
-        for idx in self.hb_by_window.keys():
-            hb_values = np.array(self.hb_by_window[idx].values.T[0])
-            to_remove = np.where(hb_values > max_hb)[0]  # Indices where hb_values > max_hb
-            if len(to_remove > 0):
-            # Remove rows from hb_by_window DataFrame
-                self.hb_by_window[idx].drop(index=to_remove, inplace=True)
-                self.hb_by_window[idx].reset_index(drop=True, inplace=True)
-                
-                # Remove corresponding rows from umbrella_bias DataFrame
-                self.umbrella_bias[idx].drop(index=to_remove, inplace=True)
-                self.umbrella_bias[idx].reset_index(drop=True, inplace=True)
                 
         unbiased_discrete_window = np.array([np.zeros(max_hb + 1) for _ in range(self.n_windows)], dtype=np.longdouble)
 
@@ -683,6 +673,10 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.bias = bias
         index_to_add_at = [np.array(self.hb_by_window[idx].values.T[0]) for idx in range(self.n_windows)]
         
+        
+        hb_by_window = np.array(list(self.hb_by_window.values())).squeeze(-1)
+        hb_by_window = np.where(hb_by_window <= max_hb, hb_by_window, max_hb)
+        index_to_add_at = hb_by_window
         self.index_to_add_at = index_to_add_at
 
         b_u_sq_hb_list = [[[] for _ in range(max_hb + 1)] for _ in range(self.n_windows)]        
@@ -735,73 +729,6 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
         self.prob_discrete = np.exp(self.normed_free_energy)
         
-
-
-    
-    
-    # def continuous_to_discrete_unbiasing(self, max_hb):
-    #     def count_division_normalize(arr):
-    #         row_sums = np.sum(arr, axis=1, keepdims=True, dtype=np.longdouble)
-    #         return np.divide(arr, row_sums, out=np.zeros_like(arr, dtype=np.longdouble), where=row_sums!=0)
-        
-    #     if self.com_by_window is None:
-    #         self.get_com_distance_by_window()
-    #     if self.hb_by_window is None:
-    #         self.get_hb_list_by_window()
-    #     if self.umbrella_bias is None:
-    #         self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-
-    #     for idx in self.hb_by_window.keys():
-    #         hb_values = np.array(self.hb_by_window[idx].values.T[0])
-    #         to_remove = np.where(hb_values > max_hb)[0]  # Indices where hb_values > max_hb
-    #         if len(to_remove > 0):
-    #         # Remove rows from hb_by_window DataFrame
-    #             self.hb_by_window[idx].drop(index=to_remove, inplace=True)
-    #             self.hb_by_window[idx].reset_index(drop=True, inplace=True)
-                
-    #             # Remove corresponding rows from umbrella_bias DataFrame
-    #             self.umbrella_bias[idx].drop(index=to_remove, inplace=True)
-    #             self.umbrella_bias[idx].reset_index(drop=True, inplace=True)
-        
-    #     # return self.com_by_window.values()
-    #     # return max_distance
-    #     unbiased_discrete_window = np.array([np.zeros(max_hb + 1) for _ in range(self.n_windows)], dtype=np.longdouble)
-
-    #     temperature = np.array(self.temperature, dtype=np.longdouble)
-    #     bias = []
-    #     for idx, window in enumerate(self.umbrella_bias):
-    #         bias_values = window.values.T[0]
-    #         bias.append(np.exp((bias_values) / temperature))
-
-    #     self.bias = bias
-    #     index_to_add_at = [np.array(self.hb_by_window[idx].values.T[0]) for idx in range(self.n_windows)]
-        
-    #     self.index_to_add_at = index_to_add_at
-
-    #     for idx in range(self.n_windows):
-    #         np.add.at(unbiased_discrete_window[idx], index_to_add_at[idx], bias[idx][0])
-    #     self.unbiased_discrete_windows = unbiased_discrete_window
-        
-    #     normalized_array = count_division_normalize(unbiased_discrete_window)
-    #     new_array_v2 = np.zeros(unbiased_discrete_window.shape[1], dtype=np.longdouble)
-        
-    #     f_i = self.get_biases()
-    #     weight = np.exp(-np.array(f_i) / temperature)
-    #     weight = weight / np.sum(weight)
-    #     # Iterate through each row and index
-    #     for i, (row, bias_number) in enumerate(zip(normalized_array, bias)):
-    #         print(len(bias_number))
-    #         new_array_v2 += row * weight[i] * len(bias_number)# * unbiased_discrete_window[i] 
-        
-    #     self.counts_discrete = new_array_v2
-        
-    #     # Normalize the new array using count division normalization
-    #     new_array_sum_v2 = np.sum(new_array_v2, dtype=np.longdouble)
-    #     normalized_new_array_v2 = new_array_v2 / new_array_sum_v2
-        
-    #     self.free_energy_discrete = -np.log(normalized_new_array_v2, dtype=np.longdouble)
-    #     self.free_energy_discrete -= min(self.free_energy_discrete)
-    #     self.prob_discrete = normalized_new_array_v2
     
     def calculate_melting_temperature(self):
         counts = np.floor(self.prob_discrete * 1e9)
@@ -1003,139 +930,56 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
                 f.writelines(new_lines)    
 
                 
-    def temperature_interpolation(self, max_hb, temp_range):
+    def temperature_interpolation(self, max_hb, temp_range, reread_files=False):
         #I need to write a function that will take the values in last_hist.dat and perform the temperature interpolation
         #To do this I can use the split potential energy and then read the files
         #Next, I need to somehow take the simulation counts which were unbiased and then reweight them
         #I now have the unbiased windows
         # I can then simply reweight the counts of each num_h_bond nope, I need to do it for each state based on the states energy
-        
-        if self.com_by_window is None:
+            
+        if reread_files is False:
+            if self.com_by_window is None:
+                self.get_com_distance_by_window()
+            if self.umbrella_bias is None:
+                self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
+            if self.hb_by_window is None:
+                self.get_hb_list_by_window()
+            if self.potential_energy_by_window is None:
+                self.read_potential_energy()
+            if self.r0 is None:
+               self.get_r0_values()
+        elif reread_files is True:
             self.get_com_distance_by_window()
-        if self.hb_by_window is None:
             self.get_hb_list_by_window()
-        if self.umbrella_bias is None:
             self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-        if self.potential_energy_by_window is None:
             self.read_potential_energy()
-        
-        # for idx in self.hb_by_window.keys():
-        #     hb_values = np.array(self.hb_by_window[idx].values.T[0])
-        #     to_remove = np.where(hb_values > max_hb)[0]  # Indices where hb_values > max_hb
-            
-        #     if len(to_remove > 0):
-        #         # Remove rows from hb_by_window DataFrame
-        #         self.hb_by_window[idx].drop(index=to_remove, inplace=True)
-        #         self.hb_by_window[idx].reset_index(drop=True, inplace=True)
-                
-        #         # Remove corresponding rows from umbrella_bias DataFrame
-        #         self.umbrella_bias[idx].drop(index=to_remove, inplace=True)
-        #         self.umbrella_bias[idx].reset_index(drop=True, inplace=True)
-                
-        #         # Remove corresponding rows from potential_energy_by_window DataFrame
-        #         self.potential_energy_by_window[idx].drop(index=to_remove, inplace=True)
-        #         self.potential_energy_by_window[idx].reset_index(drop=True, inplace=True)
-            
-            # # Check if lengths are different and truncate the longer ones
-            # len_hb = len(self.hb_by_window[idx])
-            # len_umbrella = len(self.umbrella_bias[idx])
-            # len_potential_energy = len(self.potential_energy_by_window[idx])
-            
-            # min_len = min(len_hb, len_umbrella, len_potential_energy)
-            
-            # # Truncate hb_by_window if it is longer
-            # if len_hb > min_len:
-            #     self.hb_by_window[idx] = self.hb_by_window[idx].iloc[:min_len]
-                
-            # # Truncate umbrella_bias if it is longer
-            # if len_umbrella > min_len:
-            #     self.umbrella_bias[idx] = self.umbrella_bias[idx].iloc[:min_len]
-                
-            # # Truncate potential_energy_by_window if it is longer
-            # if len_potential_energy > min_len:
-            #     self.potential_energy_by_window[idx] = self.potential_energy_by_window[idx].iloc[:min_len]
+            self.get_r0_values()
 
+        #Truncate data to the shortest window in order to have use numpy vector arthimetic
+        min_length = min([len(inner_list) for inner_list in self.umbrella_bias])
+        truncated_com_values = [inner_list[:min_length] for inner_list in self.com_by_window.values()]
+        truncated_hb_values = [inner_list[:min_length] for inner_list in self.hb_by_window.values()]
+        truncated_umbrella_bias = [inner_list[:min_length] for inner_list in self.umbrella_bias]
+        truncated_potential_energy = [inner_list[:min_length] for inner_list in self.potential_energy_by_window.values()]
     
-        #First thing I need to do is look at the shape of my inital data
-        #Next, I will preallocate the arrays I need to store the data
-        #I will then need to calculate the energy bias for each temperature and window
-        #The main aspect of this rewrite is to reshape every thing as temperature, window, data
-
-        # temperatures = np.array((temp_range + 273.15) / 3000, dtype=np.longdouble)
-        # # beta = 1 / temperatures
-
-
-        # umbrella_bias = np.array(self.umbrella_bias).squeeze(-1)
-        # A_i = np.array(self.A_i)
-        # hb_by_window = np.array(list(self.hb_by_window.values())).squeeze(-1)
-        # potential_energy_by_window = np.array(list(self.potential_energy_by_window.values()))
-        # hb_by_window = np.where(hb_by_window <= max_hb, hb_by_window, max_hb)
-        
-    
-        # f_i = self.get_biases()
-        # weight = np.array(f_i)
-        # weight = np.resize(weight, (len(temp_range), weight.shape[-1]))
-        # weight = np.exp(np.multiply(-weight, 1 / temperatures[:, np.newaxis]))
-        # A_i = weight / np.sum(weight, axis=1, keepdims=True)
-        # # A_i = np.resize(A_i, (len(temp_range), max_hb +1, A_i.shape[-1]))
-        # self.A_i = A_i
-        
-        
-        # temp_bias = np.array(self._new_calcualte_bias_energy(umbrella_bias, temp_range))
-        # temp_bias = np.reshape(temp_bias, (len(temp_range), self.n_windows, temp_bias.shape[-1]))
-        
-        
-        
-        # bias = temp_bias + (umbrella_bias / self.temperature)
-        # bias_1 = bias
-        # self.bias_1 = bias_1
-        # unbiased_discrete_window = np.zeros((len(temp_range), self.n_windows, max_hb + 1))
-        
-        # for hb in range(max_hb + 1):
-        #     hb_indexes =  np.where(hb_by_window == hb, bias_1, 0)
-        #     sum_hb_indexes = np.sum(hb_indexes, axis=2)
-        #     unbiased_discrete_window[:,:,hb] = sum_hb_indexes
-        # self.unbiased_discrete_window = unbiased_discrete_window
-        # normalize = unbiased_discrete_window / np.sum(unbiased_discrete_window, axis=2, keepdims=True)
-        
-        # combine_windows = np.zeros((len(temp_range), self.n_windows, max_hb + 1))
-        # for hb in range(max_hb + 1):
-        #     combine_windows[:,:,hb] = normalize[:,:,hb] * A_i
-        
-        # self.combine_win = np.sum(combine_windows, axis=1)
-        
-        # print(f'{normalize.shape=}')
-        # # print(f'{normalize=}')
-        # print(f'{self.combine_win.shape=}')
-        # print(f'{combine_windows.shape=}')
-        # print(f'{temp_bias.shape=}')
-        # print(f'{umbrella_bias.shape=}')
-        # print(f'{unbiased_discrete_window=}')
-        # print(f'{A_i.shape=}')
-        # print(f'{hb_by_window.shape=}')
-        # print(f'{potential_energy_by_window.shape=}')
-
-
-        # return None        
-        
-        hb_by_window = np.array(list(self.hb_by_window.values())).squeeze(-1)
+        hb_by_window = np.array(truncated_hb_values).squeeze(-1)
         hb_by_window = np.where(hb_by_window <= max_hb, hb_by_window, max_hb)
         index_to_add_at = hb_by_window
         
         temperature = np.array(self.temperature, dtype=np.longdouble)
         beta = 1 / temperature
         bias = [[[] for _ in range(len(temp_range))] for _ in range(self.n_windows)]
-        umbrella_bias = np.array(self.umbrella_bias).squeeze(-1)
-        energy_bias_per_window_per_temperature = np.array(self._calculate_energy_bias(temp_range))
+        umbrella_bias = np.array(truncated_umbrella_bias).squeeze(-1)
+        energy_bias_per_window_per_temperature = np.array(self._new_calcualte_bias_energy(umbrella_bias, temp_range, truncated_potential_energy=truncated_potential_energy))
 
-        for win_idx, (window, temperature_bias) in enumerate(zip(self.umbrella_bias, energy_bias_per_window_per_temperature)):
+        for win_idx, (window, temperature_bias) in enumerate(zip(truncated_umbrella_bias, energy_bias_per_window_per_temperature)):
             win_bias_values = window.values.T[0]
             bias_vals = win_bias_values * beta
             
             for temp_idx, temp_bias in enumerate(temperature_bias):
                 # print(f'{temp_bias=}{temp_idx=}{win_idx=}')
                 temp_weight = temp_bias * beta# / ((temp_range[temp_idx] + 273.15) / 3000)
-                temp_scaled_bias_values =  bias_vals + temp_weight
+                temp_scaled_bias_values =  bias_vals# + temp_weight
                 bias[win_idx][temp_idx].append(temp_scaled_bias_values)
         
         bias = np.array(bias).squeeze(2)        
@@ -1168,12 +1012,13 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.log_e_beta_u = log_e_beta_u
         
         
-        f_i = self.get_biases()
+        # f_i = self.get_biases()
+        f_i = self.F_i
         weight = -beta * np.array(f_i)
         weight_norm = logsumexp(weight)
         A_i = weight - weight_norm
         
-        self.com_max = np.max(np.array([com_dist for com_dist in self.com_by_window.values()]))
+        self.com_max = np.max(np.array([com_dist for com_dist in truncated_com_values]))
         last_conf_file = self.production_sims[0].sim_files.last_conf
         with open(last_conf_file, 'r') as f:
             next(f)
@@ -1197,48 +1042,16 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.prob_discrete = np.exp(normed_free_energy)
         
         return None
-        
-        # self.free_energy_discrete = np.array([-logsumexp(hb_list) for hb_list in self.windowed_log_prob_discrete.T])
 
         
-        unbiased_discrete_window = np.array([[np.zeros(max_hb + 1) for _ in range(self.n_windows) ] for _ in range(len(temp_range))])
-
-        # # print(f'{unbiased_discrete_window.shape=}')
-        # # print(f'{bias.shape=}')
-        # # print(f'{index_to_add_at.shape=}')
-        # # Step 3: Operations
-        # for temp_idx in range(unbiased_discrete_window.shape[0]):
-        #     for window_idx in range(self.n_windows):
-        #         np.add.at(unbiased_discrete_window[temp_idx][window_idx], index_to_add_at[window_idx], bias[window_idx][temp_idx][0])
-
+    def read_kinetic_and_potential_energy(self):
+        self.energy_by_window = {}
+        for idx,sim in enumerate(self.production_sims):
+            sim.sim_files.parse_current_files()
             
-        # self.unbiased_discrete_window = np.array(unbiased_discrete_window)
-        # print(f'{self.unbiased_discrete_window.shape=}')
-        
-
-        
-        # normalized_arrays = []
-        # for window_set in self.unbiased_discrete_window:
-        #     normalized_arrays.append(window_set / np.sum(window_set, axis=1, keepdims=True))
-                
-        # combined_windows = np.zeros((self.unbiased_discrete_window.shape[0],self.unbiased_discrete_window.shape[2]))
-        # for idx, window_set in enumerate(normalized_arrays):
-        #     for i, row in enumerate(window_set):
-        #         combined_windows[idx] += row * A_i[idx]# * self.unbiased_discrete_window[idx][i]
-        
-        # self.counts_discrete = combined_windows   
-        # combined_windows_normed = []
-        # for window_set in combined_windows:
-        #     combined_windows_normed.append( window_set / np.sum(window_set))
-            
-        # free_energy = []
-        # for window_set in combined_windows_normed:
-        #     free = -np.log(window_set)
-        #     free -= free[0]
-        #     free_energy.append(free) 
-        
-        # self.prob_discrete = combined_windows_normed
-        # self.free_energy_discrete = free_energy
+            # Read the entire file into a DataFrame
+            df = pd.read_csv(sim.sim_files.energy, delimiter="\s+",names=['time', 'U','P','K'])
+            self.energy_by_window[idx] = df
     
     def read_potential_energy(self):
         self.potential_energy_by_window = {}
@@ -1252,7 +1065,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             
             self.potential_energy_by_window[idx] = df
     
-    def _calculate_energy_bias(self, temperature_range):
+    def _calculate_energy_bias(self, temperature_range, truncated_potential_energy=None):
         temperature_range = np.array(temperature_range)
         
         
@@ -1264,8 +1077,12 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
         epsilon_ratios = old_epsilons / new_epsilon
         
-        old_potential_energies = [all_pot_energy for all_pot_energy in self.potential_energy_by_window.values()]
-        old_stacking_energies = [all_pot_energy['stacking'] for all_pot_energy in self.potential_energy_by_window.values()]
+        if truncated_potential_energy is not None:
+            old_potential_energies = [all_pot_energy for all_pot_energy in truncated_potential_energy]
+            old_stacking_energies = [all_pot_energy['stacking'] for all_pot_energy in truncated_potential_energy]
+        else:
+            old_potential_energies = [all_pot_energy for all_pot_energy in self.potential_energy_by_window.values()]
+            old_stacking_energies = [all_pot_energy['stacking'] for all_pot_energy in self.potential_energy_by_window.values()]
         
         new_stacking_energies = [
             [old_stacking / epsilon_ratio
@@ -1296,7 +1113,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         return energy_bias_per_window_per_temperature
 
 
-    def _new_calcualte_bias_energy(self, umbrella_bias, temperature_range):
+    def _new_calcualte_bias_energy(self, umbrella_bias, temperature_range, truncated_potential_energy=None):
         #Constants
         STCK_FACT_EPS_OXDNA2 = 2.6717
         STCK_BASE_EPS_OXDNA2 = 1.3523
@@ -1306,12 +1123,17 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
         # temperature_range = np.array((range(30, 70, 2)))
         new_temperatures = (temperature_range + 273.15) / 3000
-        e_state = [states.sum(axis=1) for states in self.potential_energy_by_window.values()]
-        e_stack = [states['stacking'] for states in self.potential_energy_by_window.values()]
+        
+        if truncated_potential_energy is not None:
+            e_state = [states.sum(axis=1) for states in truncated_potential_energy]
+            e_stack = [states['stacking'] for states in truncated_potential_energy]
+        else:    
+            e_state = [states.sum(axis=1) for states in self.potential_energy_by_window.values()]
+            e_stack = [states['stacking'] for states in self.potential_energy_by_window.values()]
         #e_ext =   # Replace with actual value (external energy term)
         am = 1  # Replace with actual value (the increment amount)
         w = 0  # Replace with actual value (the weight)
-        
+        # umbrella_bias = np.zeros_like(umbrella_bias)
         
         # Initialize a list to store the results
         results_list = []
@@ -1365,6 +1187,144 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.vmmc_sim.analysis.read_vmmc_op_data()
         self.vmmc_sim.analysis.calculate_sampling_and_probabilities()
         self.vmmc_sim.analysis.calculate_and_estimate_melting_profiles()
+        
+        
+    def wham_temperature_interpolation(self, temp_range, n_bins, reread_files=False):
+        
+        if reread_files is False:
+            if self.com_by_window is None:
+                self.get_com_distance_by_window()
+            if self.umbrella_bias is None:
+                self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
+            if self.potential_energy_by_window is None:
+                self.read_potential_energy()
+            if self.r0 is None:
+               self.get_r0_values()
+        elif reread_files is True:
+            self.get_com_distance_by_window()
+            self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
+            self.read_potential_energy()
+            self.get_r0_values()
+
+        #Truncate data to the shortest window in order to have use numpy vector arthimetic
+        min_length = min([len(inner_list) for inner_list in self.umbrella_bias])
+        truncated_com_values = [inner_list[:min_length] for inner_list in self.com_by_window.values()]
+        truncated_umbrella_bias = [inner_list[:min_length] for inner_list in self.umbrella_bias]
+        truncated_potential_energy = [inner_list[:min_length] for inner_list in self.potential_energy_by_window.values()]
+        energy = [inner_list[:min_length] for inner_list in self.energy_by_window.values()]
+        kinetic_energy = np.array([ene['K'] for ene in energy])
+        
+        #Get temperature scalar
+        temp_range_scaled = self.celcius_to_scaled(temp_range)
+        beta_range = 1 / temp_range_scaled
+
+        temperature = np.array(self.temperature, dtype=np.longdouble)
+        beta = 1 / temperature
+
+        #Get the energy bias per window per temperature
+        umbrella_bias = np.array(truncated_umbrella_bias).squeeze(-1) / 16
+        kinetic_energy_and_umbrella_bias = umbrella_bias + kinetic_energy
+
+        new_energy_per_window = self._new_calcualte_bias_energy(kinetic_energy_and_umbrella_bias, temp_range, truncated_potential_energy=truncated_potential_energy)
+        temp_biases = np.exp(np.array(new_energy_per_window).swapaxes(0,1) *beta_range[:,np.newaxis, np.newaxis])
+
+        # #get the bin values
+        xmin = 0
+        xmax = 15
+        calculated_bin_centers, bin_edges = self.get_bins(xmin, xmax, n_bins=n_bins)
+
+        #Calculate the biases in the windows
+        window_biases = np.array([[
+            self.w_i(bin_value, r0_value, self.wham.umbrella_stiff)
+            for bin_value in calculated_bin_centers
+            ] 
+            for r0_value in self.r0
+        ], dtype=np.longdouble)
+
+        #Get the com values
+        all_com_values = np.array(truncated_com_values).squeeze(-1)
+
+        #Calculate the counts of each bin
+        count = [
+            [
+            np.histogram(com_values, bins=bin_edges, weights=t_bias)[0]
+            for com_values, t_bias in zip(all_com_values, temp_bias)
+            ] 
+            for temp_bias in temp_biases
+        ]
+
+        #Put the counts into an array
+        p_i_b_s = np.array(count)
+
+        #The numerator of p_x is the sum of the counts from each window
+        numerator = np.sum(p_i_b_s, axis=1)
+
+        rng = np.random.default_rng()    
+        epsilon = 1e-12
+
+        f_i_temps_old = np.array([[rng.normal(loc=0.0, scale=1.0, size=None) for F in self.get_biases()] for _ in temp_range_scaled])
+        f_i_temps_new = np.zeros_like(f_i_temps_old)
+        f_i_temps_over_time = []
+
+        first = True
+        while (first is True) or (np.max(np.abs(f_i_temps_new - f_i_temps_old)) > epsilon):
+            first = False
+            f_i_temps_old = deepcopy(f_i_temps_new)
+
+            #Compute the denominator
+            denominator = np.array([
+                [
+                sum(counts) * np.exp((F - w) * bet)
+
+                for counts, F, w, t_bias in zip(p_i_b, F_i, window_biases, temp_b)
+                ] 
+                for bet, F_i, temp_b, p_i_b in zip(beta_range, f_i_temps_old, temp_biases, p_i_b_s)
+            ])
+
+            #Compute the probability of each bin
+            p_x = numerator / np.sum(denominator, axis=1)
+
+            #Recompute the f_i values per window. This value will update till convergence
+            f_i_bias_factor = np.array([np.exp(-window_biases * bet) for bet in beta_range])
+            sum_p_bf = np.sum([p_ * f_ for p_, f_ in zip(p_x, f_i_bias_factor)], axis=2)
+
+            f_i_temps_new = -temp_range_scaled[:,np.newaxis] * np.log(sum_p_bf)
+
+            f_i_temps_over_time.append(np.max(np.abs(f_i_temps_new - f_i_temps_old)))
+
+        value = f_i_temps_new[:,0]
+        F_i_temps = f_i_temps_new - value[:,np.newaxis]
+
+        #Get free energy
+        free = -np.log(p_x)
+        free = free - np.min(free, axis=1, keepdims=True)
+
+        self.F_i = F_i_temps
+        return free, F_i_temps, f_i_temps_over_time
+    
+    def w_i(self, r, r0, stiff):
+        return 0.5 * float(stiff) * (r - r0)**2
+
+    def get_bins(self, xmin, xmax, n_bins=200):
+        # Calculate the bin width
+        bin_width = (xmax - xmin) / n_bins
+
+        # Calculate the first bin center
+        first_bin_center = xmin + bin_width / 2
+
+        # Generate the bin centers
+        calculated_bin_centers = np.array([first_bin_center + i * bin_width for i in range(n_bins)])
+
+        # Calculate bin edges based on bin centers
+        bin_edges = np.zeros(len(calculated_bin_centers) + 1)
+        bin_edges[1:-1] = (calculated_bin_centers[:-1] + calculated_bin_centers[1:]) / 2.0
+        bin_edges[0] = calculated_bin_centers[0] - (bin_edges[1] - calculated_bin_centers[0])
+        bin_edges[-1] = calculated_bin_centers[-1] + (calculated_bin_centers[-1] - bin_edges[-2])
+
+        return calculated_bin_centers, bin_edges
+
+    def celcius_to_scaled(self, temp):
+        return (temp + 273.15) / 3000
     
     
 class UmbrellaAnalysis:

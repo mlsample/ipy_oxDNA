@@ -1737,6 +1737,23 @@ class Observable:
             }
         })
         
+    @staticmethod
+    def force_energy(print_every=None, name=None):
+        """
+        Return the x,y,z postions of specified particles
+        """
+        return({
+            "output": {
+                "print_every": f'{print_every}',
+                "name": name,
+                "cols": [
+                    {
+                        "type": "force_energy"                    
+                    }
+                ]
+            }
+        })
+        
         
 class Force:
     """ Currently implemented external forces for this oxDNA wrapper."""

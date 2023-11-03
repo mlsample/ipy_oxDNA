@@ -588,6 +588,8 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         self.hb_list_observable(print_every=print_every, only_count='true')
         self.potential_energy_observable(print_every=print_every)
+        self.force_energy_observable(print_every=print_every)
+        
         if continue_run is False:
             self.us_build.build(self.equlibration_sims, input_parameters,
                                 self.forces_list, self.observables_list,
@@ -607,6 +609,8 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         self.hb_list_observable(print_every=print_every, only_count='true')
         self.potential_energy_observable(print_every=print_every)
+        self.force_energy_observable(print_every=print_every)
+
         if continue_run is False:
             self.us_build.build(self.production_sims, input_parameters,
                                 self.forces_list, self.observables_list,
@@ -632,6 +636,19 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             name=str(name)
         )
         self.observables_list.append(pot_obs)
+        
+    def force_energy_observable(self, print_every=1e4, name='force_energy.txt'):
+        """_summary_
+
+        Args:
+            print_every (_type_, optional): _description_. Defaults to 1e4.
+            name (str, optional): _description_. Defaults to 'force_energy.txt'.
+        """
+        force_energy_obs = self.obs.force_energy(
+            print_every=str(print_every),
+            name=str(name)
+        )
+        self.observables_list.append(force_energy_obs)
                                     
     def copy_hb_list_to_com_dir(self):
         copy_h_bond_files(self.production_sim_dir, self.com_dir)

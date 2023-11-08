@@ -9,6 +9,29 @@ import subprocess
 from concurrent.futures import ProcessPoolExecutor
 
 
+#I need to read the all_observables.txt file which will return a list of dataframes using:
+#all_observables = base_umbrella.analysis.read_all_observables('prod')
+#Where sim_dir = base_umbrella.production_sim_dir
+#each dataframe will be the data from a window
+#And one of the dataframes columns is named 'com_distance'
+#I need to write a text file called 'com_distance.txt' for each window using the 'com_distance' column
+#I can get the full path of the windows using os.path.join(sim_dir, window)
+#Where window is obtained from: windows = [w for w in os.listdir(sim_dir) if w.isdigit()]
+#I can then use with open to write 'com_distance' column to write the com_distance.txt file to its respective window
+#Where I can loop through zip(all_observables and windows)
+
+def write_com_files(base_umbrella):
+    sim_dir = base_umbrella.production_sim_dir
+    all_observables = base_umbrella.analysis.read_all_observables('prod')
+    windows = [w for w in os.listdir(sim_dir) if w.isdigit()]
+
+    for df, window in zip(all_observables, windows):
+        com_distance = df['com_distance']
+        with open(os.path.join(sim_dir, window, 'com_distance.txt'), 'w') as f:
+            f.write('\n'.join(map(str, com_distance)))
+    
+    return None
+
 def copy_single_file(sim_dir, window, file, com_dir):
     shutil.copyfile(os.path.join(sim_dir, window, file),
                     os.path.join(com_dir, f'com_distance_{window}.txt'))

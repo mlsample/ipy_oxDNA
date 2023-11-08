@@ -53,7 +53,7 @@ class BaseUmbrellaSampling:
     def spawn_wham_run(self, wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot, join=False):
         self.spawn(self.wham_run, args=(wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot), join=join)
                
-    def wham_run(self, wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot):
+    def wham_run(self, wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot, all_observables=False):
         """
         Run the weighted histogram analysis technique (Grossfield, Alan http://membrane.urmc.rochester.edu/?page_id=126)
         
@@ -80,6 +80,8 @@ class BaseUmbrellaSampling:
         self.wham.tol = tol
         self.wham.n_boot = n_boot
         
+        if all_observables is True:
+            write_com_files(self)
         self.wham.run_wham(wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot)
         self.free = self.wham.to_si(n_bins, self.com_dir)
         self.mean = self.wham.w_mean(self.free)
@@ -579,20 +581,39 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.hb_by_window = None
         self.potential_energy_by_window = None
         
+    def build_pre_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters, starting_r0, steps, observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False, protein=None, force_file=None, custom_observable=False):
+        self.observables_list = []
+        self.windows.pre_equlibration_windows(n_windows)
+        self.rate_umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows, starting_r0, steps)
+        self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
+        self.hb_list_observable(print_every=print_every, only_count='true', name=name)
+        self.force_energy_observable(print_every=print_every, name=name)
+        self.kinetic_energy_observable(print_every=print_every, name=name)
+        self.potential_energy_observable(print_every=print_every, name=name)
+        
+        if continue_run is False:
+            self.us_build.build(self.pre_equlibration_sims, input_parameters,
+                                self.forces_list, self.observables_list,cms_observable=custom_observable,
+                                observable=observable, sequence_dependant=sequence_dependant, protein=protein, force_file=force_file)
+            for sim in self.pre_equlibration_sims:
+                sim.build_sim.build_hb_list_file(com_list, ref_list)
+        self.queue_sims(simulation_manager, self.pre_equlibration_sims, continue_run=continue_run)
+        
     def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
                                 observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
-                                protein=None, force_file=None):
+                                protein=None, force_file=None, custom_observable=False):
         self.observables_list = []
         self.windows.equlibration_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
-        self.hb_list_observable(print_every=print_every, only_count='true')
-        self.potential_energy_observable(print_every=print_every)
-        self.force_energy_observable(print_every=print_every)
+        self.hb_list_observable(print_every=print_every, only_count='true', name=name)
+        self.force_energy_observable(print_every=print_every, name=name)
+        self.kinetic_energy_observable(print_every=print_every, name=name)
+        self.potential_energy_observable(print_every=print_every, name=name)
         
         if continue_run is False:
             self.us_build.build(self.equlibration_sims, input_parameters,
-                                self.forces_list, self.observables_list,
+                                self.forces_list, self.observables_list, cms_observable=custom_observable,
                                 observable=observable, sequence_dependant=sequence_dependant, protein=protein, force_file=force_file)
             for sim in self.equlibration_sims:
                 sim.build_sim.build_hb_list_file(com_list, ref_list)
@@ -601,19 +622,20 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
     def build_production_runs(self, simulation_manager, n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
                               observable=True, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
-                              protein=None, force_file=None):
+                              protein=None, force_file=None, custom_observable=False):
         self.observables_list = []
         self.windows.equlibration_windows(n_windows)
         self.windows.production_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
-        self.hb_list_observable(print_every=print_every, only_count='true')
-        self.potential_energy_observable(print_every=print_every)
-        self.force_energy_observable(print_every=print_every)
+        self.hb_list_observable(print_every=print_every, only_count='true', name=name)
+        self.force_energy_observable(print_every=print_every, name=name)
+        self.kinetic_energy_observable(print_every=print_every, name=name)
+        self.potential_energy_observable(print_every=print_every, name=name)
 
         if continue_run is False:
             self.us_build.build(self.production_sims, input_parameters,
-                                self.forces_list, self.observables_list,
+                                self.forces_list, self.observables_list, cms_observable=custom_observable,
                                 observable=observable, sequence_dependant=sequence_dependant, protein=protein, force_file=force_file)
             for sim in self.production_sims:
                 sim.build_sim.build_hb_list_file(com_list, ref_list)
@@ -623,7 +645,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         """ Build center of mass observable"""
         hb_obs = self.obs.hb_list(
             print_every=str(print_every),
-            name='hb_observable.txt',
+            name=name,
             only_count='true'
            )
         self.observables_list.append(hb_obs)
@@ -636,6 +658,13 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             name=str(name)
         )
         self.observables_list.append(pot_obs)
+    
+    def kinetic_energy_observable(self, print_every=1e4, name='kinetic_energy.txt'):
+        kin_obs = self.obs.kinetic_energy(
+            print_every=str(print_every),
+            name=str(name)
+        )
+        self.observables_list.append(kin_obs)
         
     def force_energy_observable(self, print_every=1e4, name='force_energy.txt'):
         """_summary_
@@ -748,27 +777,32 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
     
     def calculate_melting_temperature(self):
-        counts = np.floor(self.prob_discrete * 1e9)
-        bound_states = np.sum(counts[1:])
-        unbound_states = counts[0]
+        probabilities = self.prob_discrete
         
+        #probabilities: n_temps x n_hb
+        
+        bound_states = probabilities[:,1:].sum(axis=1)
+        unbound_states = probabilities[:,0].sum(axis=1)
         ratio = bound_states / unbound_states 
-        finf = 1. + 1. / (2. * ratio) - np.sqrt((1. + 1. / (2. * ratio)) ** 2 - 1.)
+
+        return bound_states, unbound_states
+    
+        finf = 1. + 1. / (2. * ratio) - np.sqrt((1. + 1. / (2. * ratio))**2 - 1.)
         self.finf = finf
         
         self.inverted_finf = 1 - finf
         
-        # # Fit the sigmoid function to the inverted data
-        # p0 = [max(self.inverted_finfs), np.median(self.temperatures), 1, min(self.inverted_finfs)]  # initial guesses for L, x0, k, b
-        # self.popt, _ = curve_fit(self.sigmoid, self.temperatures, self.inverted_finfs, p0, method='dogbox')
+        # Fit the sigmoid function to the inverted data
+        p0 = [max(self.inverted_finfs), np.median(self.temperatures), 1, min(self.inverted_finfs)]  # initial guesses for L, x0, k, b
+        self.popt, _ = curve_fit(self.sigmoid, self.temperatures, self.inverted_finfs, p0, method='dogbox')
     
-        # # Generate fitted data
-        # self.x_fit = np.linspace(min(self.temperatures), max(self.temperatures), 500)
-        # self.y_fit = self.sigmoid(self.x_fit, *self.popt)
+        # Generate fitted data
+        self.x_fit = np.linspace(min(self.temperatures), max(self.temperatures), 500)
+        self.y_fit = self.sigmoid(self.x_fit, *self.popt)
         
         
-        # idx = np.argmin(np.abs(self.y_fit - 0.5))
-        # self.sim.Tm = self.x_fit[idx]
+        idx = np.argmin(np.abs(self.y_fit - 0.5))
+        self.sim.Tm = self.x_fit[idx]
         
 
     def plot_free_discrete(self, max_hb, ax=None):
@@ -797,70 +831,6 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.vmmc_sim.analysis.calculate_sampling_and_probabilities()
         self.vmmc_sim.analysis.calculate_and_estimate_melting_profiles()
 
-    def homebrew_discrete_wham(self, max_hb):
-        windows = len(self.unbiased_discrete_windows)
-
-        counters = [sum(hist) for hist in self.unbiased_discrete_windows]
-        last_hists = [hist / count for hist,count in zip(self.unbiased_discrete_windows, counters)]
-        biases = np.exp( -1 * np.array(self.get_biases(), dtype=float))
-        weights = [[1 for _ in range(max_hb + 1)] for _ in range(windows)]
-        # expminuslogf = np.ones(windows)
-        # expminuslogfnew = copy.deepcopy(expminuslogf)
-        
-#         normalization = np.zeros(max_hb)
-#         for bias, count, hist in zip(biases, counters, new_hist):
-#             normalization += hist * count
-#         normalization /= sum(normalization)
-        
-        
-#         print(normalization)
-#         resulting_hist = {}    
-        
-        expminuslogf = np.ones(windows)
-        expminuslogfnew = copy.deepcopy(expminuslogf)
-        epsilon = 1e-9
-        rho = {}
-        keys = range(max_hb)
-        n_iterations = 0
-        
-        
-        while (n_iterations < 10):# or ((np.abs(expminuslogfnew - expminuslogf) > epsilon).any() and (n_iterations < 10)):
-            
-            n_iterations += 1
-            expminuslogf = copy.deepcopy(expminuslogfnew)
-            for op in keys:
-                num = 0
-                denum = 0
-                for i in range(windows):
-                    weight = weights[i][op]
-                    pom = last_hists[i][op]
-                    counter = counters[i]
-                    num += pom * counter  
-                    denum += weight * counter / expminuslogf[i]
-                if denum == 0:
-                    rho[op] = 0.
-                else:
-                    rho[op] = float(num)/denum
-                
-            total = sum(rho.values())
-            
-            for key in rho.keys():
-                    rho[key] /= float(total)
-                
-            expminuslogfnew = np.zeros(windows)
-            for i in range(windows):
-                for op in keys:
-                    expminuslogfnew[i] += weights[i][op] * rho[op]    
-                
-                # print(f"{rho=}")
-                # print(f"{expminuslogf=}")
-                # print(f"{expminuslogfnew=}")
-                # print(f"{np.abs(expminuslogfnew - expminuslogf)}")
-            
-        print(f'#Converged after {n_iterations} iterations')
-        print(f'{rho=}')
-        return rho
-        
     def make_last_hist_files(self):
         for idx,sim in enumerate(self.production_sims):
             hist = self.unbiased_discrete_windows[idx]
@@ -1205,8 +1175,20 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.vmmc_sim.analysis.calculate_sampling_and_probabilities()
         self.vmmc_sim.analysis.calculate_and_estimate_melting_profiles()
         
+    def write_potential_energy_files(self):
+        all_observables = self.analysis.read_all_observables('prod')
+        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+        sim_dirs = [sim.sim_dir for sim in self.production_sims]
+        for df, sim_dir in zip(all_observables, sim_dirs):
+            potential_energy_terms = df[names].values
+            with open(os.path.join(sim_dir, 'potential_energy.txt'), 'w') as f:
+                for row in potential_energy_terms:
+                    row_str = ' '.join(map(str, row))
+                    f.write(row_str + '\n')
+
+        return None
         
-    def wham_temperature_interpolation(self, temp_range, n_bins, reread_files=False):
+    def wham_temperature_interpolation(self, temp_range, n_bins, xmin, xmax, epsilon=1e-7, reread_files=False):
         
         if reread_files is False:
             if self.com_by_window is None:
@@ -1214,6 +1196,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             if self.umbrella_bias is None:
                 self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
             if self.potential_energy_by_window is None:
+                self.read_kinetic_and_potential_energy()
                 self.read_potential_energy()
             if self.r0 is None:
                self.get_r0_values()
@@ -1222,6 +1205,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
             self.read_potential_energy()
             self.get_r0_values()
+            self.read_kinetic_and_potential_energy()
 
         #Truncate data to the shortest window in order to have use numpy vector arthimetic
         min_length = min([len(inner_list) for inner_list in self.umbrella_bias])
@@ -1246,8 +1230,8 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         temp_biases = np.exp(np.array(new_energy_per_window).swapaxes(0,1) *beta_range[:,np.newaxis, np.newaxis])
 
         # #get the bin values
-        xmin = 0
-        xmax = 15
+        # xmin = 0
+        # xmax = 60
         calculated_bin_centers, bin_edges = self.get_bins(xmin, xmax, n_bins=n_bins)
 
         #Calculate the biases in the windows
@@ -1277,14 +1261,15 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         numerator = np.sum(p_i_b_s, axis=1)
 
         rng = np.random.default_rng()    
-        epsilon = 1e-12
+        # epsilon = 1e-7
 
         f_i_temps_old = np.array([[rng.normal(loc=0.0, scale=1.0, size=None) for F in self.get_biases()] for _ in temp_range_scaled])
         f_i_temps_new = np.zeros_like(f_i_temps_old)
         f_i_temps_over_time = []
 
         first = True
-        while (first is True) or (np.max(np.abs(f_i_temps_new - f_i_temps_old)) > epsilon):
+        iteration = 0
+        while (first is True) or (np.max(np.abs(f_i_temps_new - f_i_temps_old)) > epsilon) or (iteration > 100000):
             first = False
             f_i_temps_old = deepcopy(f_i_temps_new)
 
@@ -1308,6 +1293,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             f_i_temps_new = -temp_range_scaled[:,np.newaxis] * np.log(sum_p_bf)
 
             f_i_temps_over_time.append(np.max(np.abs(f_i_temps_new - f_i_temps_old)))
+            iteration +=1
 
         value = f_i_temps_new[:,0]
         F_i_temps = f_i_temps_new - value[:,np.newaxis]
@@ -1343,10 +1329,163 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
     def celcius_to_scaled(self, temp):
         return (temp + 273.15) / 3000
     
+class NDimensionalUmbrella(MeltingUmbrellaSampling):
+    def __init__(self, file_dir, production_sim_dir):
+        super().__init__(file_dir, production_sim_dir)
+        
+    #I want to create an n-dimensional umbrella sampling class
+    #In order to run n-dimensional umbrella sampling I need to have a seperate force for each dimension
+    #In 3-D umbrella sampling I will have the first force be 10 diffrent values, then for each one of those 10 values
+    #I will have 10 values for the second force, and then for each of those 10 values I will have 10 values for the third force
+    #This will give me 1000 windows
+    #I wonder if there is a way to simplify this process
+    #Well either way for now I need to just implment the simple version
+    #The first step in setting this up is thinking about how I will generate the windows
+    
+    #I can create a simulation object for each window of course
+    #The only diffrence between each simulation window is that the force is diffrent
+    #This means I need a function that will generate the force for each window
+    #I will also need a diffrent com_distance observable for each dimension
+    
+    def build_equlibration_runs(self, simulation_manager, n_dimensions, n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
+                                observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
+                                protein=None, force_file=None):
+        self.observables_list = []
+        self.windows.equlibration_windows(n_windows)
+        
+        self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
+        
+        
+        self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
+        self.hb_list_observable(print_every=print_every, only_count='true', name=name)
+        self.force_energy_observable(print_every=print_every, name=name)
+        self.potential_energy_observable(print_every=print_every, name=name)
+        
+        if continue_run is False:
+            self.us_build.build(self.equlibration_sims, input_parameters,
+                                self.forces_list, self.observables_list,
+                                observable=observable, sequence_dependant=sequence_dependant, protein=protein, force_file=force_file)
+            for sim in self.equlibration_sims:
+                sim.build_sim.build_hb_list_file(com_list, ref_list)
+        self.queue_sims(simulation_manager, self.equlibration_sims, continue_run=continue_run)
+    
+    def com_distance_observable(self, com_list, ref_list,  print_every=1e4, name='com_distance.txt'):
+        """ Build center of mass observable"""
+        obs = Observable()
+        com_observable = obs.distance(
+            particle_1=com_list,
+            particle_2=ref_list,
+            print_every=f'{print_every}',
+            name=f'{name}',
+            PBC='1'
+        )  
+        self.observables_list.append(com_observable)
+ 
+
+    def umbrella_forces(self, com_list, ref_list, stiff, xmin, xmax, n_windows):
+        """ Build Umbrella potentials"""
+        x_range = np.round(np.linspace(xmin, xmax, (n_windows + 1))[1:], 3)
+        umbrella_forces_1 = []
+        umbrella_forces_2 = []
+        
+        for x_val in x_range:   
+            self.umbrella_force_1 = self.f.com_force(
+                com_list=com_list,                        
+                ref_list=ref_list,                        
+                stiff=f'{stiff}',                    
+                r0=f'{x_val}',                       
+                PBC='1',                         
+                rate='0',
+            )        
+            umbrella_forces_1.append(self.umbrella_force_1)
+            
+            self.umbrella_force_2= self.f.com_force(
+                com_list=ref_list,                        
+                ref_list=com_list,                        
+                stiff=f'{stiff}',                    
+                r0=f'{x_val}',                       
+                PBC='1',                          
+                rate='0',
+            )
+            umbrella_forces_2.append(self.umbrella_force_2)  
+        self.forces_list = np.transpose(np.array([umbrella_forces_1, umbrella_forces_2]))     
+
+    def rate_umbrella_forces(self, com_list, ref_list, stiff, xmin, xmax, n_windows, starting_r0, steps):
+        """ Build Umbrella potentials"""
+        
+        x_range = np.round(np.linspace(xmin, xmax, (n_windows + 1))[1:], 3)
+        
+        umbrella_forces_1 = []
+        umbrella_forces_2 = []
+        
+        for x_val in x_range:   
+            force_rate_for_x_val = (x_val - starting_r0) / steps
+            
+            self.umbrella_force_1 = self.f.com_force(
+                com_list=com_list,                        
+                ref_list=ref_list,                        
+                stiff=f'{stiff}',                    
+                r0=f'{starting_r0}',                       
+                PBC='1',                         
+                rate=f'{force_rate_for_x_val}',
+            )        
+            umbrella_forces_1.append(self.umbrella_force_1)
+            
+            self.umbrella_force_2= self.f.com_force(
+                com_list=ref_list,                        
+                ref_list=com_list,                        
+                stiff=f'{stiff}',                    
+                r0=f'{starting_r0}',                       
+                PBC='1',                          
+                rate=f'{force_rate_for_x_val}',
+            )
+            umbrella_forces_2.append(self.umbrella_force_2)  
+        self.forces_list = np.transpose(np.array([umbrella_forces_1, umbrella_forces_2])) 
+    
     
 class UmbrellaAnalysis:
     def __init__(self, base_umbrella):
         self.base_umbrella = base_umbrella
+        
+    def read_all_observables(self, sim_type):
+        file_name = self.base_umbrella.observables_list[0]['output']['name']
+        print_every = int(float(self.base_umbrella.observables_list[0]['output']['print_every']))
+        
+        if sim_type == 'eq':
+            sim_list = self.base_umbrella.equlibration_sims
+        elif sim_type == 'prod':
+            sim_list = self.base_umbrella.production_sims
+        elif sim_type == 'pre_eq':
+            sim_list = self.base_umbrella.pre_equlibration_sims
+        
+        obs_types = [observe['output']['cols'][0]['type'] for observe in self.base_umbrella.observables_list]
+
+                        
+        all_observables = []
+        for sim in sim_list:
+            try:
+                all_observables.append(pd.read_csv(f"{sim.sim_dir}/{file_name}", header=None, engine='pyarrow'))
+            except FileNotFoundError:
+                all_observables.append(pd.DataFrame())
+        
+        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+        columns = ['com_distance', 'hb_list', 'force_energy', 'kinetic_energy', *names]
+        
+        obs = [pd.DataFrame([
+                list(filter(lambda a: a != '',all_observables[window_idx].iloc[data_idx][0].split(' ')))
+                for data_idx in range(len(all_observables[window_idx]))
+                ],columns=columns, dtype=np.float64)
+                for window_idx in range(len(all_observables))
+            ]
+        
+        obs = [pd.concat([obs[window_idx],
+                  pd.DataFrame([np.arange(len(obs[window_idx])) * print_every]
+                           , dtype=np.int64).T.rename(columns={0: 'steps'})]
+                         , axis=1)
+               for window_idx in range(len(obs))]
+        
+        self.obs_df = obs
+        return self.obs_df
         
     def view_observable(self, sim_type, idx, sliding_window=False, observable=None):
         if observable == None:
@@ -1441,7 +1580,7 @@ class UmbrellaWindow:
         if not exists(self.base_umbrella.equlibration_sim_dir):
             os.mkdir(self.base_umbrella.equlibration_sim_dir)
         
-        if exists(self.base_umbrella.pre_equlibration_sim_dir):
+        if hasattr(self.base_umbrella, 'pre_equlibration_sim_dir'):
             self.base_umbrella.equlibration_sims = [Simulation(sim.sim_dir, join(self.base_umbrella.equlibration_sim_dir, sim.sim_dir.split('/')[-1])) for sim in self.base_umbrella.pre_equlibration_sims]
         
         else:

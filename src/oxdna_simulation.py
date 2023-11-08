@@ -20,7 +20,7 @@ import re
 import time
 import queue
 import json
-
+import signal
 # import cupy
 
 class Simulation:
@@ -57,11 +57,13 @@ class Simulation:
                 answer = input('Are you sure you want to delete all simulation files? Type y/yes to continue or anything else to return (use clean_build=str(force) to skip this message)')
                 if (answer == 'y') or (answer == 'yes'):
                     shutil.rmtree(f'{self.sim_dir}/')
+                    self.build_sim.force_cache = None
                 else:
                     print('Remove optional argument clean_build and rerun to continue')
                     return None           
             elif clean_build == 'force':                    
                     shutil.rmtree(self.sim_dir)
+                    self.build_sim.force_cache = None
             elif clean_build == False:
                 print('The simulation directory already exists, if you wish to write over the directory set clean_build=force')
                 return None  
@@ -305,7 +307,7 @@ class BuildSimulation:
 
     def build_force(self, force_js):
         force_file_path = os.path.join(self.sim_dir, "forces.json")
-
+                
         # Initialize the cache and create the file if it doesn't exist
         if self.force_cache is None:
             if not os.path.exists(force_file_path):
@@ -343,45 +345,90 @@ class BuildSimulation:
             new_entry_str = f'    "{new_entry_key}": {json.dumps(new_entry_value, indent=4)}\n}}'
             f.write(new_entry_str.encode('utf-8'))
     
-    def build_observable(self, observable_js):
+    def build_observable(self, observable_js, one_out_file=False):
         """
         Write observable file is one does not exist. If a observable file exists add additional observables to the file.
         
         Parameters:
             observable_js (dict): observable dictornary obtained from the Observable class methods
         """
-        
         if not os.path.exists(os.path.join(self.sim_dir, "observables.json")):
             with open(os.path.join(self.sim_dir, "observables.json"), 'w') as f:
                 f.write(dumps(observable_js, indent=4))
         else:
             with open(os.path.join(self.sim_dir, "observables.json"), 'r') as f:
                 read_observable_js = loads(f.read())
+                multi_col = False
                 for observable in list(read_observable_js.values()):
                     if list(observable.values())[1] == list(list(observable_js.values())[0].values())[1]:
-                        return None
-                read_observable_js[f'output_{len(list(read_observable_js.keys()))}'] = read_observable_js['output']
-                del read_observable_js['output']
-                read_observable_js.update(observable_js.items())
+                        read_observable_js['output']['cols'].append(observable_js['output']['cols'][0])
+                        multi_col = True
+                if not multi_col:
+                    read_observable_js[f'output_{len(list(read_observable_js.keys()))}'] = read_observable_js['output']
+                    del read_observable_js['output']
+                    read_observable_js.update(observable_js.items())
                 with open(os.path.join(self.sim_dir, "observables.json"), 'w') as f:
                     f.write(dumps(read_observable_js, indent=4))    
 
     
     def build_hb_list_file(self, p1, p2):
+        column_names = ['strand', 'nucleotide', '3_prime', '5_prime']
+        top = pd.read_csv(self.sim.sim_files.top, sep=' ', names=column_names).iloc[1:,:].reset_index(drop=True)
+        top['index'] = top.index  
+        
         p1 = p1.split(',')
         p2 = p2.split(',')
         i = 1
-        with open(os.path.join(self.sim_dir,"hb_list.txt"), 'w') as f:
+        with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'w') as f:
             f.write("{\norder_parameter = bond\nname = all_native_bonds\n")
+        complement = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
         for nuc1 in p1:
+            nuc1_data = top.iloc[int(nuc1)]
+            nuc1_complement = complement[nuc1_data['nucleotide']]
             for nuc2 in p2:
-                with open(os.path.join(self.sim_dir,"hb_list.txt"), 'a') as f:
-                    f.write(f'pair{i} = {nuc1}, {nuc2}\n')
-                i += 1
-        with open(os.path.join(self.sim_dir,"hb_list.txt"), 'a') as f:
+                nuc2_data = top.iloc[int(nuc2)]
+                if nuc2_data['nucleotide'] == nuc1_complement:
+                    with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'a') as f:
+                        f.write(f'pair{i} = {nuc1}, {nuc2}\n')
+                    i += 1
+        with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'a') as f:
             f.write("}\n")
         return None
     
+    
+    #     def build_hb_list_file(self, p1, p2):
+    #         p1 = p1.split(',')
+    #     p2 = p2.split(',')
+    #     i = 1
+    #     with open(os.path.join(self.sim_dir,"hb_list.txt"), 'w') as f:
+    #         f.write("{\norder_parameter = bond\nname = all_native_bonds\n")
+    #     for nuc1 in p1:
+    #         for nuc2 in p2:
+    #             with open(os.path.join(self.sim_dir,"hb_list.txt"), 'a') as f:
+    #                 f.write(f'pair{i} = {nuc1}, {nuc2}\n')
+    #             i += 1
+    #     with open(os.path.join(self.sim_dir,"hb_list.txt"), 'a') as f:
+    #         f.write("}\n")
+    #     return None
+    
+    # def find_complementary_pairs(monomer_1, monomer_2):
+    #     column_names = ['strand', 'nucleotide', '3_prime', '5_prime']
+    #     top = pd.read_csv(sim.sim_files.top, sep=' ', names=column_names).iloc[1:,:].reset_index(drop=True)
+    #     top['index'] = top.index  
+        
+    #     monomer_1_data = top.iloc[monomer_1.split(',')]
+    #     monomer_2_data = top.iloc[monomer_2.split(',')]
+            
+    #     complement = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
+    #     complementary_pairs = []
+    
+    #     for nuc1, nuc1_idx in zip(monomer_1_data['nucleotide'], monomer_1_data['index']):
+    #         nuc1_compliment = complement[nuc1]
+    #         for nuc2, num2_idx in zip(monomer_2_data['nucleotide'], monomer_2_data['index']):
+    #             if nuc2 == nuc1_compliment:
+    #                 complementary_pairs.append((nuc1_idx, num2_idx))
+    
+    #     return complementary_pairs
 
 class OxpyRun:
     """Automatically runs a built oxDNA simulation using oxpy within a subprocess"""
@@ -477,12 +524,35 @@ class OxpyRun:
                     np_idx = [list(map(int, particle_idx.split(','))) for particle_idx in particle_indexes]
                     particles = np.array(self.config_info.particles())
                     indexed_particles = [particles[idx] for idx in np_idx]
-                    cupy_array = np.array([np.array([particle.pos for particle in particle_list]) for particle_list in indexed_particles], dtype=object)
-                    for array in cupy_array:
-                        pos = np.mean(array, axis=0)
-                        output_string += f'{pos[0]},{pos[1]},{pos[2]} '
+                    cupy_array = np.array([np.array([particle.pos for particle in particle_list]) for particle_list in indexed_particles], dtype=np.float64)
+                    
+                    pos = np.zeros((cupy_array.shape[1], cupy_array.shape[2]), dtype=np.float64)
+                    np.subtract(cupy_array[0], cupy_array[1], out=pos, dtype=np.float64)
+                    
+                    new_pos = np.linalg.norm(pos, axis=1)
+                    r0 = np.full(new_pos.shape, 1.2)
+                    gamma = 58.7
+                    shape = 1.2
+                    
+                    final = np.sum(1 / (1 + np.exp((new_pos - r0*shape)*gamma))) / np.float64(new_pos.shape[0])
+                    
+                    output_string += f'{final} '
                     return output_string
             return ComPositionObservable
+        
+    # def cms_observables(self, particle_indexes):
+    #         class ComPositionObservable(oxpy.observables.BaseObservable):
+    #             def get_output_string(self, curr_step):
+    #                 output_string = ''
+    #                 np_idx = [list(map(int, particle_idx.split(','))) for particle_idx in particle_indexes]
+    #                 particles = np.array(self.config_info.particles())
+    #                 indexed_particles = [particles[idx] for idx in np_idx]
+    #                 cupy_array = np.array([np.array([particle.pos for particle in particle_list]) for particle_list in indexed_particles], dtype=object)
+    #                 for array in cupy_array:
+    #                     pos = np.mean(array, axis=0)
+    #                     output_string += f'{pos[0]},{pos[1]},{pos[2]} '
+    #                 return output_string
+    #         return ComPositionObservable
         
         
 class SlurmRun:
@@ -528,7 +598,7 @@ class SimulationManager:
         self.process_queue = self.manager.Queue(self.n_processes)
         self.gpu_memory_queue = self.manager.Queue(1)
         self.terminate_queue = self.manager.Queue(1)
-        self.worker_process_list = []
+        self.worker_process_list = self.manager.list()
   
     def gpu_resources(self):
         """ Method to probe the number and current avalible memory of gpus."""
@@ -591,7 +661,7 @@ class SimulationManager:
             else:
                 if run_when_failed is False:
                     for worker_process in self.worker_process_list:
-                        worker_process.terminate()
+                        os.kill(worker_process, signal.SIGTERM)
                     return print(self.terminate_queue.get())
                 else:
                     print(self.terminate_queue.get())
@@ -603,7 +673,7 @@ class SimulationManager:
                 sim.input_file({'CUDA_device': str(gpu_idx)})
             p = mp.Process(target=self.worker_job, args=(sim, gpu_idx,), kwargs={'gpu_mem_block':gpu_mem_block})
             p.start()
-            self.worker_process_list.append(p)
+            self.worker_process_list.append(p.pid)
             if gpu_mem_block is True:
                 sim_mem = self.gpu_memory_queue.get()
                 if free_gpu_memory < (3 * sim_mem):
@@ -654,9 +724,10 @@ class SimulationManager:
             pass
         for process in self.worker_process_list:
             try:
-                process.terminate()               
+                os.kill(process, signal.SIGTERM)
             except:
                 pass
+        self.worker_process_list[:] = []
     
     
     def start_nvidia_cuda_mps_control(self, pipe='$SLURM_TASK_PID'):
@@ -1476,6 +1547,8 @@ class Analysis:
             # and the line indicating the complete run
             #plt.ylim([-2,0])
             #plt.plot([steps,steps],[0,-2], color="r")     
+
+
     
     def plot_observable(self, observable, sliding_window=False, fig=True):
         file_name = observable['output']['name']
@@ -1722,7 +1795,7 @@ class Observable:
     @staticmethod
     def potential_energy(print_every=None, split=None, name=None):
         """
-        Return the x,y,z postions of specified particles
+        Return the potential energy
         """
         return({
             "output": {
@@ -1740,7 +1813,7 @@ class Observable:
     @staticmethod
     def force_energy(print_every=None, name=None):
         """
-        Return the x,y,z postions of specified particles
+        Return the energy exerted by external forces
         """
         return({
             "output": {
@@ -1749,6 +1822,23 @@ class Observable:
                 "cols": [
                     {
                         "type": "force_energy"                    
+                    }
+                ]
+            }
+        })
+        
+    @staticmethod
+    def kinetic_energy(print_every=None, name=None):
+        """
+        Return the kinetic energy  
+        """
+        return({
+            "output": {
+                "print_every": f'{print_every}',
+                "name": name,
+                "cols": [
+                    {
+                        "type": "kinetic_energy"                    
                     }
                 ]
             }
@@ -1992,4 +2082,7 @@ class SimFiles:
                     self.hb_observable = os.path.abspath(os.path.join(self.sim_dir, file))
                 elif 'potential_energy.txt' in file:
                     self.potential_energy = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif 'all_observables.txt' in file:
+                    self.all_observables = os.path.abspath(os.path.join(self.sim_dir, file))
+
 

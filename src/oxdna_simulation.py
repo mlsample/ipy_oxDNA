@@ -372,6 +372,7 @@ class BuildSimulation:
 
     
     def build_hb_list_file(self, p1, p2):
+        self.sim.sim_files.parse_current_files()
         column_names = ['strand', 'nucleotide', '3_prime', '5_prime']
         top = pd.read_csv(self.sim.sim_files.top, sep=' ', names=column_names).iloc[1:,:].reset_index(drop=True)
         top['index'] = top.index  
@@ -394,41 +395,7 @@ class BuildSimulation:
         with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'a') as f:
             f.write("}\n")
         return None
-    
-    
-    #     def build_hb_list_file(self, p1, p2):
-    #         p1 = p1.split(',')
-    #     p2 = p2.split(',')
-    #     i = 1
-    #     with open(os.path.join(self.sim_dir,"hb_list.txt"), 'w') as f:
-    #         f.write("{\norder_parameter = bond\nname = all_native_bonds\n")
-    #     for nuc1 in p1:
-    #         for nuc2 in p2:
-    #             with open(os.path.join(self.sim_dir,"hb_list.txt"), 'a') as f:
-    #                 f.write(f'pair{i} = {nuc1}, {nuc2}\n')
-    #             i += 1
-    #     with open(os.path.join(self.sim_dir,"hb_list.txt"), 'a') as f:
-    #         f.write("}\n")
-    #     return None
-    
-    # def find_complementary_pairs(monomer_1, monomer_2):
-    #     column_names = ['strand', 'nucleotide', '3_prime', '5_prime']
-    #     top = pd.read_csv(sim.sim_files.top, sep=' ', names=column_names).iloc[1:,:].reset_index(drop=True)
-    #     top['index'] = top.index  
-        
-    #     monomer_1_data = top.iloc[monomer_1.split(',')]
-    #     monomer_2_data = top.iloc[monomer_2.split(',')]
-            
-    #     complement = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
-    #     complementary_pairs = []
-    
-    #     for nuc1, nuc1_idx in zip(monomer_1_data['nucleotide'], monomer_1_data['index']):
-    #         nuc1_compliment = complement[nuc1]
-    #         for nuc2, num2_idx in zip(monomer_2_data['nucleotide'], monomer_2_data['index']):
-    #             if nuc2 == nuc1_compliment:
-    #                 complementary_pairs.append((nuc1_idx, num2_idx))
-    
-    #     return complementary_pairs
+
 
 class OxpyRun:
     """Automatically runs a built oxDNA simulation using oxpy within a subprocess"""

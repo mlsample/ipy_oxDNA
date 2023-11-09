@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import scienceplots
 from copy import deepcopy
 from vmmc import VirtualMoveMonteCarlo
-
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 class BaseUmbrellaSampling:
     def __init__(self, file_dir, system, clean_build=False):
@@ -295,6 +295,28 @@ class UmbrellaBuild:
     def __init__(self, base_umbrella):
         self.base_umbrella = base_umbrella
     
+    
+    def _build_window(self, sim, forces, input_parameters, observables_list, observable, sequence_dependant, cms_observable, protein, force_file):
+        sim.build(clean_build='force')
+        
+        if protein is not None:
+            sim.add_protein_par()
+        if force_file is not None:
+            sim.add_force_file()
+        for force in forces:
+            sim.add_force(force)
+        if observable:
+            for observables in observables_list:
+                sim.add_observable(observables)
+        if cms_observable is not False:
+            for cms_obs_dict in cms_observable:
+                sim.oxpy_run.cms_obs(cms_obs_dict['idx'],
+                                     name=cms_obs_dict['name'],
+                                     print_every=cms_obs_dict['print_every'])
+        sim.input_file(input_parameters)
+        if sequence_dependant:
+            sim.sequence_dependant()
+    
     def build(self, sims, input_parameters, forces_list, observables_list,
               observable=False, sequence_dependant=False, cms_observable=False, protein=None, force_file=None):
         
@@ -308,29 +330,16 @@ class UmbrellaBuild:
             elif self.base_umbrella.clean_build == 'force':                    
                     pass
             elif self.base_umbrella.clean_build == False:
-                sys.exit('\nThe simulation directory already exists, if you wish to write over the directory set:\nUmbrellaSampling(clean_build=str(force)).\n\nTo continue a previous umbrella simulation use:\nsimulation_manager.run(continue_run=int(n_steps))')  
-            
-        for sim, forces in zip(sims, forces_list):
-            sim.build(clean_build='force')
-            
-            if protein is not None:
-                sim.add_protein_par()
-            if force_file is not None:
-                sim.add_force_file()
-            for force in forces:
-                sim.add_force(force)
-            if observable == True:
-                for observables in observables_list:
-                    sim.add_observable(observables)
-            if cms_observable is not False:
-                for cms_obs_dict in cms_observable:
-                    sim.oxpy_run.cms_obs(cms_obs_dict['idx'],
-                                         name=cms_obs_dict['name'],
-                                         print_every=cms_obs_dict['print_every'])
-            sim.input_file(input_parameters)
-            if sequence_dependant is True:
-                sim.sequence_dependant()
-                
+                sys.exit('\nThe simulation directory already exists, if you wish to write over the directory set:\nUmbrellaSampling(clean_build=str(force)).\n\nTo continue a previous umbrella simulation use:\nsimulation_manager.run(continue_run=int(n_steps))')   
+    
+        # Using ProcessPoolExecutor to parallelize
+        with ProcessPoolExecutor(max_workers=len(os.sched_getaffinity(0))-1) as executor:
+            futures = [executor.submit(self._build_window, sim, forces, input_parameters, observables_list, observable, sequence_dependant, cms_observable, protein, force_file) for sim, forces in zip(sims, forces_list)]
+
+            # Wait for all futures to complete
+            for future in as_completed(futures):
+                future.result()  # This will raise exceptions if any occurred
+
 
 class ComUmbrellaSampling(BaseUmbrellaSampling):
     def __init__(self, file_dir, system, clean_build=False):
@@ -917,70 +926,133 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
                 f.writelines(new_lines)    
 
                 
-    def temperature_interpolation(self, max_hb, temp_range, reread_files=False):
+    def temperature_interpolation(self, max_hb, temp_range, reread_files=False, all_observables=False):
         #I need to write a function that will take the values in last_hist.dat and perform the temperature interpolation
         #To do this I can use the split potential energy and then read the files
         #Next, I need to somehow take the simulation counts which were unbiased and then reweight them
         #I now have the unbiased windows
         # I can then simply reweight the counts of each num_h_bond nope, I need to do it for each state based on the states energy
             
-        if reread_files is False:
-            if self.com_by_window is None:
-                self.get_com_distance_by_window()
-            if self.umbrella_bias is None:
-                self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-            if self.hb_by_window is None:
-                self.get_hb_list_by_window()
-            if self.potential_energy_by_window is None:
-                self.read_potential_energy()
-            if self.r0 is None:
-               self.get_r0_values()
-        elif reread_files is True:
-            self.get_com_distance_by_window()
-            self.get_hb_list_by_window()
-            self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-            self.read_potential_energy()
-            self.get_r0_values()
+        # if reread_files is False:
+        #     if self.com_by_window is None:
+        #         self.get_com_distance_by_window()
+        #     if self.umbrella_bias is None:
+        #         self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
+        #     if self.hb_by_window is None:
+        #         self.get_hb_list_by_window()
+        #     if self.potential_energy_by_window is None:
+        #         self.read_potential_energy()
+        #     if self.r0 is None:
+        #        self.get_r0_values()
+        # elif reread_files is True:
+        #     self.get_com_distance_by_window()
+        #     self.get_hb_list_by_window()
+        #     self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
+        #     self.read_potential_energy()
+        #     self.get_r0_values()
 
-        #Truncate data to the shortest window in order to have use numpy vector arthimetic
-        min_length = min([len(inner_list) for inner_list in self.umbrella_bias])
-        truncated_com_values = [inner_list[:min_length] for inner_list in self.com_by_window.values()]
-        truncated_hb_values = [inner_list[:min_length] for inner_list in self.hb_by_window.values()]
-        truncated_umbrella_bias = [inner_list[:min_length] for inner_list in self.umbrella_bias]
-        truncated_potential_energy = [inner_list[:min_length] for inner_list in self.potential_energy_by_window.values()]
+        # #Truncate data to the shortest window in order to have use numpy vector arthimetic
+        # min_length = min([len(inner_list) for inner_list in self.umbrella_bias])
+        # truncated_com_values = [inner_list[:min_length] for inner_list in self.com_by_window.values()]
+        # truncated_hb_values = [inner_list[:min_length] for inner_list in self.hb_by_window.values()]
+        # truncated_umbrella_bias = [inner_list[:min_length] for inner_list in self.umbrella_bias]
+        # truncated_potential_energy = [inner_list[:min_length] for inner_list in self.potential_energy_by_window.values()]
     
-        hb_by_window = np.array(truncated_hb_values).squeeze(-1)
+    
+        if all_observables is False:
+            if reread_files is False:
+                if self.com_by_window is None:
+                    self.get_com_distance_by_window()
+                if self.umbrella_bias is None:
+                    self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
+                if self.potential_energy_by_window is None:
+                    self.read_kinetic_and_potential_energy()
+                    self.read_potential_energy()
+                if self.hb_by_window is None:
+                    self.get_hb_list_by_window()
+                if self.r0 is None:
+                   self.get_r0_values()
+            elif reread_files is True:
+                self.get_com_distance_by_window()
+                self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
+                self.read_potential_energy()
+                self.get_r0_values()
+                self.read_kinetic_and_potential_energy()
+                self.get_hb_list_by_window()
+        elif all_observables is True:
+            if reread_files is False:
+                if self.obs_df is None:
+                    self.analysis.read_all_observables('prod')
+                    self.get_r0_values()
+            elif reread_files is True:
+                self.analysis.read_all_observables('prod')
+                self.get_r0_values()
+        
+        
+        if all_observables is False:
+            #Truncate data to the shortest window in order to have use numpy vector arthimetic
+            min_length = min([len(inner_list) for inner_list in self.umbrella_bias])
+            truncated_com_values = [inner_list[:min_length] for inner_list in self.com_by_window.values()]
+            truncated_umbrella_bias = [inner_list[:min_length] for inner_list in self.umbrella_bias]
+            truncated_potential_energy = [inner_list[:min_length] for inner_list in self.potential_energy_by_window.values()]
+            energy = [inner_list[:min_length] for inner_list in self.energy_by_window.values()]
+            kinetic_energy = np.array([ene['K'] for ene in energy])
+            truncated_hb_values = [inner_list[:min_length] for inner_list in self.hb_by_window.values()]
+            hb_by_window = np.array(truncated_hb_values).squeeze(-1)
+            
+        elif all_observables is True:
+            min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
+            truncated_com_values = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df] 
+            x_range = np.round(np.linspace(self.wham.xmin, self.wham.xmax, (self.n_windows + 1), dtype=np.longdouble)[1:], 3)
+            truncated_umbrella_bias = [0.5 * np.longdouble(self.wham.umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
+            names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+            truncated_potential_energy = [inner_list[names][:min_length] for inner_list in self.obs_df]
+            truncated_kinetic_energy = [inner_list['kinetic_energy'][:min_length] for inner_list in self.obs_df]
+            truncated_force_energy = [inner_list['force_energy'][:min_length] for inner_list in self.obs_df]
+            truncated_hb_values = [inner_list['hb_list'][:min_length] for inner_list in self.obs_df]
+            hb_by_window = np.array(truncated_hb_values)
+
+
         hb_by_window = np.where(hb_by_window <= max_hb, hb_by_window, max_hb)
         index_to_add_at = hb_by_window
         
         temperature = np.array(self.temperature, dtype=np.longdouble)
         beta = 1 / temperature
         bias = [[[] for _ in range(len(temp_range))] for _ in range(self.n_windows)]
-        umbrella_bias = np.array(truncated_umbrella_bias).squeeze(-1)
-        energy_bias_per_window_per_temperature = np.array(self._new_calcualte_bias_energy(umbrella_bias, temp_range, truncated_potential_energy=truncated_potential_energy))
+
+        n_particles_in_op = 16.
+        n_particles_in_system = 16.
+        
+        truncated_potential_energy = [n_particles_in_system * innerlist for innerlist in truncated_potential_energy]
+        truncated_kinetic_energy = np.array(truncated_kinetic_energy) * n_particles_in_system
+        truncated_force_energy = np.array(truncated_force_energy) * n_particles_in_op
+         
+        truncated_non_pot_energy = truncated_kinetic_energy + truncated_force_energy
+        
+        energy_bias_per_window_per_temperature = np.array(self._new_calcualte_bias_energy(truncated_non_pot_energy, temp_range, truncated_potential_energy=truncated_potential_energy))
 
         for win_idx, (window, temperature_bias) in enumerate(zip(truncated_umbrella_bias, energy_bias_per_window_per_temperature)):
-            win_bias_values = window.values.T[0]
+            win_bias_values = window
             bias_vals = win_bias_values * beta
             
             for temp_idx, temp_bias in enumerate(temperature_bias):
                 # print(f'{temp_bias=}{temp_idx=}{win_idx=}')
-                temp_weight = temp_bias * beta# / ((temp_range[temp_idx] + 273.15) / 3000)
+                temp_weight = temp_bias # / ((temp_range[temp_idx] + 273.15) / 3000)
                 temp_scaled_bias_values =  bias_vals# + temp_weight
-                bias[win_idx][temp_idx].append(temp_scaled_bias_values)
+                bias[win_idx][temp_idx].append(temp_weight)
         
         bias = np.array(bias).squeeze(2)        
         self.bias = bias
 
         beta_u_hb_list = [[[[] for _ in range(max_hb + 1)] for _ in range(len(temp_range))] for _ in range(self.n_windows)] 
-        
+
         for win_idx, (b_u_win, hb_win) in enumerate(zip(bias, index_to_add_at)):
             
             for temp_idx, b_u_temp in enumerate(b_u_win):
-                
+
                 for b_u, hb in zip(b_u_temp, hb_win):
                     
-                    beta_u_hb_list[win_idx][temp_idx][hb].append(b_u)
+                    beta_u_hb_list[win_idx][temp_idx][int(hb)].append(b_u)
                     
         self.beta_u_hb_list = beta_u_hb_list
         
@@ -1037,7 +1109,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             sim.sim_files.parse_current_files()
             
             # Read the entire file into a DataFrame
-            df = pd.read_csv(sim.sim_files.energy, delimiter="\s+",names=['time', 'U','P','K'])
+            df = pd.read_csv(sim.sim_files.energy, delim_whitespace=True,names=['time', 'U','P','K'])
             self.energy_by_window[idx] = df
     
     def read_potential_energy(self):
@@ -1117,6 +1189,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         else:    
             e_state = [states.sum(axis=1) for states in self.potential_energy_by_window.values()]
             e_stack = [states['stacking'] for states in self.potential_energy_by_window.values()]
+        
         #e_ext =   # Replace with actual value (external energy term)
         am = 1  # Replace with actual value (the increment amount)
         w = 0  # Replace with actual value (the weight)
@@ -1188,32 +1261,52 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
 
         return None
         
-    def wham_temperature_interpolation(self, temp_range, n_bins, xmin, xmax, epsilon=1e-7, reread_files=False):
+    def wham_temperature_interpolation(self, temp_range, n_bins, xmin, xmax, epsilon=1e-7, reread_files=False, all_observables=False, max_iterations=100000):
         
-        if reread_files is False:
-            if self.com_by_window is None:
+        if all_observables is False:
+            if reread_files is False:
+                if self.com_by_window is None:
+                    self.get_com_distance_by_window()
+                if self.umbrella_bias is None:
+                    self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
+                if self.potential_energy_by_window is None:
+                    self.read_kinetic_and_potential_energy()
+                    self.read_potential_energy()
+                if self.r0 is None:
+                   self.get_r0_values()
+            elif reread_files is True:
                 self.get_com_distance_by_window()
-            if self.umbrella_bias is None:
                 self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-            if self.potential_energy_by_window is None:
-                self.read_kinetic_and_potential_energy()
                 self.read_potential_energy()
-            if self.r0 is None:
-               self.get_r0_values()
-        elif reread_files is True:
-            self.get_com_distance_by_window()
-            self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-            self.read_potential_energy()
-            self.get_r0_values()
-            self.read_kinetic_and_potential_energy()
-
-        #Truncate data to the shortest window in order to have use numpy vector arthimetic
-        min_length = min([len(inner_list) for inner_list in self.umbrella_bias])
-        truncated_com_values = [inner_list[:min_length] for inner_list in self.com_by_window.values()]
-        truncated_umbrella_bias = [inner_list[:min_length] for inner_list in self.umbrella_bias]
-        truncated_potential_energy = [inner_list[:min_length] for inner_list in self.potential_energy_by_window.values()]
-        energy = [inner_list[:min_length] for inner_list in self.energy_by_window.values()]
-        kinetic_energy = np.array([ene['K'] for ene in energy])
+                self.get_r0_values()
+                self.read_kinetic_and_potential_energy()
+        elif all_observables is True:
+            if reread_files is False:
+                if self.obs_df is None:
+                    self.analysis.read_all_observables('prod')
+                    self.get_r0_values()
+            elif reread_files is True:
+                self.analysis.read_all_observables('prod')
+                self.get_r0_values()
+        
+        
+        if all_observables is False:
+            #Truncate data to the shortest window in order to have use numpy vector arthimetic
+            min_length = min([len(inner_list) for inner_list in self.umbrella_bias])
+            truncated_com_values = [inner_list[:min_length] for inner_list in self.com_by_window.values()]
+            truncated_umbrella_bias = [inner_list[:min_length] for inner_list in self.umbrella_bias]
+            truncated_potential_energy = [inner_list[:min_length] for inner_list in self.potential_energy_by_window.values()]
+            energy = [inner_list[:min_length] for inner_list in self.energy_by_window.values()]
+            kinetic_energy = np.array([ene['K'] for ene in energy])
+        elif all_observables is True:
+            min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
+            truncated_com_values = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df] 
+            x_range = np.round(np.linspace(self.wham.xmin, self.wham.xmax, (self.n_windows + 1), dtype=np.longdouble)[1:], 3)
+            truncated_umbrella_bias = [0.5 * np.longdouble(self.wham.umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
+            names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+            truncated_potential_energy = [inner_list[names][:min_length] for inner_list in self.obs_df]
+            truncated_kinetic_energy = [inner_list['kinetic_energy'][:min_length] for inner_list in self.obs_df]
+            truncated_force_energy = [inner_list['force_energy'][:min_length] for inner_list in self.obs_df]
         
         #Get temperature scalar
         temp_range_scaled = self.celcius_to_scaled(temp_range)
@@ -1222,12 +1315,20 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         temperature = np.array(self.temperature, dtype=np.longdouble)
         beta = 1 / temperature
 
-        #Get the energy bias per window per temperature
-        umbrella_bias = np.array(truncated_umbrella_bias).squeeze(-1) / 16
-        kinetic_energy_and_umbrella_bias = umbrella_bias + kinetic_energy
 
-        new_energy_per_window = self._new_calcualte_bias_energy(kinetic_energy_and_umbrella_bias, temp_range, truncated_potential_energy=truncated_potential_energy)
-        temp_biases = np.exp(np.array(new_energy_per_window).swapaxes(0,1) *beta_range[:,np.newaxis, np.newaxis])
+
+        n_particles_in_op = 16.
+        n_particles_in_system = 16.
+        
+        truncated_potential_energy = [n_particles_in_system * innerlist for innerlist in truncated_potential_energy]
+        truncated_kinetic_energy = np.array(truncated_kinetic_energy) * n_particles_in_system
+        truncated_force_energy = np.array(truncated_force_energy) * n_particles_in_op
+        
+        
+        truncated_non_pot_energy = truncated_kinetic_energy + truncated_force_energy
+
+        new_energy_per_window = self._new_calcualte_bias_energy(truncated_non_pot_energy, temp_range, truncated_potential_energy=truncated_potential_energy)
+        temp_biases = np.exp(np.array(new_energy_per_window).swapaxes(0,1))# *beta_range[:,np.newaxis, np.newaxis])
 
         # #get the bin values
         # xmin = 0
@@ -1243,7 +1344,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         ], dtype=np.longdouble)
 
         #Get the com values
-        all_com_values = np.array(truncated_com_values).squeeze(-1)
+        all_com_values = np.array(truncated_com_values)
 
         #Calculate the counts of each bin
         count = [
@@ -1263,13 +1364,15 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         rng = np.random.default_rng()    
         # epsilon = 1e-7
 
-        f_i_temps_old = np.array([[rng.normal(loc=0.0, scale=1.0, size=None) for F in self.get_biases()] for _ in temp_range_scaled])
+        f_i_bias_factor = np.array([np.exp(-window_biases * bet) for bet in beta_range])
+        f_i_temps_old = np.array([[rng.normal(loc=0.0, scale=1.0, size=None) for _ in range(self.n_windows)] for _ in temp_range_scaled])
         f_i_temps_new = np.zeros_like(f_i_temps_old)
         f_i_temps_over_time = []
 
+
         first = True
         iteration = 0
-        while (first is True) or (np.max(np.abs(f_i_temps_new - f_i_temps_old)) > epsilon) or (iteration > 100000):
+        while (first is True) or (np.max(np.abs(f_i_temps_new - f_i_temps_old)) > epsilon) or (iteration > max_iterations):
             first = False
             f_i_temps_old = deepcopy(f_i_temps_new)
 
@@ -1287,7 +1390,6 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             p_x = numerator / np.sum(denominator, axis=1)
 
             #Recompute the f_i values per window. This value will update till convergence
-            f_i_bias_factor = np.array([np.exp(-window_biases * bet) for bet in beta_range])
             sum_p_bf = np.sum([p_ * f_ for p_, f_ in zip(p_x, f_i_bias_factor)], axis=2)
 
             f_i_temps_new = -temp_range_scaled[:,np.newaxis] * np.log(sum_p_bf)
@@ -1302,6 +1404,11 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         free = -np.log(p_x)
         free = free - np.min(free, axis=1, keepdims=True)
 
+        if iteration < max_iterations:
+            print(f'Converged in [{iteration}] iterations')
+        else:
+            print(f'Failed to converge in [{iteration}] iterations')
+            
         self.F_i = F_i_temps
         return free, F_i_temps, f_i_temps_over_time
     
@@ -1446,7 +1553,8 @@ class NDimensionalUmbrella(MeltingUmbrellaSampling):
 class UmbrellaAnalysis:
     def __init__(self, base_umbrella):
         self.base_umbrella = base_umbrella
-        
+        self.base_umbrella.obs_df = None
+    
     def read_all_observables(self, sim_type):
         file_name = self.base_umbrella.observables_list[0]['output']['name']
         print_every = int(float(self.base_umbrella.observables_list[0]['output']['print_every']))
@@ -1484,8 +1592,8 @@ class UmbrellaAnalysis:
                          , axis=1)
                for window_idx in range(len(obs))]
         
-        self.obs_df = obs
-        return self.obs_df
+        self.base_umbrella.obs_df = obs
+        return self.base_umbrella.obs_df
         
     def view_observable(self, sim_type, idx, sliding_window=False, observable=None):
         if observable == None:

@@ -23,11 +23,10 @@ from concurrent.futures import ProcessPoolExecutor
 def write_com_files(base_umbrella):
     sim_dir = base_umbrella.production_sim_dir
     all_observables = base_umbrella.analysis.read_all_observables('prod')
-    windows = [w for w in os.listdir(sim_dir) if w.isdigit()]
-
-    for df, window in zip(all_observables, windows):
+    sim_dirs = [sim.sim_dir for sim in base_umbrella.production_sims]
+    for df, sim_dir in zip(all_observables, sim_dirs):
         com_distance = df['com_distance']
-        with open(os.path.join(sim_dir, window, 'com_distance.txt'), 'w') as f:
+        with open(os.path.join(sim_dir, 'com_distance.txt'), 'w') as f:
             f.write('\n'.join(map(str, com_distance)))
     
     return None
@@ -155,7 +154,8 @@ def number_com_lines(com_dir):
         return None
     
     os.chdir(com_dir)
-    files = [os.path.join(com_dir, filename) for filename in os.listdir(com_dir) if os.path.isfile(os.path.join(com_dir, filename))]    
+    files = [os.path.join(com_dir, filename) for filename in os.listdir(com_dir) if os.path.isfile(os.path.join(com_dir, filename))]
+    files.sort(key=sort_coms)
     with ProcessPoolExecutor() as executor:
         executor.map(process_file, files)
 
@@ -226,6 +226,7 @@ def wham_analysis(wham_dir, sim_dir, com_dir, xmin, xmax, k, n_bins, tol, n_boot
 
 def chunk_com_file(chunk_lower_bound, chunk_upper_bound, com_dir):
     com_files = [os.path.join(com_dir, f) for f in os.listdir(com_dir) if f.endswith('.txt')]
+    com_files.sort(key=sort_coms)
     for file in com_files:
         for line in fileinput.input(file, inplace=True):
             if (int(fileinput.filelineno()) >= chunk_lower_bound) and (int(fileinput.filelineno()) <= chunk_upper_bound):

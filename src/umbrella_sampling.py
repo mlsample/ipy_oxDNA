@@ -6,13 +6,16 @@ from os.path import join, exists
 import numpy as np
 import shutil
 import pandas as pd
+from scipy.optimize import curve_fit
 from scipy.stats import multivariate_normal, norm
 from scipy.special import logsumexp
 import matplotlib.pyplot as plt
 import scienceplots
 from copy import deepcopy
 from vmmc import VirtualMoveMonteCarlo
+from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
+# from numba import jit
 
 class BaseUmbrellaSampling:
     def __init__(self, file_dir, system, clean_build=False):
@@ -687,9 +690,27 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             name=str(name)
         )
         self.observables_list.append(force_energy_obs)
-                                    
-    def copy_hb_list_to_com_dir(self):
-        copy_h_bond_files(self.production_sim_dir, self.com_dir)
+
+    def read_kinetic_and_potential_energy(self):
+        self.energy_by_window = {}
+        for idx,sim in enumerate(self.production_sims):
+            sim.sim_files.parse_current_files()
+            
+            # Read the entire file into a DataFrame
+            df = pd.read_csv(sim.sim_files.energy, delim_whitespace=True,names=['time', 'U','P','K'])
+            self.energy_by_window[idx] = df
+    
+    def read_potential_energy(self):
+        self.potential_energy_by_window = {}
+        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+        
+        for idx, sim in enumerate(self.production_sims):
+            sim.sim_files.parse_current_files()
+            
+            # Read the entire file into a DataFrame
+            df = pd.read_csv(sim.sim_files.potential_energy, header=None, names=names, delim_whitespace=True, dtype=np.longdouble)
+            
+            self.potential_energy_by_window[idx] = df
 
     def get_hb_list_by_window(self):
         hb_list_by_window = {}
@@ -698,6 +719,22 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             df = pd.read_csv(sim.sim_files.hb_observable, header=None, engine='pyarrow')
             hb_list_by_window[idx] = df
         self.hb_by_window = hb_list_by_window
+        
+    def write_potential_energy_files(self):
+        all_observables = self.analysis.read_all_observables('prod')
+        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+        sim_dirs = [sim.sim_dir for sim in self.production_sims]
+        for df, sim_dir in zip(all_observables, sim_dirs):
+            potential_energy_terms = df[names].values
+            with open(os.path.join(sim_dir, 'potential_energy.txt'), 'w') as f:
+                for row in potential_energy_terms:
+                    row_str = ' '.join(map(str, row))
+                    f.write(row_str + '\n')
+
+        return None
+    
+    def copy_hb_list_to_com_dir(self):
+        copy_h_bond_files(self.production_sim_dir, self.com_dir)
 
     def spawn_continuous_to_discrete_unbiasing(self, max_hb, join=False):
         self.spawn(self.continuous_to_discrete_unbiasing, args=(max_hb,), join=False)
@@ -784,181 +821,14 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
         self.prob_discrete = np.exp(self.normed_free_energy)
         
-    
-    def calculate_melting_temperature(self):
-        probabilities = self.prob_discrete
         
-        #probabilities: n_temps x n_hb
-        
-        bound_states = probabilities[:,1:].sum(axis=1)
-        unbound_states = probabilities[:,0].sum(axis=1)
-        ratio = bound_states / unbound_states 
-
-        return bound_states, unbound_states
-    
-        finf = 1. + 1. / (2. * ratio) - np.sqrt((1. + 1. / (2. * ratio))**2 - 1.)
-        self.finf = finf
-        
-        self.inverted_finf = 1 - finf
-        
-        # Fit the sigmoid function to the inverted data
-        p0 = [max(self.inverted_finfs), np.median(self.temperatures), 1, min(self.inverted_finfs)]  # initial guesses for L, x0, k, b
-        self.popt, _ = curve_fit(self.sigmoid, self.temperatures, self.inverted_finfs, p0, method='dogbox')
-    
-        # Generate fitted data
-        self.x_fit = np.linspace(min(self.temperatures), max(self.temperatures), 500)
-        self.y_fit = self.sigmoid(self.x_fit, *self.popt)
-        
-        
-        idx = np.argmin(np.abs(self.y_fit - 0.5))
-        self.sim.Tm = self.x_fit[idx]
-        
-
-    def plot_free_discrete(self, max_hb, ax=None):
-        with plt.style.context(['science', 'no-latex', 'bright']): 
-            if ax is None:
-                fig, ax = plt.subplots(dpi=300)
-            ax.plot(range(max_hb + 1), self.free_energy_discrete)
-            ax.set_xlabel('Number of Hydrogen Bonds')
-            ax.set_ylabel('deltaG / kBT')
-    
-    def calculate_melting_temperature_using_vmmc(self):
-        self.vmmc_dir = join(self.production_sim_dir, 'vmmc_dir')
-        self.vmmc_sim = VirtualMoveMonteCarlo(self.file_dir, self.vmmc_dir)
-        self.vmmc_sim.build('0', '1')
-
-        if hasattr(self, 'prob_discrete'):
-            counts = np.round(self.prob_discrete * 1e9,0)
-            with open(join(self.vmmc_sim.sim_dir,'last_hist.dat'), 'w') as f:
-                temp = (float(self.production_sims[0].input.input["T"][:-1]) + 237.15) / 3000
-                f.write(f'#t = 0; extr. Ts: {temp} \n')
-                for idx, n_hb in enumerate(counts):
-                    f.write(f"{idx} {n_hb} {n_hb} {n_hb} \n")
-        
-        self.vmmc_sim.sim_files.parse_current_files()
-        self.vmmc_sim.analysis.read_vmmc_op_data()
-        self.vmmc_sim.analysis.calculate_sampling_and_probabilities()
-        self.vmmc_sim.analysis.calculate_and_estimate_melting_profiles()
-
-    def make_last_hist_files(self):
-        for idx,sim in enumerate(self.production_sims):
-            hist = self.unbiased_discrete_windows[idx]
-            with open(join(sim.sim_dir, 'last_hist.dat'), 'w') as f:
-                f.write(f'#t = 0 {sim.input.input["T"]} \n')
-                for idx, n_hb in enumerate(hist):
-                    f.write(f"{idx} {n_hb} {n_hb} \n")
-    
-    def run_wham_discete(self, max_hb):
-        # for idx,sim in enumerate(self.production_sims):
-        #     if exists(join(sim.sim_dir, 'last_hist.dat')):
-        #         rerun_last_hist = False
-        #     else:
-        #         rerun_last_hist = True
-        #         break
-        # if rerun_last_hist is True:
-        self.make_last_hist_files()
-            
-        invocation = 'python3 '
-        script_location = '/scratch/mlsample/ipy_oxDNA/src/wham.py 2 '
-        wfile_location = '/scratch/mlsample/ipy_oxDNA/src/wfile.txt '
-        last_hist_location = [join(sim.sim_dir, 'last_hist.dat') for sim in self.production_sims]
-        
-        invocation += script_location
-        for last_hist_path in last_hist_location:
-            invocation += wfile_location
-            invocation += (last_hist_path + ' ')
-        x = subprocess.check_output(invocation, shell=True)
-        # print(x.decode())
-        hbs = map(float, x.decode().split()[-(max_hb + 1)*2:][::2])
-        prob = map(float, x.decode().split()[-(max_hb + 1)*2:][1::2])
-        self.discrete_hist = {key:value for key,value in zip(hbs, prob)}
-        
-    def modify_topology_for_unique_pairing(self):
-        """
-        Modify the topology file to ensure that each nucleotide can only bind to its original partner.
-        """
-        for sim in self.equlibration_sims:
-            topology_file_path = sim.sim_files.top  # Assuming this is the absolute path to the topology file
-            
-            # Read the existing topology file
-            with open(topology_file_path, 'r') as f:
-                lines = f.readlines()
-            
-            # Initialize variables
-            new_lines = []
-            next_available_base_type = 13  # Start from 13 as per your example
-            
-            # Process the header
-            new_lines.append(lines[0])  # Keep the header as is
-            
-            num_base_pairs = len(lines[1:])
-            bp_per_strand = num_base_pairs // 2
-            if int(num_base_pairs / bp_per_strand) != 2:
-                return print('Even number of base pairs required')
-            
-            # Process the first strand
-            for line in lines[1:bp_per_strand +1]:  
-                parts = line.split()
-                strand_id, base_type, prev_idx, next_idx = parts
-                
-                # Modify the base type to ensure unique pairing
-                unique_base_type = next_available_base_type
-                next_available_base_type += 1  # Increment for the next base
-                
-                new_line = f"{strand_id} {unique_base_type} {prev_idx} {next_idx}\n"
-                new_lines.append(new_line)
-            
-            second_strand_base_type = -next_available_base_type + 4
-            # Generate the complementary strand with negative unique base types
-            for line in lines[bp_per_strand+1:]:
-                parts = line.split()
-                strand_id, base_type, prev_idx, next_idx = parts
-                
-                # Modify the base type for the complementary strand
-                unique_base_type = int(second_strand_base_type)
-                second_strand_base_type += 1
-                
-                new_line = f"{strand_id} {unique_base_type} {prev_idx} {next_idx}\n"
-                new_lines.append(new_line)
-            
-            # Write the modified topology back to the file
-            with open(topology_file_path, 'w') as f:
-                f.writelines(new_lines)    
-
-                
-    def temperature_interpolation(self, max_hb, temp_range, reread_files=False, all_observables=False):
+    def temperature_interpolation(self, max_hb, temp_range, reread_files=False, all_observables=False, convergence_slice=None):
         #I need to write a function that will take the values in last_hist.dat and perform the temperature interpolation
         #To do this I can use the split potential energy and then read the files
         #Next, I need to somehow take the simulation counts which were unbiased and then reweight them
         #I now have the unbiased windows
         # I can then simply reweight the counts of each num_h_bond nope, I need to do it for each state based on the states energy
-            
-        # if reread_files is False:
-        #     if self.com_by_window is None:
-        #         self.get_com_distance_by_window()
-        #     if self.umbrella_bias is None:
-        #         self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-        #     if self.hb_by_window is None:
-        #         self.get_hb_list_by_window()
-        #     if self.potential_energy_by_window is None:
-        #         self.read_potential_energy()
-        #     if self.r0 is None:
-        #        self.get_r0_values()
-        # elif reread_files is True:
-        #     self.get_com_distance_by_window()
-        #     self.get_hb_list_by_window()
-        #     self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-        #     self.read_potential_energy()
-        #     self.get_r0_values()
-
-        # #Truncate data to the shortest window in order to have use numpy vector arthimetic
-        # min_length = min([len(inner_list) for inner_list in self.umbrella_bias])
-        # truncated_com_values = [inner_list[:min_length] for inner_list in self.com_by_window.values()]
-        # truncated_hb_values = [inner_list[:min_length] for inner_list in self.hb_by_window.values()]
-        # truncated_umbrella_bias = [inner_list[:min_length] for inner_list in self.umbrella_bias]
-        # truncated_potential_energy = [inner_list[:min_length] for inner_list in self.potential_energy_by_window.values()]
-    
-    
+ 
         if all_observables is False:
             if reread_files is False:
                 if self.com_by_window is None:
@@ -1013,33 +883,53 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             hb_by_window = np.array(truncated_hb_values)
 
 
+        if convergence_slice is not None:
+            truncated_com_values = [inner_list[convergence_slice] for inner_list in truncated_com_values] 
+            truncated_umbrella_bias = [inner_list[convergence_slice] for inner_list in truncated_umbrella_bias]
+            names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+            truncated_potential_energy = [inner_list[names][convergence_slice] for inner_list in truncated_potential_energy]
+            truncated_kinetic_energy = [inner_list[convergence_slice] for inner_list in truncated_kinetic_energy]
+            truncated_force_energy = [inner_list[convergence_slice] for inner_list in truncated_force_energy]
+            truncated_hb_values = [inner_list[convergence_slice] for inner_list in truncated_hb_values]
+            hb_by_window = np.array(truncated_hb_values)
+        
         hb_by_window = np.where(hb_by_window <= max_hb, hb_by_window, max_hb)
         index_to_add_at = hb_by_window
         
         temperature = np.array(self.temperature, dtype=np.longdouble)
+        temp_range_scaled = self.celcius_to_scaled(temp_range)
+        beta_range = 1 / temp_range_scaled
         beta = 1 / temperature
         bias = [[[] for _ in range(len(temp_range))] for _ in range(self.n_windows)]
 
-        n_particles_in_op = 16.
-        n_particles_in_system = 16.
+        top_file = self.production_sims[0].sim_files.top
+        with open(top_file, 'r') as f:
+            n_particles_in_system = np.longdouble(f.readline().split(' ')[0])
         
+        n_particles_in_op = np.longdouble(max_hb * 2)
+
         truncated_potential_energy = [n_particles_in_system * innerlist for innerlist in truncated_potential_energy]
         truncated_kinetic_energy = np.array(truncated_kinetic_energy) * n_particles_in_system
         truncated_force_energy = np.array(truncated_force_energy) * n_particles_in_op
          
         truncated_non_pot_energy = truncated_kinetic_energy + truncated_force_energy
         
-        energy_bias_per_window_per_temperature = np.array(self._new_calcualte_bias_energy(truncated_non_pot_energy, temp_range, truncated_potential_energy=truncated_potential_energy))
+        pot_energy = [innerlist.sum(axis=1) for innerlist in truncated_potential_energy]
+        force_energy = [innerlist for innerlist in truncated_force_energy]
+        all_pot_energy = [pot + force for pot, force in zip(pot_energy, force_energy)]
 
-        for win_idx, (window, temperature_bias) in enumerate(zip(truncated_umbrella_bias, energy_bias_per_window_per_temperature)):
+        energy_bias_per_window_per_temperature = np.array(self._new_calcualte_bias_energy(truncated_non_pot_energy, temp_range, truncated_potential_energy=truncated_potential_energy))
+        #I need to reconstruct the total_
+
+        for win_idx, (window, temperature_bias) in enumerate(zip(all_pot_energy, energy_bias_per_window_per_temperature)):
             win_bias_values = window
-            bias_vals = win_bias_values * beta
+            bias_vals = win_bias_values #* beta
             
             for temp_idx, temp_bias in enumerate(temperature_bias):
                 # print(f'{temp_bias=}{temp_idx=}{win_idx=}')
                 temp_weight = temp_bias # / ((temp_range[temp_idx] + 273.15) / 3000)
-                temp_scaled_bias_values =  bias_vals# + temp_weight
-                bias[win_idx][temp_idx].append(temp_weight)
+                temp_scaled_bias_values =  bias_vals / ((temp_range[temp_idx] + 273.15) / 3000)
+                bias[win_idx][temp_idx].append(temp_bias)
         
         bias = np.array(bias).squeeze(2)        
         self.bias = bias
@@ -1073,7 +963,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
         # f_i = self.get_biases()
         f_i = self.F_i
-        weight = -beta * np.array(f_i)
+        weight = -beta_range[:, np.newaxis] * np.array(f_i)
         weight_norm = logsumexp(weight)
         A_i = weight - weight_norm
         
@@ -1084,7 +974,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             box_info = f.readline().split(' ')
             self.box_size = float(box_info[-1].strip())
         
-        self.volume_correction = np.log((self.box_size**3) / ((4/3)*np.pi*self.com_max**3))
+        self.volume_correction = np.log((((self.box_size / 2) * np.sqrt(3))**3) / ((4/3)*np.pi*self.wham.xmax**3))
                 
         log_p_i_h = self.log_e_beta_u - logsumexp(self.log_e_beta_u, axis=2, keepdims=True)
         self.log_p_i_h = log_p_i_h
@@ -1092,6 +982,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         a_log_p_i_h = log_p_i_h.T + A_i
 
         combine_log_p_i_h = logsumexp(a_log_p_i_h, axis=2)
+        self.maybe_prob_discrete = np.exp(combine_log_p_i_h)
         
         free_energy = -combine_log_p_i_h.T
         free_energy -= free_energy.min(axis=1, keepdims=True)
@@ -1100,78 +991,9 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         normed_free_energy = -free_energy - logsumexp(-free_energy, axis=1, keepdims=True)
         self.prob_discrete = np.exp(normed_free_energy)
         
-        return None
-
-        
-    def read_kinetic_and_potential_energy(self):
-        self.energy_by_window = {}
-        for idx,sim in enumerate(self.production_sims):
-            sim.sim_files.parse_current_files()
-            
-            # Read the entire file into a DataFrame
-            df = pd.read_csv(sim.sim_files.energy, delim_whitespace=True,names=['time', 'U','P','K'])
-            self.energy_by_window[idx] = df
+        return self.free_energy_discrete, self.prob_discrete
     
-    def read_potential_energy(self):
-        self.potential_energy_by_window = {}
-        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-        
-        for idx, sim in enumerate(self.production_sims):
-            sim.sim_files.parse_current_files()
-            
-            # Read the entire file into a DataFrame
-            df = pd.read_csv(sim.sim_files.potential_energy, header=None, names=names, delim_whitespace=True, dtype=np.longdouble)
-            
-            self.potential_energy_by_window[idx] = df
     
-    def _calculate_energy_bias(self, temperature_range, truncated_potential_energy=None):
-        temperature_range = np.array(temperature_range)
-        
-        
-        old_temperature = self.temperature
-        new_temperatures = (temperature_range + 273.15) / 3000
-        
-        old_epsilons =  1.3523 + 2.6717 * old_temperature
-        new_epsilon =  1.3523 + 2.6717 * new_temperatures
-        
-        epsilon_ratios = old_epsilons / new_epsilon
-        
-        if truncated_potential_energy is not None:
-            old_potential_energies = [all_pot_energy for all_pot_energy in truncated_potential_energy]
-            old_stacking_energies = [all_pot_energy['stacking'] for all_pot_energy in truncated_potential_energy]
-        else:
-            old_potential_energies = [all_pot_energy for all_pot_energy in self.potential_energy_by_window.values()]
-            old_stacking_energies = [all_pot_energy['stacking'] for all_pot_energy in self.potential_energy_by_window.values()]
-        
-        new_stacking_energies = [
-            [old_stacking / epsilon_ratio
-             for epsilon_ratio in epsilon_ratios
-            ]
-            for old_stacking in old_stacking_energies
-        ]
-        
-        old_potential_energies_minus_old_stacking = [
-            df.drop(columns=['stacking']).sum(axis=1)
-            for df in old_potential_energies
-        ]
-        
-        new_potential_energies = [
-            [old_pot_min_stacking.add(new_stack)
-             for new_stack in new_stacking
-            ] 
-            for old_pot_min_stacking, new_stacking in zip(old_potential_energies_minus_old_stacking, new_stacking_energies)
-        ]
-        
-        energy_bias_per_window_per_temperature = [
-            [(old_potential.sum(axis=1) / old_temperature) - (new_pot / new_temp)
-             for new_pot, new_temp in zip(new_potential, new_temperatures)
-            ]
-            for old_potential, new_potential in zip(old_potential_energies, new_potential_energies)
-        ]
-        
-        return energy_bias_per_window_per_temperature
-
-
     def _new_calcualte_bias_energy(self, umbrella_bias, temperature_range, truncated_potential_energy=None):
         #Constants
         STCK_FACT_EPS_OXDNA2 = 2.6717
@@ -1227,41 +1049,110 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             # Add results_window to results_list
             results_list.append(results_window)
         return results_list
-
+        
+    def sigmoid(self, x, L, x0, k, b):
+        return L / (1 + np.exp(-k * (x - x0))) + b
     
-    def calculate_melting_temperature_using_vmmc(self):
-        self.vmmc_dir = join(self.production_sim_dir, 'vmmc_dir')
-        self.vmmc_sim = VirtualMoveMonteCarlo(self.file_dir, self.vmmc_dir)
-        if not exists(self.vmmc_dir):
-            self.vmmc_sim.build('0', '1')
-        print( not hasattr(self.vmmc_sim.sim_files, 'last_hist'))
-        if not hasattr(self.vmmc_sim.sim_files, 'last_hist'):
-            if hasattr(self, 'counts_discrete'):
-                with open(join(self.vmmc_sim.sim_dir,'last_hist.dat'), 'w') as f:
-                    temp = (float(self.production_sims[0].input.input["T"][:-1]) + 237.15) / 3000
-                    f.write(f'#t = 0; extr. Ts: {temp} \n')
-                    for idx, n_hb in enumerate(self.counts_discrete):
-                        f.write(f"{idx} {n_hb} {n_hb} {n_hb} \n")
-        self.vmmc_sim.sim_files.parse_current_files()
+    def calculate_melting_temperature(self, temp_range):
+        probabilities = self.prob_discrete
         
-        self.vmmc_sim.analysis.read_vmmc_op_data()
-        self.vmmc_sim.analysis.calculate_sampling_and_probabilities()
-        self.vmmc_sim.analysis.calculate_and_estimate_melting_profiles()
+        #probabilities: n_temps x n_hb
         
-    def write_potential_energy_files(self):
-        all_observables = self.analysis.read_all_observables('prod')
-        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-        sim_dirs = [sim.sim_dir for sim in self.production_sims]
-        for df, sim_dir in zip(all_observables, sim_dirs):
-            potential_energy_terms = df[names].values
-            with open(os.path.join(sim_dir, 'potential_energy.txt'), 'w') as f:
-                for row in potential_energy_terms:
-                    row_str = ' '.join(map(str, row))
-                    f.write(row_str + '\n')
-
-        return None
+        bound_states = probabilities[:,1:].sum(axis=1)
+        unbound_states = probabilities[:,0]
+        ratio = bound_states / unbound_states 
+    
+        finf = 1. + 1. / (2. * ratio) - np.sqrt((1. + 1. / (2. * ratio))**2 - 1.)
+        self.finf = finf
         
-    def wham_temperature_interpolation(self, temp_range, n_bins, xmin, xmax, epsilon=1e-7, reread_files=False, all_observables=False, max_iterations=100000):
+        self.inverted_finfs = 1 - finf
+        
+        # Fit the sigmoid function to the inverted data
+        p0 = [max(self.inverted_finfs), np.median(temp_range), 1, min(self.inverted_finfs)]  # initial guesses for L, x0, k, b
+        self.popt, _ = curve_fit(self.sigmoid, temp_range, self.inverted_finfs, p0, method='dogbox')
+    
+        # Generate fitted data
+        self.x_fit = np.linspace(min(temp_range), max(temp_range), 500)
+        self.y_fit = self.sigmoid(self.x_fit, *self.popt)
+        
+        
+        idx = np.argmin(np.abs(self.y_fit - 0.5))
+        self.Tm = self.x_fit[idx]
+        
+    # @jit(nopython=True)
+    # def fast_histogram(self, all_com_values, temp_biases, bin_edges):
+    #     result = []
+    #     for temp_bias in temp_biases:
+    #         temp_result = []
+    #         for com_values, t_bias in zip(all_com_values, temp_bias):
+    #             hist, _ = np.histogram(com_values, bins=bin_edges, weights=t_bias)
+    #             temp_result.append(hist)
+    #         result.append(temp_result)
+    #     return result   
+        
+    # @jit(nopython=True)
+    # def compute_f_i_temps(f_i_temps_old, window_biases, beta_range, summed_p_i_b_s, numerator, f_i_bias_factor, temp_range_scaled):
+    #     intermediate_result = f_i_temps_old[:, :, np.newaxis] - window_biases
+    #     exponential_term = np.exp(intermediate_result * beta_range[:, np.newaxis, np.newaxis])
+    #     denominator = summed_p_i_b_s[:, :, np.newaxis] * exponential_term 
+    
+    #     p_x = numerator / np.sum(denominator, axis=1)
+    #     sum_p_bf = np.sum(p_x[:, np.newaxis, :] * f_i_bias_factor, axis=2)
+    #     f_i_temps_new = -temp_range_scaled[:, np.newaxis] * np.log(sum_p_bf)
+    
+    #     return f_i_temps_new
+    
+    def wham_cont_and_disc_temp_interp_converg_analysis(self, convergence_slice, temp_range, n_bins, xmin, xmax, max_hb, epsilon=1e-7, reread_files=False, all_observables=False, max_iterations=100000):
+        self.wham_temp_interp_converg_analysis(convergence_slice, temp_range, n_bins, xmin, xmax, max_hb, epsilon=epsilon, reread_files=reread_files, all_observables=all_observables, max_iterations=max_iterations)
+        self.discrete_temp_interp_converg_analysis(convergence_slice, max_hb, temp_range, reread_files=reread_files, all_observables=all_observables)
+    
+    def discrete_temp_interp_converg_analysis(self, convergence_slice, max_hb, temp_range, reread_files=False, all_observables=False):
+        if (type(convergence_slice) == int) or (type(convergence_slice) == float):
+            min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
+            #split min_length into 3 slices
+            convergence_slice = np.array_split(np.arange(min_length), convergence_slice)
+            convergence_slice = [slice(slice_[0], slice_[-1], 1) for slice_ in convergence_slice]
+        
+        self.convergence_discrete_free_energy = []
+        self.convergence_discrete_prob_discrete = []
+        
+        self.convergence_Tm = []
+        self.convergence_x_fit = []
+        self.convergence_y_fit = []
+        self.convergence_inverted_finfs = []
+        
+        
+        for idx, converg_slice in enumerate(convergence_slice):
+            self.F_i = self.convergence_F_i_temps[idx]
+            free_energy, prob_discrete = self.temperature_interpolation(max_hb, temp_range, reread_files=reread_files, all_observables=all_observables, convergence_slice=converg_slice)
+            self.convergence_discrete_free_energy.append(free_energy)
+            self.convergence_discrete_prob_discrete.append(prob_discrete)
+            
+            self.calculate_melting_temperature(temp_range)
+            self.convergence_Tm.append(self.Tm)
+            self.convergence_x_fit.append(self.x_fit)
+            self.convergence_y_fit.append(self.y_fit)
+            self.convergence_inverted_finfs.append(self.inverted_finfs)
+            
+    
+    def wham_temp_interp_converg_analysis(self, convergence_slice, temp_range, n_bins, xmin, xmax, max_hb, epsilon=1e-7, reread_files=False, all_observables=False, max_iterations=100000):
+        if (type(convergence_slice) == int) or (type(convergence_slice) == float):
+            min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
+            #split min_length into 3 slices
+            convergence_slice = np.array_split(np.arange(min_length), convergence_slice)
+            convergence_slice = [slice(slice_[0], slice_[-1], 1) for slice_ in convergence_slice]
+        
+        
+        self.convergence_free = []
+        self.convergence_F_i_temps = []
+        for converg_slice in convergence_slice:
+            free, F_i_temps, f_i_temps_over_time = self.wham_temperature_interpolation(temp_range, n_bins, xmin, xmax, max_hb,
+                                                                                  epsilon=epsilon, reread_files=reread_files, all_observables=all_observables, max_iterations=max_iterations, convergence_slice=converg_slice)
+            self.convergence_free.append(free)
+            self.convergence_F_i_temps.append(F_i_temps)
+            
+    
+    def wham_temperature_interpolation(self, temp_range, n_bins, xmin, xmax, max_hb, epsilon=1e-7, reread_files=False, all_observables=False, max_iterations=100000, convergence_slice=None):
         
         if all_observables is False:
             if reread_files is False:
@@ -1284,6 +1175,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             if reread_files is False:
                 if self.obs_df is None:
                     self.analysis.read_all_observables('prod')
+                if self.r0 is None:
                     self.get_r0_values()
             elif reread_files is True:
                 self.analysis.read_all_observables('prod')
@@ -1308,6 +1200,15 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             truncated_kinetic_energy = [inner_list['kinetic_energy'][:min_length] for inner_list in self.obs_df]
             truncated_force_energy = [inner_list['force_energy'][:min_length] for inner_list in self.obs_df]
         
+        
+        if convergence_slice is not None:
+            truncated_com_values = [inner_list[convergence_slice] for inner_list in truncated_com_values] 
+            names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+            truncated_potential_energy = [inner_list[names][convergence_slice] for inner_list in truncated_potential_energy]
+            truncated_kinetic_energy = [inner_list[convergence_slice] for inner_list in truncated_kinetic_energy]
+            truncated_force_energy = [inner_list[convergence_slice] for inner_list in truncated_force_energy]
+        
+
         #Get temperature scalar
         temp_range_scaled = self.celcius_to_scaled(temp_range)
         beta_range = 1 / temp_range_scaled
@@ -1316,9 +1217,11 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         beta = 1 / temperature
 
 
-
-        n_particles_in_op = 16.
-        n_particles_in_system = 16.
+        top_file = self.production_sims[0].sim_files.top
+        with open(top_file, 'r') as f:
+            n_particles_in_system = np.longdouble(f.readline().split(' ')[0])
+        
+        n_particles_in_op = max_hb * 2
         
         truncated_potential_energy = [n_particles_in_system * innerlist for innerlist in truncated_potential_energy]
         truncated_kinetic_energy = np.array(truncated_kinetic_energy) * n_particles_in_system
@@ -1354,13 +1257,18 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             ] 
             for temp_bias in temp_biases
         ]
+        
+        # count = self.fast_histogram(all_com_values, temp_biases, bin_edges)
 
         #Put the counts into an array
         p_i_b_s = np.array(count)
-
+        summed_p_i_b_s = np.sum(p_i_b_s, axis=2)
+        beta_range_reshaped = beta_range[:, np.newaxis, np.newaxis]
+        
         #The numerator of p_x is the sum of the counts from each window
         numerator = np.sum(p_i_b_s, axis=1)
 
+        
         rng = np.random.default_rng()    
         # epsilon = 1e-7
 
@@ -1369,33 +1277,40 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         f_i_temps_new = np.zeros_like(f_i_temps_old)
         f_i_temps_over_time = []
 
-
         first = True
         iteration = 0
-        while (first is True) or (np.max(np.abs(f_i_temps_new - f_i_temps_old)) > epsilon) or (iteration > max_iterations):
-            first = False
-            f_i_temps_old = deepcopy(f_i_temps_new)
+        update_frequency = 1000
+        significant_digits = abs(int(np.floor(np.log10(abs(epsilon)))))
+        custom_bar_format = '{desc} {r_bar}'
+        with tqdm(desc='WHAM', leave=True, bar_format=custom_bar_format) as pbar:
+            while (first is True) or (np.max(np.abs(f_i_temps_new - f_i_temps_old)) > epsilon) or (iteration > max_iterations):
+                f_i_temps_old = deepcopy(f_i_temps_new)
 
-            #Compute the denominator
-            denominator = np.array([
-                [
-                sum(counts) * np.exp((F - w) * bet)
+                # f_i_temps_new = compute_f_i_temps(f_i_temps_old, window_biases, beta_range, summed_p_i_b_s, numerator, f_i_bias_factor, temp_range_scaled)
+                intermediate_result = f_i_temps_old[:, :, np.newaxis] - window_biases
+                exponential_term = np.exp(intermediate_result * beta_range[:, np.newaxis, np.newaxis])
+                denominator = summed_p_i_b_s[:, :, np.newaxis] * exponential_term 
+                
+                #Compute the probability of each bin
+                p_x = numerator / np.sum(denominator, axis=1)
 
-                for counts, F, w, t_bias in zip(p_i_b, F_i, window_biases, temp_b)
-                ] 
-                for bet, F_i, temp_b, p_i_b in zip(beta_range, f_i_temps_old, temp_biases, p_i_b_s)
-            ])
+                #Recompute the f_i values per window. This value will update till convergence
+                sum_p_bf = np.sum(p_x[:, np.newaxis, :] * f_i_bias_factor, axis=2)
 
-            #Compute the probability of each bin
-            p_x = numerator / np.sum(denominator, axis=1)
+                f_i_temps_new = -temp_range_scaled[:,np.newaxis] * np.log(sum_p_bf)
 
-            #Recompute the f_i values per window. This value will update till convergence
-            sum_p_bf = np.sum([p_ * f_ for p_, f_ in zip(p_x, f_i_bias_factor)], axis=2)
+                convergence_criterion = np.max(np.abs(f_i_temps_new - f_i_temps_old))
+                f_i_temps_over_time.append(convergence_criterion)
+                iteration +=1
 
-            f_i_temps_new = -temp_range_scaled[:,np.newaxis] * np.log(sum_p_bf)
-
-            f_i_temps_over_time.append(np.max(np.abs(f_i_temps_new - f_i_temps_old)))
-            iteration +=1
+                if (iteration % update_frequency == 0) or (iteration == max_iterations) or (first == True):
+                    formatted_convergence = f"{convergence_criterion:.{significant_digits}f} / {float(epsilon)}"
+                    pbar.set_postfix_str(f"Convergence: {formatted_convergence}")
+                    if first is True:
+                        pbar.update(0)
+                    else:
+                        pbar.update(update_frequency)
+                first = False
 
         value = f_i_temps_new[:,0]
         F_i_temps = f_i_temps_new - value[:,np.newaxis]
@@ -1435,6 +1350,59 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
 
     def celcius_to_scaled(self, temp):
         return (temp + 273.15) / 3000
+        
+    def modify_topology_for_unique_pairing(self):
+        """
+        Modify the topology file to ensure that each nucleotide can only bind to its original partner.
+        """
+        for sim in self.equlibration_sims:
+            topology_file_path = sim.sim_files.top  # Assuming this is the absolute path to the topology file
+            
+            # Read the existing topology file
+            with open(topology_file_path, 'r') as f:
+                lines = f.readlines()
+            
+            # Initialize variables
+            new_lines = []
+            next_available_base_type = 13  # Start from 13 as per your example
+            
+            # Process the header
+            new_lines.append(lines[0])  # Keep the header as is
+            
+            num_base_pairs = len(lines[1:])
+            bp_per_strand = num_base_pairs // 2
+            if int(num_base_pairs / bp_per_strand) != 2:
+                return print('Even number of base pairs required')
+            
+            # Process the first strand
+            for line in lines[1:bp_per_strand +1]:  
+                parts = line.split()
+                strand_id, base_type, prev_idx, next_idx = parts
+                
+                # Modify the base type to ensure unique pairing
+                unique_base_type = next_available_base_type
+                next_available_base_type += 1  # Increment for the next base
+                
+                new_line = f"{strand_id} {unique_base_type} {prev_idx} {next_idx}\n"
+                new_lines.append(new_line)
+            
+            second_strand_base_type = -next_available_base_type + 4
+            # Generate the complementary strand with negative unique base types
+            for line in lines[bp_per_strand+1:]:
+                parts = line.split()
+                strand_id, base_type, prev_idx, next_idx = parts
+                
+                # Modify the base type for the complementary strand
+                unique_base_type = int(second_strand_base_type)
+                second_strand_base_type += 1
+                
+                new_line = f"{strand_id} {unique_base_type} {prev_idx} {next_idx}\n"
+                new_lines.append(new_line)
+            
+            # Write the modified topology back to the file
+            with open(topology_file_path, 'w') as f:
+                f.writelines(new_lines)    
+
     
 class NDimensionalUmbrella(MeltingUmbrellaSampling):
     def __init__(self, file_dir, production_sim_dir):
@@ -1556,6 +1524,8 @@ class UmbrellaAnalysis:
         self.base_umbrella.obs_df = None
     
     def read_all_observables(self, sim_type):
+        
+
         file_name = self.base_umbrella.observables_list[0]['output']['name']
         print_every = int(float(self.base_umbrella.observables_list[0]['output']['print_every']))
         

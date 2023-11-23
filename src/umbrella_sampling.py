@@ -16,6 +16,8 @@ from vmmc import VirtualMoveMonteCarlo
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
 # from numba import jit
+import pickle
+
 
 class BaseUmbrellaSampling:
     def __init__(self, file_dir, system, clean_build=False):
@@ -263,7 +265,7 @@ class BaseUmbrellaSampling:
         data = [line.replace('\t', ' ') for line in data]
         data = data[1:]
         data = [line.split() for line in data]
-        data = [np.longdouble(line[1]) for line in data]
+        data = [np.double(line[1]) for line in data]
  
         return data
    
@@ -273,7 +275,7 @@ class BaseUmbrellaSampling:
         com_distance_by_window = {}
         for idx,sim in enumerate(self.production_sims):
             sim.sim_files.parse_current_files()
-            df = pd.read_csv(sim.sim_files.com_distance, header=None, engine='pyarrow', dtype=np.longdouble)
+            df = pd.read_csv(sim.sim_files.com_distance, header=None, engine='pyarrow', dtype=np.double)
             com_distance_by_window[idx] = df
         self.com_by_window = com_distance_by_window
 
@@ -284,8 +286,8 @@ class BaseUmbrellaSampling:
                 self.r0.append(float(line.split(' ')[1]))
     
     def get_bias_potential_value(self, xmin, xmax, n_windows, stiff):
-        x_range = np.round(np.linspace(xmin, xmax, (n_windows + 1), dtype=np.longdouble)[1:], 3)
-        umbrella_bias = [0.5 * np.longdouble(stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(self.com_by_window.values(), x_range)]
+        x_range = np.round(np.linspace(xmin, xmax, (n_windows + 1), dtype=np.double)[1:], 3)
+        umbrella_bias = [0.5 * np.double(stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(self.com_by_window.values(), x_range)]
         self.umbrella_bias = umbrella_bias
     
     def copy_last_conf_from_eq_to_prod(self):
@@ -297,28 +299,6 @@ class BaseUmbrellaSampling:
 class UmbrellaBuild:
     def __init__(self, base_umbrella):
         self.base_umbrella = base_umbrella
-    
-    
-    def _build_window(self, sim, forces, input_parameters, observables_list, observable, sequence_dependant, cms_observable, protein, force_file):
-        sim.build(clean_build='force')
-        
-        if protein is not None:
-            sim.add_protein_par()
-        if force_file is not None:
-            sim.add_force_file()
-        for force in forces:
-            sim.add_force(force)
-        if observable:
-            for observables in observables_list:
-                sim.add_observable(observables)
-        if cms_observable is not False:
-            for cms_obs_dict in cms_observable:
-                sim.oxpy_run.cms_obs(cms_obs_dict['idx'],
-                                     name=cms_obs_dict['name'],
-                                     print_every=cms_obs_dict['print_every'])
-        sim.input_file(input_parameters)
-        if sequence_dependant:
-            sim.sequence_dependant()
     
     def build(self, sims, input_parameters, forces_list, observables_list,
               observable=False, sequence_dependant=False, cms_observable=False, protein=None, force_file=None):
@@ -335,13 +315,26 @@ class UmbrellaBuild:
             elif self.base_umbrella.clean_build == False:
                 sys.exit('\nThe simulation directory already exists, if you wish to write over the directory set:\nUmbrellaSampling(clean_build=str(force)).\n\nTo continue a previous umbrella simulation use:\nsimulation_manager.run(continue_run=int(n_steps))')   
     
-        # Using ProcessPoolExecutor to parallelize
-        with ProcessPoolExecutor(max_workers=len(os.sched_getaffinity(0))-1) as executor:
-            futures = [executor.submit(self._build_window, sim, forces, input_parameters, observables_list, observable, sequence_dependant, cms_observable, protein, force_file) for sim, forces in zip(sims, forces_list)]
-
-            # Wait for all futures to complete
-            for future in as_completed(futures):
-                future.result()  # This will raise exceptions if any occurred
+        for sim, forces in zip(sims, forces_list):
+            sim.build(clean_build='force')
+            
+            if protein is not None:
+                sim.add_protein_par()
+            if force_file is not None:
+                sim.add_force_file()
+            for force in forces:
+                sim.add_force(force)
+            if observable == True:
+                for observables in observables_list:
+                    sim.add_observable(observables)
+            if cms_observable is not False:
+                for cms_obs_dict in cms_observable:
+                    sim.oxpy_run.cms_obs(cms_obs_dict['idx'],
+                                         name=cms_obs_dict['name'],
+                                         print_every=cms_obs_dict['print_every'])
+            sim.input_file(input_parameters)
+            if sequence_dependant is True:
+                sim.sequence_dependant()
 
 
 class ComUmbrellaSampling(BaseUmbrellaSampling):
@@ -708,7 +701,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             sim.sim_files.parse_current_files()
             
             # Read the entire file into a DataFrame
-            df = pd.read_csv(sim.sim_files.potential_energy, header=None, names=names, delim_whitespace=True, dtype=np.longdouble)
+            df = pd.read_csv(sim.sim_files.potential_energy, header=None, names=names, delim_whitespace=True, dtype=np.double)
             
             self.potential_energy_by_window[idx] = df
 
@@ -741,8 +734,8 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
     
     def continuous_to_discrete_unbiasing(self, max_hb):
         def count_division_normalize(arr):
-            row_sums = np.sum(arr, axis=1, keepdims=True, dtype=np.longdouble)
-            return np.divide(arr, row_sums, out=np.zeros_like(arr, dtype=np.longdouble), where=row_sums!=0)
+            row_sums = np.sum(arr, axis=1, keepdims=True, dtype=np.double)
+            return np.divide(arr, row_sums, out=np.zeros_like(arr, dtype=np.double), where=row_sums!=0)
         
         if self.com_by_window is None:
             self.get_com_distance_by_window()
@@ -751,9 +744,9 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         if self.umbrella_bias is None:
             self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
                 
-        unbiased_discrete_window = np.array([np.zeros(max_hb + 1) for _ in range(self.n_windows)], dtype=np.longdouble)
+        unbiased_discrete_window = np.array([np.zeros(max_hb + 1) for _ in range(self.n_windows)], dtype=np.double)
 
-        temperature = np.array(self.temperature, dtype=np.longdouble)
+        temperature = np.array(self.temperature, dtype=np.double)
         beta = 1 / temperature
         bias = []
         bias_norm = []
@@ -777,7 +770,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             for b_u, hb in zip(b_u_win, hb_win):
                 b_u_sq_hb_list[win_idx][hb].append(b_u)
 
-        e_to_beta_u_sq = np.empty((self.n_windows, max_hb+1), dtype=np.longdouble)
+        e_to_beta_u_sq = np.empty((self.n_windows, max_hb+1), dtype=np.double)
 
         for win_idx, b_u_hb_lists in enumerate(b_u_sq_hb_list):
             for hb_idx, b_u_hb in enumerate(b_u_hb_lists):
@@ -873,8 +866,8 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         elif all_observables is True:
             min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
             truncated_com_values = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df] 
-            x_range = np.round(np.linspace(self.wham.xmin, self.wham.xmax, (self.n_windows + 1), dtype=np.longdouble)[1:], 3)
-            truncated_umbrella_bias = [0.5 * np.longdouble(self.wham.umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
+            x_range = np.round(np.linspace(self.wham.xmin, self.wham.xmax, (self.n_windows + 1), dtype=np.double)[1:], 3)
+            truncated_umbrella_bias = [0.5 * np.double(self.wham.umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
             names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
             truncated_potential_energy = [inner_list[names][:min_length] for inner_list in self.obs_df]
             truncated_kinetic_energy = [inner_list['kinetic_energy'][:min_length] for inner_list in self.obs_df]
@@ -896,7 +889,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         hb_by_window = np.where(hb_by_window <= max_hb, hb_by_window, max_hb)
         index_to_add_at = hb_by_window
         
-        temperature = np.array(self.temperature, dtype=np.longdouble)
+        temperature = np.array(self.temperature, dtype=np.double)
         temp_range_scaled = self.celcius_to_scaled(temp_range)
         beta_range = 1 / temp_range_scaled
         beta = 1 / temperature
@@ -904,12 +897,14 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
 
         top_file = self.production_sims[0].sim_files.top
         with open(top_file, 'r') as f:
-            n_particles_in_system = np.longdouble(f.readline().split(' ')[0])
+            n_particles_in_system = np.double(f.readline().split(' ')[0])
         
-        n_particles_in_op = np.longdouble(max_hb * 2)
+        n_particles_in_op = np.double(max_hb * 2)
+        
+        # op_scaling_factor = n_particles_in_op / n_particles_in_system
 
-        truncated_potential_energy = [n_particles_in_system * innerlist for innerlist in truncated_potential_energy]
-        truncated_kinetic_energy = np.array(truncated_kinetic_energy) * n_particles_in_system
+        truncated_potential_energy = [n_particles_in_op * innerlist for innerlist in truncated_potential_energy]
+        truncated_kinetic_energy = np.array(truncated_kinetic_energy) * n_particles_in_op
         truncated_force_energy = np.array(truncated_force_energy) * n_particles_in_op
          
         truncated_non_pot_energy = truncated_kinetic_energy + truncated_force_energy
@@ -919,7 +914,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         all_pot_energy = [pot + force for pot, force in zip(pot_energy, force_energy)]
 
         energy_bias_per_window_per_temperature = np.array(self._new_calcualte_bias_energy(truncated_non_pot_energy, temp_range, truncated_potential_energy=truncated_potential_energy))
-        #I need to reconstruct the total_
+        # energy_bias_per_window_per_temperature = np.array([window * op_scaling_factor for window in energy_bias_per_window_per_temperature])
 
         for win_idx, (window, temperature_bias) in enumerate(zip(all_pot_energy, energy_bias_per_window_per_temperature)):
             win_bias_values = window
@@ -946,7 +941,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
                     
         self.beta_u_hb_list = beta_u_hb_list
         
-        log_e_beta_u = np.empty((self.n_windows, len(temp_range), max_hb+1), dtype=np.longdouble)
+        log_e_beta_u = np.empty((self.n_windows, len(temp_range), max_hb+1), dtype=np.double)
 
         for win_idx, b_u_hb_win in enumerate(beta_u_hb_list):
             
@@ -1090,8 +1085,8 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
     #         result.append(temp_result)
     #     return result   
         
-    # @jit(nopython=True)
-    # def compute_f_i_temps(f_i_temps_old, window_biases, beta_range, summed_p_i_b_s, numerator, f_i_bias_factor, temp_range_scaled):
+    # # @jit(nopython=True)
+    # # def compute_f_i_temps(self, f_i_temps_old, window_biases, beta_range, summed_p_i_b_s, numerator, f_i_bias_factor, temp_range_scaled):
     #     intermediate_result = f_i_temps_old[:, :, np.newaxis] - window_biases
     #     exponential_term = np.exp(intermediate_result * beta_range[:, np.newaxis, np.newaxis])
     #     denominator = summed_p_i_b_s[:, :, np.newaxis] * exponential_term 
@@ -1100,7 +1095,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
     #     sum_p_bf = np.sum(p_x[:, np.newaxis, :] * f_i_bias_factor, axis=2)
     #     f_i_temps_new = -temp_range_scaled[:, np.newaxis] * np.log(sum_p_bf)
     
-    #     return f_i_temps_new
+    #     return f_i_temps_new, px
     
     def wham_cont_and_disc_temp_interp_converg_analysis(self, convergence_slice, temp_range, n_bins, xmin, xmax, max_hb, epsilon=1e-7, reread_files=False, all_observables=False, max_iterations=100000):
         self.wham_temp_interp_converg_analysis(convergence_slice, temp_range, n_bins, xmin, xmax, max_hb, epsilon=epsilon, reread_files=reread_files, all_observables=all_observables, max_iterations=max_iterations)
@@ -1129,6 +1124,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             self.convergence_discrete_prob_discrete.append(prob_discrete)
             
             self.calculate_melting_temperature(temp_range)
+            print(self.Tm)
             self.convergence_Tm.append(self.Tm)
             self.convergence_x_fit.append(self.x_fit)
             self.convergence_y_fit.append(self.y_fit)
@@ -1193,8 +1189,8 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         elif all_observables is True:
             min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
             truncated_com_values = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df] 
-            x_range = np.round(np.linspace(self.wham.xmin, self.wham.xmax, (self.n_windows + 1), dtype=np.longdouble)[1:], 3)
-            truncated_umbrella_bias = [0.5 * np.longdouble(self.wham.umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
+            x_range = np.round(np.linspace(self.wham.xmin, self.wham.xmax, (self.n_windows + 1), dtype=np.double)[1:], 3)
+            truncated_umbrella_bias = [0.5 * np.double(self.wham.umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
             names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
             truncated_potential_energy = [inner_list[names][:min_length] for inner_list in self.obs_df]
             truncated_kinetic_energy = [inner_list['kinetic_energy'][:min_length] for inner_list in self.obs_df]
@@ -1213,26 +1209,30 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         temp_range_scaled = self.celcius_to_scaled(temp_range)
         beta_range = 1 / temp_range_scaled
 
-        temperature = np.array(self.temperature, dtype=np.longdouble)
+        temperature = np.array(self.temperature, dtype=np.double)
         beta = 1 / temperature
 
 
         top_file = self.production_sims[0].sim_files.top
         with open(top_file, 'r') as f:
-            n_particles_in_system = np.longdouble(f.readline().split(' ')[0])
+            n_particles_in_system = np.double(f.readline().split(' ')[0])
         
         n_particles_in_op = max_hb * 2
         
-        truncated_potential_energy = [n_particles_in_system * innerlist for innerlist in truncated_potential_energy]
-        truncated_kinetic_energy = np.array(truncated_kinetic_energy) * n_particles_in_system
+        op_scaling_factor = n_particles_in_op / n_particles_in_system
+        
+        truncated_potential_energy = [n_particles_in_op * innerlist for innerlist in truncated_potential_energy]
+        truncated_kinetic_energy = np.array(truncated_kinetic_energy) * n_particles_in_op
         truncated_force_energy = np.array(truncated_force_energy) * n_particles_in_op
         
         
         truncated_non_pot_energy = truncated_kinetic_energy + truncated_force_energy
 
         new_energy_per_window = self._new_calcualte_bias_energy(truncated_non_pot_energy, temp_range, truncated_potential_energy=truncated_potential_energy)
-        temp_biases = np.exp(np.array(new_energy_per_window).swapaxes(0,1))# *beta_range[:,np.newaxis, np.newaxis])
+        
+        # new_energy_per_window = [window * op_scaling_factor for window in new_energy_per_window]
 
+        temp_biases = np.exp(np.array(new_energy_per_window).swapaxes(0,1))# *beta_range[:,np.newaxis, np.newaxis])
         # #get the bin values
         # xmin = 0
         # xmax = 60
@@ -1244,7 +1244,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             for bin_value in calculated_bin_centers
             ] 
             for r0_value in self.r0
-        ], dtype=np.longdouble)
+        ], dtype=np.double)
 
         #Get the com values
         all_com_values = np.array(truncated_com_values)
@@ -1280,13 +1280,13 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         first = True
         iteration = 0
         update_frequency = 1000
-        significant_digits = abs(int(np.floor(np.log10(abs(epsilon)))))
+        significant_digits = abs(int(np.floor(np.log10(abs(epsilon))))) +1
         custom_bar_format = '{desc} {r_bar}'
         with tqdm(desc='WHAM', leave=True, bar_format=custom_bar_format) as pbar:
             while (first is True) or (np.max(np.abs(f_i_temps_new - f_i_temps_old)) > epsilon) or (iteration > max_iterations):
                 f_i_temps_old = deepcopy(f_i_temps_new)
-
-                # f_i_temps_new = compute_f_i_temps(f_i_temps_old, window_biases, beta_range, summed_p_i_b_s, numerator, f_i_bias_factor, temp_range_scaled)
+                # print(f'{type(f_i_temps_old)=}{type(window_biases)=}{type(beta_range)=}{type(summed_p_i_b_s)=}{type(numerator)=}{type(f_i_bias_factor)=}{type(temp_range_scaled)=}{type(f_i_temps_new)=}{type(f_i_temps_over_time)=}')
+                # f_i_temps_new = self.compute_f_i_temps(f_i_temps_old, window_biases, beta_range, summed_p_i_b_s, numerator, f_i_bias_factor, temp_range_scaled)
                 intermediate_result = f_i_temps_old[:, :, np.newaxis] - window_biases
                 exponential_term = np.exp(intermediate_result * beta_range[:, np.newaxis, np.newaxis])
                 denominator = summed_p_i_b_s[:, :, np.newaxis] * exponential_term 
@@ -1552,7 +1552,7 @@ class UmbrellaAnalysis:
         obs = [pd.DataFrame([
                 list(filter(lambda a: a != '',all_observables[window_idx].iloc[data_idx][0].split(' ')))
                 for data_idx in range(len(all_observables[window_idx]))
-                ],columns=columns, dtype=np.float64)
+                ],columns=columns, dtype=np.double)
                 for window_idx in range(len(all_observables))
             ]
         

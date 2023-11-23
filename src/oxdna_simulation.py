@@ -484,6 +484,9 @@ class OxpyRun:
         for particle_indexes in args:
             self.my_obs[name]['observables'].append(f'self.cms_observables({particle_indexes})()')
     
+    # def write_custom_observable(self, name, observables, print_every):
+    #     with open(os.path.join(self.sim_dir, "custom_observable.txt"), 'w') as f:
+            
     def cms_observables(self, particle_indexes):
             class ComPositionObservable(oxpy.observables.BaseObservable):
                 def get_output_string(self, curr_step):
@@ -493,14 +496,18 @@ class OxpyRun:
                     indexed_particles = [particles[idx] for idx in np_idx]
                     cupy_array = np.array([np.array([particle.pos for particle in particle_list]) for particle_list in indexed_particles], dtype=np.float64)
                     
+                    box_length  = np.float64(self.config_info.box_sides[0])
+                    
                     pos = np.zeros((cupy_array.shape[1], cupy_array.shape[2]), dtype=np.float64)
                     np.subtract(cupy_array[0], cupy_array[1], out=pos, dtype=np.float64)
                     
+                    pos = pos - box_length * np.round(pos / box_length)
+
                     new_pos = np.linalg.norm(pos, axis=1)
                     r0 = np.full(new_pos.shape, 1.2)
                     gamma = 58.7
                     shape = 1.2
-                    
+                
                     final = np.sum(1 / (1 + np.exp((new_pos - r0*shape)*gamma))) / np.float64(new_pos.shape[0])
                     
                     output_string += f'{final} '

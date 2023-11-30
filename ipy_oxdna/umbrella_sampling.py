@@ -12,7 +12,7 @@ from scipy.special import logsumexp
 import matplotlib.pyplot as plt
 import scienceplots
 from copy import deepcopy
-from vmmc import VirtualMoveMonteCarlo
+from ipy_oxdna.vmmc import VirtualMoveMonteCarlo
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
 # from numba import jit
@@ -705,9 +705,16 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             
             self.potential_energy_by_window[idx] = df
             
-    def read_hb_contacts(self):
+    def read_hb_contacts(self, sim_type='prod'):
+        if sim_type == 'prod':
+            sim_list = self.production_sims
+        elif sim_type == 'eq':
+            sim_list = self.equlibration_sims
+        elif sim_type == 'pre_eq':
+            sim_list = self.pre_equlibration_sims
+            
         self.hb_contacts_by_window = {}
-        for idx,sim in enumerate(self.production_sims):
+        for idx,sim in enumerate(sim_list):
             sim.sim_files.parse_current_files()
             df = pd.read_csv(sim.sim_files.hb_contacts, header=None, engine='pyarrow')
             self.hb_contacts_by_window[idx] = df

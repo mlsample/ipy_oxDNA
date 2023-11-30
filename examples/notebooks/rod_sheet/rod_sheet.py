@@ -1,5 +1,5 @@
-from umbrella_sampling import ComUmbrellaSampling, CustomObservableUmbrellaSampling
-from oxdna_simulation import SimulationManager, Simulation, Observable, Force
+from ipy_oxdna.umbrella_sampling import ComUmbrellaSampling, CustomObservableUmbrellaSampling
+from ipy_oxdna.oxdna_simulation import SimulationManager, Simulation, Observable, Force
 import os
 import matplotlib.pyplot as plt
 

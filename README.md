@@ -1,6 +1,6 @@
 # ipy_oxDNA
 <center>
-<img src="./src/oxDNA.png">
+<img src="oxDNA.png">
 </center>
 
 This repository contains Python code for running oxDNA umbrella sampling and large throughput simulations. This code is complementary to the article:

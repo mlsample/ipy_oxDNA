@@ -1,6 +1,0 @@
-#!/bin/bash
-export CUDA_MPS_PIPE_DIRECTORY=/tmp/mps-pipe_temp;
-export CUDA_MPS_LOG_DIRECTORY=/tmp/mps-log_temp;
-mkdir -p $CUDA_MPS_PIPE_DIRECTORY;
-mkdir -p $CUDA_MPS_LOG_DIRECTORY;
-nvidia-cuda-mps-control -d

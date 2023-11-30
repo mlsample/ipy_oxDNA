@@ -11,12 +11,5 @@ setup(
     author='Matthew Sample',
     author_email='matsample1@gmail.com',
     license='MIT',
+    # dependencies can be listed under install_requires
 )
-    # install_requires=[
-    #     # List of dependencies
-    # ],
-    # classifiers=[
-    #     # Package classifiers
-    # ],
-#)
-

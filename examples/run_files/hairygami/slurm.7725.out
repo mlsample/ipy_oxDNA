@@ -1,0 +1,603 @@
+t9_high_k
+Running: 1
+Run time: 55.295897672884166
+Finished: 1
+Running: 2
+Run time: 64.42781456001103
+Finished: 2
+Running: 0
+Run time: 68.31744422763586
+Finished: 0
+Running: 4
+Run time: 64.65997599158436
+Finished: 4
+Running: 3
+Run time: 66.89121290761977
+Finished: 3
+Running: 7
+Run time: 64.12398565933108
+Finished: 7
+Running: 6
+Run time: 65.47695587202907
+Finished: 6
+Running: 5
+Run time: 67.31687136180699
+Finished: 5
+Running: 12
+Run time: 72.04946245253086
+Finished: 12
+Running: 8
+Run time: 77.6125441333279
+Finished: 8
+Running: 11
+Run time: 75.67938140500337
+Finished: 11
+Running: 9
+Run time: 77.76036267727613
+Finished: 9
+Running: 10
+Run time: 77.87241622339934
+Finished: 10
+Running: 13
+Run time: 75.82275220286101
+Finished: 13
+Running: 14
+Run time: 77.55113709624857
+Finished: 14
+Running: 15
+Run time: 77.30848643090576
+Finished: 15
+Running: 20
+Run time: 81.57441988401115
+Finished: 20
+Running: 21
+Run time: 80.57501535490155
+Finished: 21
+Running: 19
+Run time: 85.36308599542826
+Finished: 19
+Running: 16
+Run time: 88.56650804821402
+Finished: 16
+Running: 23
+Run time: 81.8439957825467
+Finished: 23
+Running: 22
+Run time: 83.30648412182927
+Finished: 22
+Running: 17
+Run time: 88.67252387665212
+Finished: 17
+Running: 18
+Run time: 89.71194246038795
+Finished: 18
+Running: 28
+Run time: 82.54136693943292
+Finished: 28
+Running: 29
+Run time: 82.00191326532513
+Finished: 29
+Running: 30
+Run time: 82.06953017413616
+Finished: 30
+Running: 31
+Run time: 82.5710666179657
+Finished: 31
+Running: 25
+Run time: 90.70759134646505
+Finished: 25
+Running: 27
+Run time: 89.71134924609214
+Finished: 27
+Running: 24
+Run time: 92.96522069070488
+Finished: 24
+Running: 26
+Run time: 91.79884453583509
+Finished: 26
+Running: 36
+Run time: 86.27259332314134
+Finished: 36
+Running: 37
+Run time: 86.11704460904002
+Finished: 37
+Running: 35
+Run time: 88.80710815172642
+Finished: 35
+Running: 32
+Run time: 92.45790166407824
+Finished: 32
+Running: 33
+Run time: 91.52760792896152
+Finished: 33
+Running: 38
+Run time: 87.5822483561933
+Finished: 38
+Running: 39
+Run time: 87.32632199395448
+Finished: 39
+Running: 34
+Run time: 93.07224592473358
+Finished: 34
+Running: 44
+Run time: 88.90430309716612
+Finished: 44
+Running: 45
+Run time: 88.14926177635789
+Finished: 45
+Running: 46
+Run time: 87.70782910939306
+Finished: 46
+Running: 43
+Run time: 91.2219842877239
+Finished: 43
+Running: 47
+Run time: 88.141391932033
+Finished: 47
+Running: 41
+Run time: 95.16817825846374
+Finished: 41
+Running: 40
+Run time: 96.41001723054796
+Finished: 40
+Running: 42
+Run time: 96.40992839634418
+Finished: 42
+Running: 49
+Run time: 95.37739765364677
+Finished: 49
+Running: 48
+Run time: 96.6229951158166
+Finished: 48
+Running: 51
+Run time: 90.48735314887017
+Finished: 51
+Running: 50
+Run time: 96.85041020531207
+Finished: 50
+Running: 54
+Run time: 88.63660054840147
+Finished: 54
+Running: 56
+Run time: 88.03714424185455
+Finished: 56
+Running: 58
+Run time: 88.00186149496585
+Finished: 58
+Running: 57
+Run time: 89.06077511701733
+Finished: 57
+Running: 52
+Run time: 95.72109221667051
+Finished: 52
+Running: 53
+Run time: 95.98478630837053
+Finished: 53
+Running: 55
+Run time: 95.63431863579899
+Finished: 55
+Running: 59
+Run time: 85.96585793420672
+Finished: 59
+Running: 60
+Run time: 88.78826528880745
+Finished: 60
+Running: 64
+Run time: 87.36536910384893
+Finished: 64
+Running: 61
+Run time: 90.72263666428626
+Finished: 61
+Running: 65
+Run time: 85.90622747782618
+Finished: 65
+Running: 63
+Run time: 89.26272836327553
+Finished: 63
+Running: 66
+Run time: 85.49005995783955
+Finished: 66
+Running: 62
+Run time: 91.35632692184299
+Finished: 62
+Running: 67
+Run time: 81.06441739574075
+Finished: 67
+Running: 68
+Run time: 82.01125025283545
+Finished: 68
+Running: 75
+Run time: 76.25469686929137
+Finished: 75
+Running: 70
+Run time: 82.46557187382132
+Finished: 70
+Running: 71
+Run time: 82.18560704961419
+Finished: 71
+Running: 76
+Run time: 77.33663849532604
+Finished: 76
+Running: 72
+Run time: 81.81576318759471
+Finished: 72
+Running: 69
+Run time: 86.04299788177013
+Finished: 69
+Running: 73
+Run time: 82.2283224472776
+Finished: 73
+Running: 78
+Run time: 77.16563050821424
+Finished: 78
+Running: 77
+Run time: 79.21102481242269
+Finished: 77
+Running: 74
+Run time: 83.60608200635761
+Finished: 74
+Running: 83
+Run time: 72.1431444119662
+Finished: 83
+Running: 84
+Run time: 73.30996881704777
+Finished: 84
+Running: 80
+Run time: 80.12806188035756
+Finished: 80
+Running: 81
+Run time: 79.70462207030505
+Finished: 81
+Running: 82
+Run time: 79.46904562786222
+Finished: 82
+Running: 87
+Run time: 72.12406676635146
+Finished: 87
+Running: 79
+Run time: 83.03267127741128
+Finished: 79
+Running: 88
+Run time: 72.50881216675043
+Finished: 88
+Running: 86
+Run time: 74.98237108346075
+Finished: 86
+Running: 91
+Run time: 67.29898330941796
+Finished: 91
+Running: 89
+Run time: 72.667205539532
+Finished: 89
+Running: 92
+Run time: 67.3245554799214
+Finished: 92
+Running: 90
+Run time: 72.71945617627352
+Finished: 90
+Running: 94
+Run time: 67.16792209725827
+Finished: 94
+Running: 95
+Run time: 66.2912319926545
+Finished: 95
+Running: 85
+Run time: 79.18002847395837
+Finished: 85
+Running: 96
+Run time: 66.82602614257485
+Finished: 96
+Running: 97
+Run time: 66.84086871612817
+Finished: 97
+Running: 93
+Run time: 71.36006085947156
+Finished: 93
+Running: 98
+Run time: 66.75325448159128
+Finished: 98
+Running: 99
+Run time: 67.71541652921587
+Finished: 99
+All queued simulations finished in: 213.39615657553077
+Running: 3
+Run time: 54.91542380582541
+Finished: 3
+Running: 0
+Run time: 63.507675657980144
+Finished: 0
+Running: 2
+Run time: 65.1348982481286
+Finished: 2
+Running: 1
+Run time: 68.44631199538708
+Finished: 1
+Running: 4
+Run time: 67.10293240100145
+Finished: 4
+Running: 6
+Run time: 65.18159590382129
+Finished: 6
+Running: 5
+Run time: 71.53030812274665
+Finished: 5
+Running: 7
+Run time: 71.85451103094965
+Finished: 7
+Running: 9
+Run time: 71.51056785043329
+Finished: 9
+Running: 8
+Run time: 73.93525813706219
+Finished: 8
+Running: 11
+Run time: 71.08865948673338
+Finished: 11
+Running: 14
+Run time: 70.93426587246358
+Finished: 14
+Running: 10
+Run time: 75.1304548252374
+Finished: 10
+Running: 12
+Run time: 73.3761171232909
+Finished: 12
+Running: 16
+Run time: 72.41364944074303
+Finished: 16
+Running: 13
+Run time: 80.00629468820989
+Finished: 13
+Running: 15
+Run time: 81.59711109474301
+Finished: 15
+Running: 17
+Run time: 83.8892824286595
+Finished: 17
+Running: 19
+Run time: 82.05781959369779
+Finished: 19
+Running: 18
+Run time: 85.6927275788039
+Finished: 18
+Running: 20
+Run time: 85.50635816622525
+Finished: 20
+Running: 23
+Run time: 82.8049078444019
+Finished: 23
+Running: 21
+Run time: 85.26985934656113
+Finished: 21
+Running: 22
+Run time: 88.00626317318529
+Finished: 22
+Running: 24
+Run time: 86.96093519497663
+Finished: 24
+Running: 26
+Run time: 85.70707150455564
+Finished: 26
+Running: 27
+Run time: 84.8726043831557
+Finished: 27
+Running: 25
+Run time: 87.5377202341333
+Finished: 25
+Running: 31
+Run time: 82.51440647337586
+Finished: 31
+Running: 28
+Run time: 86.48300708830357
+Finished: 28
+Running: 32
+Run time: 85.46968066971749
+Finished: 32
+Running: 34
+Run time: 85.09465927258134
+Finished: 34
+Running: 33
+Run time: 87.00048773176968
+Finished: 33
+Running: 30
+Run time: 90.59322896134108
+Finished: 30
+Running: 29
+Run time: 91.79886502493173
+Finished: 29
+Running: 35
+Run time: 87.49124586302787
+Finished: 35
+Running: 39
+Run time: 87.49538349732757
+Finished: 39
+Running: 36
+Run time: 91.94770868867636
+Finished: 36
+Running: 38
+Run time: 91.18412954732776
+Finished: 38
+Running: 41
+Run time: 88.15400615055114
+Finished: 41
+Running: 37
+Run time: 92.51624863501638
+Finished: 37
+Running: 40
+Run time: 90.00302858185023
+Finished: 40
+Running: 42
+Run time: 90.06969545874745
+Finished: 42
+Running: 46
+Run time: 87.79904693271965
+Finished: 46
+Running: 47
+Run time: 89.77236513793468
+Finished: 47
+Running: 44
+Run time: 93.09152887575328
+Finished: 44
+Running: 43
+Run time: 94.23497371003032
+Finished: 43
+Running: 50
+Run time: 90.69714181870222
+Finished: 50
+Running: 45
+Run time: 96.18732069246471
+Finished: 45
+Running: 48
+Run time: 93.90737739298493
+Finished: 48
+Running: 49
+Run time: 95.91966215148568
+Finished: 49
+Running: 51
+Run time: 94.42666488606483
+Finished: 51
+Running: 53
+Run time: 88.6840733839199
+Finished: 53
+Running: 52
+Run time: 94.76551782060415
+Finished: 52
+Running: 54
+Run time: 91.72075872588903
+Finished: 54
+Running: 55
+Run time: 90.46850268077105
+Finished: 55
+Running: 56
+Run time: 92.50180922169238
+Finished: 56
+Running: 57
+Run time: 89.04702273476869
+Finished: 57
+Running: 58
+Run time: 88.37266113143414
+Finished: 58
+Running: 59
+Run time: 88.62765981536359
+Finished: 59
+Running: 61
+Run time: 87.32721928041428
+Finished: 61
+Running: 64
+Run time: 85.33684079814702
+Finished: 64
+Running: 63
+Run time: 86.92019011545926
+Finished: 63
+Running: 65
+Run time: 85.33585755061358
+Finished: 65
+Running: 60
+Run time: 93.06745032966137
+Finished: 60
+Running: 62
+Run time: 91.40058447606862
+Finished: 62
+Running: 67
+Run time: 85.05569755565375
+Finished: 67
+Running: 66
+Run time: 89.18269096780568
+Finished: 66
+Running: 70
+Run time: 79.3866635914892
+Finished: 70
+Running: 69
+Run time: 83.42785097192973
+Finished: 69
+Running: 71
+Run time: 81.82821617461741
+Finished: 71
+Running: 76
+Run time: 75.90953193418682
+Finished: 76
+Running: 77
+Run time: 75.46447223424911
+Finished: 77
+Running: 78
+Run time: 75.53238333109766
+Finished: 78
+Running: 80
+Run time: 74.69011092465371
+Finished: 80
+Running: 68
+Run time: 90.8712845928967
+Finished: 68
+Running: 79
+Run time: 76.94897083565593
+Finished: 79
+Running: 82
+Run time: 73.71910968516022
+Finished: 82
+Running: 84
+Run time: 71.99165816791356
+Finished: 84
+Running: 74
+Run time: 83.90616405010223
+Finished: 74
+Running: 81
+Run time: 76.47305860277265
+Finished: 81
+Running: 72
+Run time: 88.51342523656785
+Finished: 72
+Running: 91
+Run time: 63.51702678762376
+Finished: 91
+Running: 86
+Run time: 72.06607416830957
+Finished: 86
+Running: 73
+Run time: 88.31334623973817
+Finished: 73
+Running: 94
+Run time: 64.16076114214957
+Finished: 94
+Running: 75
+Run time: 87.77646292001009
+Finished: 75
+Running: 92
+Run time: 66.58875516895205
+Finished: 92
+Running: 95
+Run time: 62.12313739489764
+Finished: 95
+Running: 87
+Run time: 72.9231499331072
+Finished: 87
+Running: 89
+Run time: 70.29179817065597
+Finished: 89
+Running: 85
+Run time: 81.84071479737759
+Finished: 85
+Running: 83
+Run time: 85.24925807397813
+Finished: 83
+Running: 88
+Run time: 77.84345987997949
+Finished: 88
+Running: 96
+Run time: 69.25785191170871
+Finished: 96
+Running: 98
+Run time: 66.8352344268933
+Finished: 98
+Running: 97
+Run time: 71.57411834318191
+Finished: 97
+Running: 90
+Run time: 81.45141480211169
+Finished: 90
+Running: 93
+Run time: 80.20978048816323
+Finished: 93
+Running: 99
+Run time: 74.35908859036863
+Finished: 99
+All queued simulations finished in: 217.74244577344507

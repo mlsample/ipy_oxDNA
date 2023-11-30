@@ -3,3 +3,5 @@
 ipy_oxdna.egg-info
 /wham
 /.vscode
+**/.ipynb_checkpoints/
+/examples/run_files

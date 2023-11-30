@@ -1,5 +1,5 @@
-from oxdna_simulation import Simulation, Force, Observable, SimulationManager
-from wham_analysis import *
+from ipy_oxdna.oxdna_simulation import Simulation, Force, Observable, SimulationManager
+from ipy_oxdna.wham_analysis import *
 import multiprocessing as mp
 import os
 from os.path import join, exists

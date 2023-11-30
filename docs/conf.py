@@ -1,7 +1,7 @@
 import sys
 import os
 import sphinx_rtd_theme
-sys.path.insert(0, os.path.abspath('../src'))
+sys.path.insert(0, os.path.abspath('../ipy_oxdna'))
 
 extensions = [
     'sphinx.ext.autodoc',

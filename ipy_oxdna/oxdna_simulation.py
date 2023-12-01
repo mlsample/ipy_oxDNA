@@ -1274,19 +1274,19 @@ class OxdnaAnalysisTools:
 #         if join == True:
 #             p.join()
             
-#     def output_bonds(self, args='', join=False):
-#         if args == '-h':
-#             os.system('oat output_bonds -h')
-#             return None
-#         def run_output_bonds(self, args=''):
-#             start_dir = os.getcwd()
-#             os.chdir(self.sim.sim_dir)
-#             os.system(f'oat output_bonds {self.sim.sim_files.traj} {args}')
-#             os.chdir(start_dir)
-#         p = mp.Process(target=run_output_bonds, args=(self,), kwargs={'args':args})
-#         p.start()
-#         if join == True:
-#             p.join()
+    def output_bonds(self, args='', join=False):
+        if args == '-h':
+            os.system('oat output_bonds -h')
+            return None
+        def run_output_bonds(self, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat output_bonds {self.sim.sim_files.input} {self.sim.sim_files.traj} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_output_bonds, args=(self,), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
             
     def oxDNA_PDB(self, configuration='mean.dat', direction='35', pdbfiles='', args='', join=False):
         """

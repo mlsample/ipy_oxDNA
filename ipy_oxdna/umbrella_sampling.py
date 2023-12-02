@@ -17,7 +17,7 @@ from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
 # from numba import jit
 import pickle
-
+from json import load
 
 class BaseUmbrellaSampling:
     def __init__(self, file_dir, system, clean_build=False):
@@ -335,6 +335,15 @@ class UmbrellaBuild:
             sim.input_file(input_parameters)
             if sequence_dependant is True:
                 sim.sequence_dependant()
+            
+            sim.sim_files.parse_current_files()
+                
+    def force_group_name(self, sims):
+        for sim in sims:
+            sim.sim_files.parse_current_files()
+            with open(sim.sim_files.force, 'r') as f:
+                force_js = load(f)
+            return force_js
 
 
 class ComUmbrellaSampling(BaseUmbrellaSampling):
@@ -978,11 +987,11 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
         self.com_max = np.max(np.array([com_dist for com_dist in truncated_com_values]))
         last_conf_file = self.production_sims[0].sim_files.last_conf
-        with open(last_conf_file, 'r') as f:
-            next(f)
-            box_info = f.readline().split(' ')
-            self.box_size = float(box_info[-1].strip())
-        
+        # with open(last_conf_file, 'r') as f:
+        #     next(f)
+        #     box_info = f.readline().split(' ')
+        #     self.box_size = float(box_info[-1].strip())
+        self.box_size = 30
         self.volume_correction = np.log((((self.box_size / 2) * np.sqrt(3))**3) / ((4/3) * np.pi * 45**3))
                 
         log_p_i_h = self.log_e_beta_u - logsumexp(self.log_e_beta_u, axis=2, keepdims=True)
@@ -1185,8 +1194,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             if reread_files is False:
                 if self.obs_df is None:
                     self.analysis.read_all_observables('prod')
-                if self.r0 is None:
-                    self.get_r0_values()
+                self.get_r0_values()
             elif reread_files is True:
                 self.analysis.read_all_observables('prod')
                 self.get_r0_values()
@@ -1240,7 +1248,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         truncated_force_energy = np.array(truncated_force_energy) * n_particles_in_op
         
         
-        truncated_non_pot_energy = truncated_kinetic_energy + truncated_force_energy
+        truncated_non_pot_energy = truncated_kinetic_energy#+ truncated_force_energy
 
         new_energy_per_window = self._new_calcualte_bias_energy(truncated_non_pot_energy, temp_range, truncated_potential_energy=truncated_potential_energy)
         
@@ -1290,7 +1298,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         f_i_temps_old = np.array([[rng.normal(loc=0.0, scale=1.0, size=None) for _ in range(len(self.obs_df))] for _ in temp_range_scaled])
         f_i_temps_new = np.zeros_like(f_i_temps_old)
         f_i_temps_over_time = []
-
+        
         first = True
         iteration = 0
         update_frequency = 1000

@@ -1790,7 +1790,7 @@ class Observable:
         })
         
     @staticmethod
-    def force_energy(print_every=None, name=None):
+    def force_energy(print_every=None, name=None, print_group=None):
         """
         Return the energy exerted by external forces
         """
@@ -1800,7 +1800,8 @@ class Observable:
                 "name": name,
                 "cols": [
                     {
-                        "type": "force_energy"                    
+                        "type": "force_energy", 
+                        "print_group": f"{print_group}"            
                     }
                 ]
             }
@@ -1836,7 +1837,7 @@ class Force:
                 "a": f'{a}',
                 "D": f'{D}',
                 "r0": f'{r0}',
-                "PBC": f'{PBC}'
+                "PBC": f'{PBC}',
                         }
         })
     

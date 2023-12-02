@@ -141,11 +141,11 @@ class Simulation:
         if (int_type == 'RNA') or (int_type == 'RNA2'):
             self.input_file({'use_average_seq': 'no', 'seq_dep_file':'rna_sequence_dependent_parameters.txt'})
             
-        if (int_type == 'DRH') :
+        if (int_type == 'NA') :
             self.input_file({'use_average_seq': 'no',
                              'seq_dep_file_DNA':'oxDNA2_sequence_dependent_parameters.txt',
                              'seq_dep_file_RNA':'rna_sequence_dependent_parameters.txt',
-                             'seq_dep_file_DRH':'DRH_sequence_dependent_parameters.txt'
+                             'seq_dep_file_NA':'NA_sequence_dependent_parameters.txt'
                             })
         
         SequenceDependant(self)
@@ -912,7 +912,7 @@ HYDR_T_A = 0.88537
 HYDR_C_G = 1.23238
 HYDR_G_C = 1.23238"""
         
-        self.drh_parameters = """HYDR_A_U = 1.21
+        self.na_parameters = """HYDR_A_U = 1.21
 HYDR_A_T = 1.37
 HYDR_rC_dG = 1.61
 HYDR_rG_dC = 1.77"""
@@ -959,17 +959,17 @@ ST_T_DEP = 1.97561"""
     
     def write_sequence_dependant_file(self):
         int_type = self.sim.input.input['interaction_type']
-        if (int_type == 'DNA') or (int_type == 'DNA2') or (int_type == 'DRH'):
+        if (int_type == 'DNA') or (int_type == 'DNA2') or (int_type == 'NA'):
             with open(os.path.join(self.sim_dir,'oxDNA2_sequence_dependent_parameters.txt'), 'w') as f:
                 f.write(self.parameters)
         
-        if (int_type == 'RNA') or (int_type == 'RNA2') or (int_type == 'DRH'):
+        if (int_type == 'RNA') or (int_type == 'RNA2') or (int_type == 'NA'):
             with open(os.path.join(self.sim_dir,'rna_sequence_dependent_parameters.txt'), 'w') as f:
                 f.write(self.rna_parameters)
                 
-        if (int_type == 'DRH'):
-            with open(os.path.join(self.sim_dir,'DRH_sequence_dependent_parameters.txt'), 'w') as f:
-                f.write(self.drh_parameters)
+        if (int_type == 'NA'):
+            with open(os.path.join(self.sim_dir,'NA_sequence_dependent_parameters.txt'), 'w') as f:
+                f.write(self.na_parameters)
 
 class OxdnaAnalysisTools:
     """Interface to OAT"""
@@ -1274,19 +1274,19 @@ class OxdnaAnalysisTools:
 #         if join == True:
 #             p.join()
             
-#     def output_bonds(self, args='', join=False):
-#         if args == '-h':
-#             os.system('oat output_bonds -h')
-#             return None
-#         def run_output_bonds(self, args=''):
-#             start_dir = os.getcwd()
-#             os.chdir(self.sim.sim_dir)
-#             os.system(f'oat output_bonds {self.sim.sim_files.traj} {args}')
-#             os.chdir(start_dir)
-#         p = mp.Process(target=run_output_bonds, args=(self,), kwargs={'args':args})
-#         p.start()
-#         if join == True:
-#             p.join()
+    def output_bonds(self, args='', join=False):
+        if args == '-h':
+            os.system('oat output_bonds -h')
+            return None
+        def run_output_bonds(self, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat output_bonds {self.sim.sim_files.input} {self.sim.sim_files.traj} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_output_bonds, args=(self,), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
             
     def oxDNA_PDB(self, configuration='mean.dat', direction='35', pdbfiles='', args='', join=False):
         """
@@ -1502,7 +1502,7 @@ class Analysis:
         oxdna_conf(ti, conf)
         sleep(2.5)
 
-    def plot_energy(self, fig=None):
+    def plot_energy(self, fig=None, ax=None):
         """ Plot energy of oxDNA simulation."""
         try:
             self.sim_files.parse_current_files()
@@ -1513,9 +1513,14 @@ class Analysis:
             if fig is None:
                 plt.figure(figsize=(15,3)) 
             # plot the energy
-            plt.plot(df.time/dt,df.U)
-            plt.ylabel("Energy")
-            plt.xlabel("Steps")
+            if ax is None:
+                plt.plot(df.time/dt,df.U)
+                plt.ylabel("Energy")
+                plt.xlabel("Steps")
+            else:
+                ax.plot(df.time/dt,df.U)
+                ax.set_ylabel("Energy")
+                ax.set_xlabel("Steps")
         except:
             raise Exception('No energy file avalible')
             # and the line indicating the complete run
@@ -1785,7 +1790,7 @@ class Observable:
         })
         
     @staticmethod
-    def force_energy(print_every=None, name=None):
+    def force_energy(print_every=None, name=None, print_group=None):
         """
         Return the energy exerted by external forces
         """
@@ -1795,7 +1800,8 @@ class Observable:
                 "name": name,
                 "cols": [
                     {
-                        "type": "force_energy"                    
+                        "type": "force_energy", 
+                        "print_group": f"{print_group}"            
                     }
                 ]
             }
@@ -1831,7 +1837,7 @@ class Force:
                 "a": f'{a}',
                 "D": f'{D}',
                 "r0": f'{r0}',
-                "PBC": f'{PBC}'
+                "PBC": f'{PBC}',
                         }
         })
     

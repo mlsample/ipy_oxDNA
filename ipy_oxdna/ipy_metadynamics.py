@@ -1,5 +1,5 @@
 import subprocess
-from oxdna_simulation import Simulation
+from ipy_oxdna.oxdna_simulation import Simulation
 import os
 import matplotlib.pyplot as plt
 import shutil

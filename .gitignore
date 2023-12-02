@@ -5,3 +5,4 @@ ipy_oxdna.egg-info
 /.vscode
 **/.ipynb_checkpoints/
 /examples/run_files
+*.pyc

@@ -1,5 +1,5 @@
-from oxdna_simulation import Simulation, Force, Observable, SimulationManager
-from wham_analysis import *
+from ipy_oxdna.oxdna_simulation import Simulation, Force, Observable, SimulationManager
+from ipy_oxdna.wham_analysis import *
 import multiprocessing as mp
 import os
 from os.path import join, exists
@@ -12,12 +12,11 @@ from scipy.special import logsumexp
 import matplotlib.pyplot as plt
 import scienceplots
 from copy import deepcopy
-from vmmc import VirtualMoveMonteCarlo
+from ipy_oxdna.vmmc import VirtualMoveMonteCarlo
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor, as_completed
-# from numba import jit
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed# from numba import jit
 import pickle
-
+from json import load, dump
 
 class BaseUmbrellaSampling:
     def __init__(self, file_dir, system, clean_build=False):
@@ -306,35 +305,62 @@ class UmbrellaBuild:
         if exists(join(self.base_umbrella.system_dir, 'production')):
             if self.base_umbrella.clean_build is True:
                 answer = input('Are you sure you want to delete all simulation files? Type y/yes to continue or anything else to return use UmbrellaSampling(clean_build=str(force) to skip this message')
-                if (answer == 'y') or (answer == 'yes'):
-                    pass
-                else:
-                    sys.exit('\nRemove optional argument clean_build and continue a previous umbrella simulation using:\nsimulation_manager.run(continue_run=int(n_steps))')    
-            elif self.base_umbrella.clean_build == 'force':                    
-                    pass
+                if answer.lower() not in ['y', 'yes']:
+                    sys.exit('\nRemove optional argument clean_build and continue a previous umbrella simulation using:\nsimulation_manager.run(continue_run=int(n_steps))')
             elif self.base_umbrella.clean_build == False:
-                sys.exit('\nThe simulation directory already exists, if you wish to write over the directory set:\nUmbrellaSampling(clean_build=str(force)).\n\nTo continue a previous umbrella simulation use:\nsimulation_manager.run(continue_run=int(n_steps))')   
+                sys.exit('\nThe simulation directory already exists, if you wish to write over the directory set:\nUmbrellaSampling(clean_build=str(force)).\n\nTo continue a previous umbrella simulation use:\nsimulation_manager.run(continue_run=int(n_steps))')
+
+        # Using ThreadPoolExecutor to parallelize the simulation building
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(self._build_simulation, sim, forces, input_parameters, observables_list,
+                                       observable, sequence_dependant, cms_observable, protein, force_file)
+                       for sim, forces in zip(sims, forces_list)]
+
+            for future in futures:
+                try:
+                    future.result()  # Wait for each future to complete and handle exceptions
+                except Exception as e:
+                    print(f"An error occurred: {e}")
+        self.parallel_force_group_name(sims)
     
-        for sim, forces in zip(sims, forces_list):
+    
+    def _build_simulation(self, sim, forces, input_parameters, observables_list,
+                          observable, sequence_dependant, cms_observable, protein, force_file):
+        try:
             sim.build(clean_build='force')
-            
             if protein is not None:
                 sim.add_protein_par()
             if force_file is not None:
                 sim.add_force_file()
             for force in forces:
                 sim.add_force(force)
-            if observable == True:
+            if observable:
                 for observables in observables_list:
                     sim.add_observable(observables)
-            if cms_observable is not False:
+            if cms_observable:
                 for cms_obs_dict in cms_observable:
                     sim.oxpy_run.cms_obs(cms_obs_dict['idx'],
                                          name=cms_obs_dict['name'],
                                          print_every=cms_obs_dict['print_every'])
             sim.input_file(input_parameters)
-            if sequence_dependant is True:
+            if sequence_dependant:
                 sim.sequence_dependant()
+            sim.sim_files.parse_current_files()
+        except Exception as e:
+            print(f"Build error in simulation {sim}: {e}")
+            raise
+
+    def parallel_force_group_name(self, sims):
+        with ThreadPoolExecutor() as executor:
+            executor.map(self.process_simulation, sims)
+
+    def process_simulation(self, sim):
+        sim.sim_files.parse_current_files()
+        with open(sim.sim_files.force, 'r') as f:
+            force_js = load(f)
+        force_js_modified = {key: {'group_name': key, **value} for key, value in force_js.items()}
+        with open(sim.sim_files.force, 'w') as f:
+            dump(force_js_modified, f, indent=4)
 
 
 class ComUmbrellaSampling(BaseUmbrellaSampling):
@@ -585,16 +611,29 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         super().__init__(file_dir, system, clean_build=clean_build)
         self.hb_by_window = None
         self.potential_energy_by_window = None
-        
-    def build_pre_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters, starting_r0, steps, observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False, protein=None, force_file=None, custom_observable=False):
-        self.observables_list = []
-        self.windows.pre_equlibration_windows(n_windows)
-        self.rate_umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows, starting_r0, steps)
+    
+    # def initalize_observables(self):
+    #     self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
+    #     self.hb_list_observable(print_every=print_every, only_count='true', name=name)
+    #     self.force_energy_observable(print_every=print_every, name=name)
+    #     self.kinetic_energy_observable(print_every=print_every, name=name)
+    #     self.potential_energy_observable(print_every=print_every, name=name)
+    
+    def initialize_observables(self, com_list, ref_list, print_every=1e4, name='com_distance.txt'):
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         self.hb_list_observable(print_every=print_every, only_count='true', name=name)
         self.force_energy_observable(print_every=print_every, name=name)
         self.kinetic_energy_observable(print_every=print_every, name=name)
         self.potential_energy_observable(print_every=print_every, name=name)
+    
+    def build_pre_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters, starting_r0, steps, observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False, protein=None, force_file=None, custom_observable=False):
+        self.observables_list = []
+        self.windows.pre_equlibration_windows(n_windows)
+        self.rate_umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows, starting_r0, steps)
+        
+        if observable:
+            self.initialize_observables(com_list, ref_list, print_every, name)
+
         
         if continue_run is False:
             self.us_build.build(self.pre_equlibration_sims, input_parameters,
@@ -610,11 +649,9 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.observables_list = []
         self.windows.equlibration_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
-        self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
-        self.hb_list_observable(print_every=print_every, only_count='true', name=name)
-        self.force_energy_observable(print_every=print_every, name=name)
-        self.kinetic_energy_observable(print_every=print_every, name=name)
-        self.potential_energy_observable(print_every=print_every, name=name)
+
+        if observable:
+            self.initialize_observables(com_list, ref_list, print_every, name)
         
         if continue_run is False:
             self.us_build.build(self.equlibration_sims, input_parameters,
@@ -632,11 +669,9 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.windows.equlibration_windows(n_windows)
         self.windows.production_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
-        self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
-        self.hb_list_observable(print_every=print_every, only_count='true', name=name)
-        self.force_energy_observable(print_every=print_every, name=name)
-        self.kinetic_energy_observable(print_every=print_every, name=name)
-        self.potential_energy_observable(print_every=print_every, name=name)
+
+        if observable:
+            self.initialize_observables(com_list, ref_list, print_every, name)
 
         if continue_run is False:
             self.us_build.build(self.production_sims, input_parameters,
@@ -705,9 +740,16 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             
             self.potential_energy_by_window[idx] = df
             
-    def read_hb_contacts(self):
+    def read_hb_contacts(self, sim_type='prod'):
+        if sim_type == 'prod':
+            sim_list = self.production_sims
+        elif sim_type == 'eq':
+            sim_list = self.equlibration_sims
+        elif sim_type == 'pre_eq':
+            sim_list = self.pre_equlibration_sims
+            
         self.hb_contacts_by_window = {}
-        for idx,sim in enumerate(self.production_sims):
+        for idx,sim in enumerate(sim_list):
             sim.sim_files.parse_current_files()
             df = pd.read_csv(sim.sim_files.hb_contacts, header=None, engine='pyarrow')
             self.hb_contacts_by_window[idx] = df
@@ -971,11 +1013,11 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
         self.com_max = np.max(np.array([com_dist for com_dist in truncated_com_values]))
         last_conf_file = self.production_sims[0].sim_files.last_conf
-        with open(last_conf_file, 'r') as f:
-            next(f)
-            box_info = f.readline().split(' ')
-            self.box_size = float(box_info[-1].strip())
-        
+        # with open(last_conf_file, 'r') as f:
+        #     next(f)
+        #     box_info = f.readline().split(' ')
+        #     self.box_size = float(box_info[-1].strip())
+        self.box_size = 30
         self.volume_correction = np.log((((self.box_size / 2) * np.sqrt(3))**3) / ((4/3) * np.pi * 45**3))
                 
         log_p_i_h = self.log_e_beta_u - logsumexp(self.log_e_beta_u, axis=2, keepdims=True)
@@ -1178,8 +1220,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             if reread_files is False:
                 if self.obs_df is None:
                     self.analysis.read_all_observables('prod')
-                if self.r0 is None:
-                    self.get_r0_values()
+                self.get_r0_values()
             elif reread_files is True:
                 self.analysis.read_all_observables('prod')
                 self.get_r0_values()
@@ -1233,7 +1274,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         truncated_force_energy = np.array(truncated_force_energy) * n_particles_in_op
         
         
-        truncated_non_pot_energy = truncated_kinetic_energy + truncated_force_energy
+        truncated_non_pot_energy = truncated_kinetic_energy#+ truncated_force_energy
 
         new_energy_per_window = self._new_calcualte_bias_energy(truncated_non_pot_energy, temp_range, truncated_potential_energy=truncated_potential_energy)
         
@@ -1283,7 +1324,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         f_i_temps_old = np.array([[rng.normal(loc=0.0, scale=1.0, size=None) for _ in range(len(self.obs_df))] for _ in temp_range_scaled])
         f_i_temps_new = np.zeros_like(f_i_temps_old)
         f_i_temps_over_time = []
-
+        
         first = True
         iteration = 0
         update_frequency = 1000

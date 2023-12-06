@@ -1501,24 +1501,52 @@ class Analysis:
         (ti,di), conf = self.get_conf(id)
         oxdna_conf(ti, conf)
         sleep(2.5)
-
-    def plot_energy(self, fig=None, ax=None):
+        
+    def get_energy_df(self):
         """ Plot energy of oxDNA simulation."""
         try:
             self.sim_files.parse_current_files()
-            df = pd.read_csv(self.sim_files.energy, delimiter="\s+",names=['time', 'U','P','K'])
+            sim_type = self.sim.input.input['sim_type']
+            if (sim_type == 'MC') or (sim_type == 'VMMC'):
+                df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U','P','K', 'empty'])
+            else:
+                df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U','P','K'])
+
+            df = df[df.U <= 10]
+            self.energy_df = df
+        
+        except Exception as e:
+            raise Exception(e)
+
+    def plot_energy(self, fig=None, ax=None, label=None):
+        """ Plot energy of oxDNA simulation."""
+        try:
+            self.sim_files.parse_current_files()
+            sim_type = self.sim.input.input['sim_type']
+            if (sim_type == 'MC') or (sim_type == 'VMMC'):
+                df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U','P','K', 'empty'])
+            else:
+                df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U','P','K'])
             dt = float(self.sim.input.input["dt"])
             steps = float(self.sim.input.input["steps"])
+            df = df[df.U <= 10]
+            df = df[df.U >= -10]
             # make sure our figure is bigger
             if fig is None:
                 plt.figure(figsize=(15,3)) 
             # plot the energy
             if ax is None:
-                plt.plot(df.time/dt,df.U)
+                if (sim_type == 'MC') or (sim_type == 'VMMC'):
+                    plt.plot(df.time,df.U, label=label)
+                else:
+                    plt.plot(df.time/dt,df.U, label=label)
                 plt.ylabel("Energy")
                 plt.xlabel("Steps")
             else:
-                ax.plot(df.time/dt,df.U)
+                if (sim_type == 'MC') or (sim_type == 'VMMC'):
+                    ax.plot(df.time,df.U, label=label)
+                else:
+                    ax.plot(df.time/dt,df.U, label=label)
                 ax.set_ylabel("Energy")
                 ax.set_xlabel("Steps")
         except:

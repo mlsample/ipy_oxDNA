@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import shutil
-from json import dumps, loads
+from json import dumps, loads, dump, load
 import oxpy
 import multiprocessing as mp
 import py
@@ -421,6 +421,7 @@ class OxpyRun:
         self.log = log
         self.join = join
         self.custom_observables = custom_observables
+
         if self.verbose == True:
             print(f'Running: {self.sim_dir.split("/")[-1]}')
         if self.subprocess:
@@ -454,7 +455,9 @@ class OxpyRun:
                 ox_input[k] = v
             try:
                 manager = oxpy.OxpyManager(ox_input)
-                if self.my_obs:
+                if os.path.exists(self.sim.sim_files.run_time_custom_observable):
+                    with open(self.sim.sim_files.run_time_custom_observable, 'r') as f:
+                        self.my_obs = load(f)
                     for key, value in self.my_obs.items():
                         my_obs = [eval(observable_string,{"self": self}) for observable_string in value['observables']]
                         manager.add_output(key, print_every=value['print_every'], observables=my_obs)
@@ -483,9 +486,12 @@ class OxpyRun:
         self.my_obs[name] = {'print_every':print_every, 'observables':[]}
         for particle_indexes in args:
             self.my_obs[name]['observables'].append(f'self.cms_observables({particle_indexes})()')
-    
-    # def write_custom_observable(self, name, observables, print_every):
-    #     with open(os.path.join(self.sim_dir, "custom_observable.txt"), 'w') as f:
+        
+        self.write_custom_observable()
+
+    def write_custom_observable(self):
+        with open(os.path.join(self.sim_dir, "run_time_custom_observable.json"), 'w') as f:
+            dump(self.my_obs, f, indent=4)
             
     def cms_observables(self, particle_indexes):
             class ComPositionObservable(oxpy.observables.BaseObservable):
@@ -2094,5 +2100,7 @@ class SimFiles:
                     self.all_observables = os.path.abspath(os.path.join(self.sim_dir, file))
                 elif 'hb_contacts.txt' in file:
                     self.hb_contacts = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif 'run_time_custom_observable.json' in file:
+                    self.run_time_custom_observable = os.path.abspath(os.path.join(self.sim_dir, file))
 
 

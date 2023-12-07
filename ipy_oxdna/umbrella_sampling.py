@@ -17,6 +17,8 @@ from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed# from numba import jit
 import pickle
 from json import load, dump
+import traceback
+
 
 class BaseUmbrellaSampling:
     def __init__(self, file_dir, system, clean_build=False):
@@ -311,7 +313,7 @@ class UmbrellaBuild:
                 sys.exit('\nThe simulation directory already exists, if you wish to write over the directory set:\nUmbrellaSampling(clean_build=str(force)).\n\nTo continue a previous umbrella simulation use:\nsimulation_manager.run(continue_run=int(n_steps))')
 
         # Using ThreadPoolExecutor to parallelize the simulation building
-        with ThreadPoolExecutor() as executor:
+        with ProcessPoolExecutor() as executor:
             futures = [executor.submit(self._build_simulation, sim, forces, input_parameters, observables_list,
                                        observable, sequence_dependant, cms_observable, protein, force_file)
                        for sim, forces in zip(sims, forces_list)]
@@ -328,6 +330,7 @@ class UmbrellaBuild:
                           observable, sequence_dependant, cms_observable, protein, force_file):
         try:
             sim.build(clean_build='force')
+            sim.input_file(input_parameters)
             if protein is not None:
                 sim.add_protein_par()
             if force_file is not None:
@@ -337,17 +340,17 @@ class UmbrellaBuild:
             if observable:
                 for observables in observables_list:
                     sim.add_observable(observables)
-            if cms_observable:
+            if cms_observable is not False:
                 for cms_obs_dict in cms_observable:
                     sim.oxpy_run.cms_obs(cms_obs_dict['idx'],
                                          name=cms_obs_dict['name'],
                                          print_every=cms_obs_dict['print_every'])
-            sim.input_file(input_parameters)
             if sequence_dependant:
                 sim.sequence_dependant()
             sim.sim_files.parse_current_files()
         except Exception as e:
-            print(f"Build error in simulation {sim}: {e}")
+            error_traceback = traceback.format_exc()  # Gets the full traceback
+            print(f"Build error in simulation {sim.sim_dir}: {e}\nTraceback: {error_traceback}")
             raise
 
     def parallel_force_group_name(self, sims):
@@ -612,19 +615,24 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.hb_by_window = None
         self.potential_energy_by_window = None
     
-    # def initalize_observables(self):
-    #     self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
-    #     self.hb_list_observable(print_every=print_every, only_count='true', name=name)
-    #     self.force_energy_observable(print_every=print_every, name=name)
-    #     self.kinetic_energy_observable(print_every=print_every, name=name)
-    #     self.potential_energy_observable(print_every=print_every, name=name)
-    
-    def initialize_observables(self, com_list, ref_list, print_every=1e4, name='com_distance.txt'):
+    def initialize_observables(self, com_list, ref_list, print_every=1e4, name='all_observables.txt'):
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         self.hb_list_observable(print_every=print_every, only_count='true', name=name)
-        self.force_energy_observable(print_every=print_every, name=name)
+        
+        try:
+            with open(self.pre_equlibration_sims[0].sim_files.force, 'r') as f:
+                force_js = load(f)
+                number_of_forces = len(force_js.keys())
+        except:
+            with open(self.equlibration_sims[0].sim_files.force, 'r') as f:
+                force_js = load(f)
+                number_of_forces = len(force_js.keys())
+                
+        for idx in range(number_of_forces):
+            self.force_energy_observable(print_every=print_every, name=name, print_group=f'force_{idx}')
+                    
         self.kinetic_energy_observable(print_every=print_every, name=name)
-        self.potential_energy_observable(print_every=print_every, name=name)
+        self.potential_energy_observable(print_every=print_every, name=name, split='True')
     
     def build_pre_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters, starting_r0, steps, observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False, protein=None, force_file=None, custom_observable=False):
         self.observables_list = []
@@ -706,7 +714,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         )
         self.observables_list.append(kin_obs)
         
-    def force_energy_observable(self, print_every=1e4, name='force_energy.txt'):
+    def force_energy_observable(self, print_every=1e4, name='force_energy.txt', print_group=None):
         """_summary_
 
         Args:
@@ -715,7 +723,8 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         """
         force_energy_obs = self.obs.force_energy(
             print_every=str(print_every),
-            name=str(name)
+            name=str(name),
+            print_group=str(print_group)
         )
         self.observables_list.append(force_energy_obs)
 
@@ -882,23 +891,23 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
                     self.read_potential_energy()
                 if self.hb_by_window is None:
                     self.get_hb_list_by_window()
-                if self.r0 is None:
-                   self.get_r0_values()
+                #if self.r0 is None:
+                   #self.get_r0_values()
             elif reread_files is True:
                 self.get_com_distance_by_window()
                 self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
                 self.read_potential_energy()
-                self.get_r0_values()
+                #self.get_r0_values()
                 self.read_kinetic_and_potential_energy()
                 self.get_hb_list_by_window()
         elif all_observables is True:
             if reread_files is False:
                 if self.obs_df is None:
                     self.analysis.read_all_observables('prod')
-                    self.get_r0_values()
+                    #self.get_r0_values()
             elif reread_files is True:
                 self.analysis.read_all_observables('prod')
-                self.get_r0_values()
+                #self.get_r0_values()
         
         
         if all_observables is False:
@@ -1208,22 +1217,22 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
                 if self.potential_energy_by_window is None:
                     self.read_kinetic_and_potential_energy()
                     self.read_potential_energy()
-                if self.r0 is None:
-                   self.get_r0_values()
+                #if self.r0 is None:
+                   #self.get_r0_values()
             elif reread_files is True:
                 self.get_com_distance_by_window()
                 self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
                 self.read_potential_energy()
-                self.get_r0_values()
+                #self.get_r0_values()
                 self.read_kinetic_and_potential_energy()
         elif all_observables is True:
             if reread_files is False:
                 if self.obs_df is None:
                     self.analysis.read_all_observables('prod')
-                self.get_r0_values()
+                #self.get_r0_values()
             elif reread_files is True:
                 self.analysis.read_all_observables('prod')
-                self.get_r0_values()
+                #self.get_r0_values()
         
         
         if all_observables is False:
@@ -1451,6 +1460,98 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             with open(topology_file_path, 'w') as f:
                 f.writelines(new_lines)    
 
+    def weight_sample(self, temp_range, n_bins, xmin, xmax, max_hb, epsilon=1e-7, reread_files=False, all_observables=False, max_iterations=100000, convergence_slice=None):
+        
+        if all_observables is False:
+            if reread_files is False:
+                if self.com_by_window is None:
+                    self.get_com_distance_by_window()
+                if self.umbrella_bias is None:
+                    self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
+                if self.potential_energy_by_window is None:
+                    self.read_kinetic_and_potential_energy()
+                    self.read_potential_energy()
+                #if self.r0 is None:
+                   #self.get_r0_values()
+            elif reread_files is True:
+                self.get_com_distance_by_window()
+                self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
+                self.read_potential_energy()
+                #self.get_r0_values()
+                self.read_kinetic_and_potential_energy()
+        elif all_observables is True:
+            if reread_files is False:
+                if self.obs_df is None:
+                    self.analysis.read_all_observables('prod')
+                #self.get_r0_values()
+            elif reread_files is True:
+                self.analysis.read_all_observables('prod')
+                #self.get_r0_values()
+        
+        
+        try:
+            with open(self.pre_equlibration_sims[0].sim_files.force, 'r') as f:
+                force_js = load(f)
+                number_of_forces = len(force_js.keys())
+        except:
+            with open(self.equlibration_sims[0].sim_files.force, 'r') as f:
+                force_js = load(f)
+                number_of_forces = len(force_js.keys())
+        force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
+
+        if all_observables is False:
+            #Truncate data to the shortest window in order to have use numpy vector arthimetic
+            min_length = min([len(inner_list) for inner_list in self.umbrella_bias])
+            truncated_com_values = [inner_list[:min_length] for inner_list in self.com_by_window.values()]
+            truncated_umbrella_bias = [inner_list[:min_length] for inner_list in self.umbrella_bias]
+            truncated_potential_energy = [inner_list[:min_length] for inner_list in self.potential_energy_by_window.values()]
+            energy = [inner_list[:min_length] for inner_list in self.energy_by_window.values()]
+            kinetic_energy = np.array([ene['K'] for ene in energy])
+        elif all_observables is True:
+            min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
+            truncated_com_values = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df] 
+            x_range = np.round(np.linspace(self.wham.xmin, self.wham.xmax, (self.n_windows + 1), dtype=np.double)[1:], 3)
+            # truncated_umbrella_bias = [0.5 * np.double(self.wham.umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
+            names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+            truncated_potential_energy = [inner_list[names][:min_length] for inner_list in self.obs_df]
+            truncated_kinetic_energy = [inner_list['kinetic_energy'][:min_length] for inner_list in self.obs_df]
+            truncated_force_energy = [inner_list[force_energy][:min_length] for inner_list in self.obs_df]
+        
+        
+        if convergence_slice is not None:
+            truncated_com_values = [inner_list[convergence_slice] for inner_list in truncated_com_values] 
+            names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+            truncated_potential_energy = [inner_list[names][convergence_slice] for inner_list in truncated_potential_energy]
+            truncated_kinetic_energy = [inner_list[convergence_slice] for inner_list in truncated_kinetic_energy]
+            truncated_force_energy = [inner_list[convergence_slice] for inner_list in truncated_force_energy]
+        
+
+        #Get temperature scalar
+        temp_range_scaled = self.celcius_to_scaled(temp_range)
+        beta_range = 1 / temp_range_scaled
+
+        temperature = np.array(self.temperature, dtype=np.double)
+        beta = 1 / temperature
+        
+        com_samples = pd.concat(truncated_com_values).reset_index(drop=True)
+
+        force_samples = pd.concat(truncated_force_energy).reset_index(drop=True)
+        
+        rng = np.random.default_rng()    
+        f_i_old = np.array([rng.normal(loc=0.0, scale=1.0, size=None) for _ in range(18)])
+        f_i_temps_new = np.zeros_like(f_i_old)
+        
+        
+        # exp_numerator = force_samples.to_numpy() - f_i_old[np.newaxis, :]
+        # exp_term = exp * beta
+        
+        # exp_term = logsumexp(-(force_samples.to_numpy() - f_i_old[np.newaxis, :]) * beta, axis=1)
+        # exp_term_norm_factor = logsumexp(-(force_samples.to_numpy() - f_i_old[np.newaxis, :]) * beta)
+        # exp_term_normed = exp_term - exp_term_norm_factor
+        # w_k = np.exp(exp_term_normed)
+        
+        
+        return com_samples, force_samples, f_i_old
     
 class NDimensionalUmbrella(MeltingUmbrellaSampling):
     def __init__(self, file_dir, production_sim_dir):
@@ -1586,6 +1687,11 @@ class UmbrellaAnalysis:
         
         obs_types = [observe['output']['cols'][0]['type'] for observe in self.base_umbrella.observables_list]
 
+
+        with open(sim_list[0].sim_files.force, 'r') as f:
+            force_js = load(f)
+            number_of_forces = len(force_js.keys())
+
                         
         all_observables = []
         for sim in sim_list:
@@ -1595,7 +1701,8 @@ class UmbrellaAnalysis:
                 all_observables.append(pd.DataFrame())
         
         names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-        columns = ['com_distance', 'hb_list', 'force_energy', 'kinetic_energy', *names]
+        force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
+        columns = ['com_distance', 'hb_list', *force_energy, 'kinetic_energy', *names]
         
         obs = [pd.DataFrame([
                 list(filter(lambda a: a != '',all_observables[window_idx].iloc[data_idx][0].split(' ')))

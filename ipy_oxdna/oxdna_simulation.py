@@ -455,7 +455,7 @@ class OxpyRun:
                 ox_input[k] = v
             try:
                 manager = oxpy.OxpyManager(ox_input)
-                if os.path.exists(self.sim.sim_files.run_time_custom_observable):
+                if hasattr(self.sim.sim_files, 'run_time_custom_observable'):
                     with open(self.sim.sim_files.run_time_custom_observable, 'r') as f:
                         self.my_obs = load(f)
                     for key, value in self.my_obs.items():

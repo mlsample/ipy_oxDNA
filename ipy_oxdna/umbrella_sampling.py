@@ -615,25 +615,6 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.hb_by_window = None
         self.potential_energy_by_window = None
     
-    def initialize_observables(self, com_list, ref_list, print_every=1e4, name='all_observables.txt'):
-        self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
-        self.hb_list_observable(print_every=print_every, only_count='true', name=name)
-        
-        try:
-            with open(self.pre_equlibration_sims[0].sim_files.force, 'r') as f:
-                force_js = load(f)
-                number_of_forces = len(force_js.keys())
-        except:
-            with open(self.equlibration_sims[0].sim_files.force, 'r') as f:
-                force_js = load(f)
-                number_of_forces = len(force_js.keys())
-                
-        for idx in range(number_of_forces):
-            self.force_energy_observable(print_every=print_every, name=name, print_group=f'force_{idx}')
-                    
-        self.kinetic_energy_observable(print_every=print_every, name=name)
-        self.potential_energy_observable(print_every=print_every, name=name, split='True')
-    
     def build_pre_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters, starting_r0, steps, observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False, protein=None, force_file=None, custom_observable=False):
         self.observables_list = []
         self.windows.pre_equlibration_windows(n_windows)
@@ -688,6 +669,17 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             for sim in self.production_sims:
                 sim.build_sim.build_hb_list_file(com_list, ref_list)
         self.queue_sims(simulation_manager, self.production_sims, continue_run=continue_run)   
+        
+    def initialize_observables(self, com_list, ref_list, print_every=1e4, name='all_observables.txt'):
+        self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
+        self.hb_list_observable(print_every=print_every, only_count='true', name=name)
+        
+        number_of_forces = self.get_n_external_forces()      
+        for idx in range(number_of_forces):
+            self.force_energy_observable(print_every=print_every, name=name, print_group=f'force_{idx}')
+                    
+        self.kinetic_energy_observable(print_every=print_every, name=name)
+        self.potential_energy_observable(print_every=print_every, name=name, split='True')
     
     def hb_list_observable(self, print_every=1e4, name='hb_observable.txt', only_count='true'):
         """ Build center of mass observable"""
@@ -697,22 +689,6 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             only_count='true'
            )
         self.observables_list.append(hb_obs)
-        
-    def potential_energy_observable(self, print_every=1e4, name='potential_energy.txt', split='True'):
-        """ Build potential energy observable for temperature interpolation"""
-        pot_obs = self.obs.potential_energy(
-            print_every=str(print_every),
-            split=str(split),
-            name=str(name)
-        )
-        self.observables_list.append(pot_obs)
-    
-    def kinetic_energy_observable(self, print_every=1e4, name='kinetic_energy.txt'):
-        kin_obs = self.obs.kinetic_energy(
-            print_every=str(print_every),
-            name=str(name)
-        )
-        self.observables_list.append(kin_obs)
         
     def force_energy_observable(self, print_every=1e4, name='force_energy.txt', print_group=None):
         """_summary_
@@ -727,211 +703,58 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             print_group=str(print_group)
         )
         self.observables_list.append(force_energy_obs)
-
-    def read_kinetic_and_potential_energy(self):
-        self.energy_by_window = {}
-        for idx,sim in enumerate(self.production_sims):
-            sim.sim_files.parse_current_files()
-            
-            # Read the entire file into a DataFrame
-            df = pd.read_csv(sim.sim_files.energy, delim_whitespace=True,names=['time', 'U','P','K'])
-            self.energy_by_window[idx] = df
     
-    def read_potential_energy(self):
-        self.potential_energy_by_window = {}
-        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+    def kinetic_energy_observable(self, print_every=1e4, name='kinetic_energy.txt'):
+        kin_obs = self.obs.kinetic_energy(
+            print_every=str(print_every),
+            name=str(name)
+        )
+        self.observables_list.append(kin_obs)
         
-        for idx, sim in enumerate(self.production_sims):
-            sim.sim_files.parse_current_files()
-            
-            # Read the entire file into a DataFrame
-            df = pd.read_csv(sim.sim_files.potential_energy, header=None, names=names, delim_whitespace=True, dtype=np.double)
-            
-            self.potential_energy_by_window[idx] = df
-            
-    def read_hb_contacts(self, sim_type='prod'):
-        if sim_type == 'prod':
-            sim_list = self.production_sims
-        elif sim_type == 'eq':
-            sim_list = self.equlibration_sims
-        elif sim_type == 'pre_eq':
-            sim_list = self.pre_equlibration_sims
-            
-        self.hb_contacts_by_window = {}
-        for idx,sim in enumerate(sim_list):
-            sim.sim_files.parse_current_files()
-            df = pd.read_csv(sim.sim_files.hb_contacts, header=None, engine='pyarrow')
-            self.hb_contacts_by_window[idx] = df
-
-    def get_hb_list_by_window(self):
-        hb_list_by_window = {}
-        for idx,sim in enumerate(self.production_sims):
-            sim.sim_files.parse_current_files()
-            df = pd.read_csv(sim.sim_files.hb_observable, header=None, engine='pyarrow')
-            hb_list_by_window[idx] = df
-        self.hb_by_window = hb_list_by_window
+    def potential_energy_observable(self, print_every=1e4, name='potential_energy.txt', split='True'):
+        """ Build potential energy observable for temperature interpolation"""
+        pot_obs = self.obs.potential_energy(
+            print_every=str(print_every),
+            split=str(split),
+            name=str(name)
+        )
+        self.observables_list.append(pot_obs)
         
-    def write_potential_energy_files(self):
-        all_observables = self.analysis.read_all_observables('prod')
-        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-        sim_dirs = [sim.sim_dir for sim in self.production_sims]
-        for df, sim_dir in zip(all_observables, sim_dirs):
-            potential_energy_terms = df[names].values
-            with open(os.path.join(sim_dir, 'potential_energy.txt'), 'w') as f:
-                for row in potential_energy_terms:
-                    row_str = ' '.join(map(str, row))
-                    f.write(row_str + '\n')
-
-        return None
-    
-    def copy_hb_list_to_com_dir(self):
-        copy_h_bond_files(self.production_sim_dir, self.com_dir)
-
-    def spawn_continuous_to_discrete_unbiasing(self, max_hb, join=False):
-        self.spawn(self.continuous_to_discrete_unbiasing, args=(max_hb,), join=False)
-    
-    def continuous_to_discrete_unbiasing(self, max_hb):
-        def count_division_normalize(arr):
-            row_sums = np.sum(arr, axis=1, keepdims=True, dtype=np.double)
-            return np.divide(arr, row_sums, out=np.zeros_like(arr, dtype=np.double), where=row_sums!=0)
+    def get_n_external_forces(self):
+        force_file = [file for file in os.listdir(self.file_dir) if file.endswith('force.txt')][0]
+        force_file = f'{self.file_dir}/{force_file}'
         
-        if self.com_by_window is None:
-            self.get_com_distance_by_window()
-        if self.hb_by_window is None:
-            self.get_hb_list_by_window()
-        if self.umbrella_bias is None:
-            self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-                
-        unbiased_discrete_window = np.array([np.zeros(max_hb + 1) for _ in range(self.n_windows)], dtype=np.double)
-
-        temperature = np.array(self.temperature, dtype=np.double)
-        beta = 1 / temperature
-        bias = []
-        bias_norm = []
-        for idx, window in enumerate(self.umbrella_bias):
-            bias_values = window.values.T[0]
-            bias.append(beta * bias_values)
-            bias_norm.append(beta * bias_values)
-
-        self.bias = bias
-        index_to_add_at = [np.array(self.hb_by_window[idx].values.T[0]) for idx in range(self.n_windows)]
+        number_of_forces = 0
         
-        
-        hb_by_window = np.array(list(self.hb_by_window.values())).squeeze(-1)
-        hb_by_window = np.where(hb_by_window <= max_hb, hb_by_window, max_hb)
-        index_to_add_at = hb_by_window
-        self.index_to_add_at = index_to_add_at
-
-        b_u_sq_hb_list = [[[] for _ in range(max_hb + 1)] for _ in range(self.n_windows)]        
-
-        for win_idx, (b_u_win,hb_win) in enumerate(zip(bias, index_to_add_at)):
-            for b_u, hb in zip(b_u_win, hb_win):
-                b_u_sq_hb_list[win_idx][hb].append(b_u)
-
-        e_to_beta_u_sq = np.empty((self.n_windows, max_hb+1), dtype=np.double)
-
-        for win_idx, b_u_hb_lists in enumerate(b_u_sq_hb_list):
-            for hb_idx, b_u_hb in enumerate(b_u_hb_lists):
-                if len(b_u_hb) > 0:
-                    e_to_beta_u_sq[win_idx][hb_idx] = logsumexp(b_u_hb)
-                else:
-                    e_to_beta_u_sq[win_idx][hb_idx] = 0
-
-        e_to_beta_u = [logsumexp(b_U) for b_U in bias]
-        self.e_to_beta_u = e_to_beta_u
-        self.e_to_beta_u_sq = e_to_beta_u_sq
-        
-        log_p_i_h = [e_b_u_sq - e_b_u for e_b_u_sq,e_b_u in zip(e_to_beta_u_sq, e_to_beta_u)] 
-        self.log_p_i_h = log_p_i_h
-
-        
-        f_i = self.get_biases()
-        weight = -beta * np.array(f_i)
-        self.weight = weight
-        weight_norm = logsumexp(weight)
-        A_i = weight - weight_norm
-
-        self.com_max = np.max(np.array([com_dist for com_dist in self.com_by_window.values()]))
-        last_conf_file = self.production_sims[0].sim_files.last_conf
-        with open(last_conf_file, 'r') as f:
-            next(f)
-            box_info = f.readline().split(' ')
-            self.box_size = float(box_info[-1].strip())
-        
-        self.volume_correction = np.log((self.box_size**3) / ((4/3)*np.pi*self.com_max**3))
-        
-        self.windowed_log_prob_discrete = np.array([p_i + a for p_i,a in zip(log_p_i_h, A_i)])
-        self.log_prob_discrete = np.array([logsumexp(hb_list) for hb_list in self.windowed_log_prob_discrete.T])
-
-        self.free_energy_discrete = np.array([-free for free in self.log_prob_discrete])
-        self.free_energy_discrete -= self.free_energy_discrete[0]
-        self.free_energy_discrete[0] -= self.volume_correction
-        self.free_energy_discrete += self.volume_correction
-        
-        self.normed_free_energy = -self.free_energy_discrete - logsumexp(-self.free_energy_discrete)
-        
-        self.prob_discrete = np.exp(self.normed_free_energy)
-        
+        with open(force_file, 'r') as f:
+            for line in f:
+                if '{' in line:
+                    number_of_forces += 1
+        return number_of_forces + 2
         
     def temperature_interpolation(self, max_hb, temp_range, reread_files=False, all_observables=False, convergence_slice=None):
-        #I need to write a function that will take the values in last_hist.dat and perform the temperature interpolation
-        #To do this I can use the split potential energy and then read the files
-        #Next, I need to somehow take the simulation counts which were unbiased and then reweight them
-        #I now have the unbiased windows
-        # I can then simply reweight the counts of each num_h_bond nope, I need to do it for each state based on the states energy
- 
-        if all_observables is False:
-            if reread_files is False:
-                if self.com_by_window is None:
-                    self.get_com_distance_by_window()
-                if self.umbrella_bias is None:
-                    self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-                if self.potential_energy_by_window is None:
-                    self.read_kinetic_and_potential_energy()
-                    self.read_potential_energy()
-                if self.hb_by_window is None:
-                    self.get_hb_list_by_window()
-                #if self.r0 is None:
-                   #self.get_r0_values()
-            elif reread_files is True:
-                self.get_com_distance_by_window()
-                self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-                self.read_potential_energy()
-                #self.get_r0_values()
-                self.read_kinetic_and_potential_energy()
-                self.get_hb_list_by_window()
-        elif all_observables is True:
-            if reread_files is False:
-                if self.obs_df is None:
-                    self.analysis.read_all_observables('prod')
-                    #self.get_r0_values()
-            elif reread_files is True:
+
+        if reread_files is False:
+            if self.obs_df is None:
                 self.analysis.read_all_observables('prod')
-                #self.get_r0_values()
-        
-        
-        if all_observables is False:
-            #Truncate data to the shortest window in order to have use numpy vector arthimetic
-            min_length = min([len(inner_list) for inner_list in self.umbrella_bias])
-            truncated_com_values = [inner_list[:min_length] for inner_list in self.com_by_window.values()]
-            truncated_umbrella_bias = [inner_list[:min_length] for inner_list in self.umbrella_bias]
-            truncated_potential_energy = [inner_list[:min_length] for inner_list in self.potential_energy_by_window.values()]
-            energy = [inner_list[:min_length] for inner_list in self.energy_by_window.values()]
-            kinetic_energy = np.array([ene['K'] for ene in energy])
-            truncated_hb_values = [inner_list[:min_length] for inner_list in self.hb_by_window.values()]
-            hb_by_window = np.array(truncated_hb_values).squeeze(-1)
+            self.get_r0_values()
+        elif reread_files is True:
+            self.analysis.read_all_observables('prod')
+            self.get_r0_values()
+
+        number_of_forces = self.get_n_external_forces()
+        force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
             
-        elif all_observables is True:
-            min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
-            truncated_com_values = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df] 
-            x_range = np.round(np.linspace(self.wham.xmin, self.wham.xmax, (self.n_windows + 1), dtype=np.double)[1:], 3)
-            # truncated_umbrella_bias = [0.5 * np.double(self.wham.umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
-            names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-            truncated_potential_energy = [inner_list[names][:min_length] for inner_list in self.obs_df]
-            truncated_kinetic_energy = [inner_list['kinetic_energy'][:min_length] for inner_list in self.obs_df]
-            truncated_force_energy = [inner_list['force_energy'][:min_length] for inner_list in self.obs_df]
-            truncated_hb_values = [inner_list['hb_list'][:min_length] for inner_list in self.obs_df]
-            hb_by_window = np.array(truncated_hb_values)
+        min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
+        truncated_com_values = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df] 
+        x_range = np.round(np.linspace(self.wham.xmin, self.wham.xmax, (self.n_windows + 1), dtype=np.double)[1:], 3)
+        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+        truncated_potential_energy = [inner_list[names][:min_length] for inner_list in self.obs_df]
+        truncated_kinetic_energy = [inner_list['kinetic_energy'][:min_length] for inner_list in self.obs_df]
+        truncated_force_energy = [inner_list[force_energy][:min_length] for inner_list in self.obs_df]
+        truncated_hb_values = [inner_list['hb_list'][:min_length] for inner_list in self.obs_df]
+        hb_by_window = np.array(truncated_hb_values)
+        # truncated_umbrella_bias = [0.5 * np.double(self.wham.umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
 
 
         if convergence_slice is not None:
@@ -940,9 +763,10 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
             truncated_potential_energy = [inner_list[names][convergence_slice] for inner_list in truncated_potential_energy]
             truncated_kinetic_energy = [inner_list[convergence_slice] for inner_list in truncated_kinetic_energy]
-            truncated_force_energy = [inner_list[convergence_slice] for inner_list in truncated_force_energy]
+            truncated_force_energy = [inner_list[force_energy][convergence_slice] for inner_list in truncated_force_energy]
             truncated_hb_values = [inner_list[convergence_slice] for inner_list in truncated_hb_values]
             hb_by_window = np.array(truncated_hb_values)
+        w_i = self.weight_sample()
         
         hb_by_window = np.where(hb_by_window <= max_hb, hb_by_window, max_hb)
         index_to_add_at = hb_by_window
@@ -959,29 +783,16 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
         n_particles_in_op = np.double(max_hb * 2)
         
-        # op_scaling_factor = n_particles_in_op / n_particles_in_system
-
         truncated_potential_energy = [n_particles_in_op * innerlist for innerlist in truncated_potential_energy]
         truncated_kinetic_energy = np.array(truncated_kinetic_energy) * n_particles_in_op
         truncated_force_energy = np.array(truncated_force_energy) * n_particles_in_op
          
-        truncated_non_pot_energy = truncated_kinetic_energy + truncated_force_energy
-        
-        pot_energy = [innerlist.sum(axis=1) for innerlist in truncated_potential_energy]
-        force_energy = [innerlist for innerlist in truncated_force_energy]
-        all_pot_energy = [pot + force for pot, force in zip(pot_energy, force_energy)]
+        truncated_non_pot_energy = truncated_kinetic_energy# + truncated_force_energy
 
         energy_bias_per_window_per_temperature = np.array(self._new_calcualte_bias_energy(truncated_non_pot_energy, temp_range, truncated_potential_energy=truncated_potential_energy))
-        # energy_bias_per_window_per_temperature = np.array([window * op_scaling_factor for window in energy_bias_per_window_per_temperature])
 
-        for win_idx, (window, temperature_bias) in enumerate(zip(all_pot_energy, energy_bias_per_window_per_temperature)):
-            win_bias_values = window
-            bias_vals = win_bias_values #* beta
-            
+        for win_idx, temperature_bias in enumerate(energy_bias_per_window_per_temperature):
             for temp_idx, temp_bias in enumerate(temperature_bias):
-                # print(f'{temp_bias=}{temp_idx=}{win_idx=}')
-                temp_weight = temp_bias # / ((temp_range[temp_idx] + 273.15) / 3000)
-                temp_scaled_bias_values =  bias_vals / ((temp_range[temp_idx] + 273.15) / 3000)
                 bias[win_idx][temp_idx].append(temp_bias)
         
         bias = np.array(bias).squeeze(2)        
@@ -1208,50 +1019,27 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
     
     def wham_temperature_interpolation(self, temp_range, n_bins, xmin, xmax, max_hb, epsilon=1e-7, reread_files=False, all_observables=False, max_iterations=100000, convergence_slice=None):
         
-        if all_observables is False:
-            if reread_files is False:
-                if self.com_by_window is None:
-                    self.get_com_distance_by_window()
-                if self.umbrella_bias is None:
-                    self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-                if self.potential_energy_by_window is None:
-                    self.read_kinetic_and_potential_energy()
-                    self.read_potential_energy()
-                #if self.r0 is None:
-                   #self.get_r0_values()
-            elif reread_files is True:
-                self.get_com_distance_by_window()
-                self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-                self.read_potential_energy()
-                #self.get_r0_values()
-                self.read_kinetic_and_potential_energy()
-        elif all_observables is True:
-            if reread_files is False:
-                if self.obs_df is None:
-                    self.analysis.read_all_observables('prod')
-                #self.get_r0_values()
-            elif reread_files is True:
+
+        if reread_files is False:
+            if self.obs_df is None:
                 self.analysis.read_all_observables('prod')
-                #self.get_r0_values()
+            self.get_r0_values()
+        elif reread_files is True:
+            self.analysis.read_all_observables('prod')
+            self.get_r0_values()
         
+        number_of_forces = self.get_n_external_forces()
+        force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
+
+        min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
+        truncated_com_values = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df] 
+        x_range = np.round(np.linspace(self.wham.xmin, self.wham.xmax, (self.n_windows + 1), dtype=np.double)[1:], 3)
+        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+        truncated_potential_energy = [inner_list[names][:min_length] for inner_list in self.obs_df]
+        truncated_kinetic_energy = [inner_list['kinetic_energy'][:min_length] for inner_list in self.obs_df]
+        truncated_force_energy = [inner_list[force_energy][:min_length] for inner_list in self.obs_df]
         
-        if all_observables is False:
-            #Truncate data to the shortest window in order to have use numpy vector arthimetic
-            min_length = min([len(inner_list) for inner_list in self.umbrella_bias])
-            truncated_com_values = [inner_list[:min_length] for inner_list in self.com_by_window.values()]
-            truncated_umbrella_bias = [inner_list[:min_length] for inner_list in self.umbrella_bias]
-            truncated_potential_energy = [inner_list[:min_length] for inner_list in self.potential_energy_by_window.values()]
-            energy = [inner_list[:min_length] for inner_list in self.energy_by_window.values()]
-            kinetic_energy = np.array([ene['K'] for ene in energy])
-        elif all_observables is True:
-            min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
-            truncated_com_values = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df] 
-            x_range = np.round(np.linspace(self.wham.xmin, self.wham.xmax, (self.n_windows + 1), dtype=np.double)[1:], 3)
-            # truncated_umbrella_bias = [0.5 * np.double(self.wham.umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
-            names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-            truncated_potential_energy = [inner_list[names][:min_length] for inner_list in self.obs_df]
-            truncated_kinetic_energy = [inner_list['kinetic_energy'][:min_length] for inner_list in self.obs_df]
-            truncated_force_energy = [inner_list['force_energy'][:min_length] for inner_list in self.obs_df]
+        # truncated_umbrella_bias = [0.5 * np.double(self.wham.umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
         
         
         if convergence_slice is not None:
@@ -1259,8 +1047,9 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
             truncated_potential_energy = [inner_list[names][convergence_slice] for inner_list in truncated_potential_energy]
             truncated_kinetic_energy = [inner_list[convergence_slice] for inner_list in truncated_kinetic_energy]
-            truncated_force_energy = [inner_list[convergence_slice] for inner_list in truncated_force_energy]
-        
+            truncated_force_energy = [inner_list[force_energy][convergence_slice] for inner_list in truncated_force_energy]
+        # w_i = self.weight_sample()
+
 
         #Get temperature scalar
         temp_range_scaled = self.celcius_to_scaled(temp_range)
@@ -1407,6 +1196,226 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
 
     def celcius_to_scaled(self, temp):
         return (temp + 273.15) / 3000
+    
+    def weight_sample(self, epsilon=1e-15, reread_files=False, convergence_slice=None):
+
+        if reread_files is False:
+            if self.obs_df is None:
+                self.analysis.read_all_observables('prod')
+        elif reread_files is True:
+            self.analysis.read_all_observables('prod')
+             
+        number_of_forces = self.get_n_external_forces()
+        force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
+
+
+        min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])        
+        truncated_force_energy = [inner_list[force_energy][:min_length] for inner_list in self.obs_df]
+        
+        
+        if convergence_slice is not None:
+            truncated_force_energy = [inner_list[convergence_slice] for inner_list in truncated_force_energy]
+
+        temperature = np.array(self.temperature, dtype=np.double)
+        beta = 1 / temperature
+        
+        
+        truncated_com_distance = pd.concat([inner_list['com_distance'][:min_length] for inner_list in self.obs_df]).reset_index(drop=True)
+        r0_list = self.r0
+
+        com_grid, r0_grid = np.meshgrid(truncated_com_distance, r0_list)
+        
+        def force_potential_energy(r0, com_position):
+            return 0.5 * 5 * (com_position - r0)**2
+        result = force_potential_energy(r0_grid, com_grid)
+
+        number_of_forces = self.get_n_external_forces()
+        force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
+
+
+        force_samples = np.concatenate([result, np.array(np.concatenate(truncated_force_energy))[:, :16].T])
+        force_samples =  force_samples.T 
+        force_samples[:, 17:] = force_samples[:, 17:] / 16
+        
+        # force_samples = pd.concat(truncated_force_energy).reset_index(drop=True)
+        
+        rng = np.random.default_rng()    
+        f_i_old = np.array([rng.normal(loc=0.0, scale=1.0, size=None) for _ in range(force_samples.shape[1])])
+        
+        
+        top_file = self.production_sims[0].sim_files.top
+        with open(top_file, 'r') as f:
+            n_particles_in_system = np.double(f.readline().split(' ')[0])
+        
+        e_to_neg_u_beta = np.exp(-force_samples * n_particles_in_system * beta)
+        e_to_neg_fi_beta_old = np.exp(-f_i_old * beta)
+        e_to_neg_fi_beta_new = np.zeros_like(e_to_neg_fi_beta_old)
+
+        convergence_criterion_list = []
+        convergence_criterion = np.max(np.abs(e_to_neg_fi_beta_new - e_to_neg_fi_beta_old))
+
+        while convergence_criterion > epsilon:
+            denom = np.sum(e_to_neg_u_beta * (1 / e_to_neg_fi_beta_old), axis=1)
+
+            numerator = 1 / np.sum(1 / denom)
+
+            w_i =  numerator / denom
+
+            e_to_neg_fi_beta_new = np.sum(w_i[:, np.newaxis] * e_to_neg_u_beta, axis=0)
+
+            convergence_criterion = np.max(np.abs(e_to_neg_fi_beta_new - e_to_neg_fi_beta_old))
+            print(convergence_criterion)
+
+            convergence_criterion_list.append(convergence_criterion)
+            e_to_neg_fi_beta_old = deepcopy(e_to_neg_fi_beta_new)
+        
+        
+        return w_i
+    
+    
+    def read_kinetic_and_potential_energy(self):
+        self.energy_by_window = {}
+        for idx,sim in enumerate(self.production_sims):
+            sim.sim_files.parse_current_files()
+            
+            # Read the entire file into a DataFrame
+            df = pd.read_csv(sim.sim_files.energy, delim_whitespace=True,names=['time', 'U','P','K'])
+            self.energy_by_window[idx] = df
+    
+    def read_potential_energy(self):
+        self.potential_energy_by_window = {}
+        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+        
+        for idx, sim in enumerate(self.production_sims):
+            sim.sim_files.parse_current_files()
+            
+            # Read the entire file into a DataFrame
+            df = pd.read_csv(sim.sim_files.potential_energy, header=None, names=names, delim_whitespace=True, dtype=np.double)
+            
+            self.potential_energy_by_window[idx] = df
+            
+    def read_hb_contacts(self, sim_type='prod'):
+        if sim_type == 'prod':
+            sim_list = self.production_sims
+        elif sim_type == 'eq':
+            sim_list = self.equlibration_sims
+        elif sim_type == 'pre_eq':
+            sim_list = self.pre_equlibration_sims
+            
+        self.hb_contacts_by_window = {}
+        for idx,sim in enumerate(sim_list):
+            sim.sim_files.parse_current_files()
+            df = pd.read_csv(sim.sim_files.hb_contacts, header=None, engine='pyarrow')
+            self.hb_contacts_by_window[idx] = df
+
+    def get_hb_list_by_window(self):
+        hb_list_by_window = {}
+        for idx,sim in enumerate(self.production_sims):
+            sim.sim_files.parse_current_files()
+            df = pd.read_csv(sim.sim_files.hb_observable, header=None, engine='pyarrow')
+            hb_list_by_window[idx] = df
+        self.hb_by_window = hb_list_by_window
+        
+    def write_potential_energy_files(self):
+        all_observables = self.analysis.read_all_observables('prod')
+        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+        sim_dirs = [sim.sim_dir for sim in self.production_sims]
+        for df, sim_dir in zip(all_observables, sim_dirs):
+            potential_energy_terms = df[names].values
+            with open(os.path.join(sim_dir, 'potential_energy.txt'), 'w') as f:
+                for row in potential_energy_terms:
+                    row_str = ' '.join(map(str, row))
+                    f.write(row_str + '\n')
+
+        return None
+    
+    def copy_hb_list_to_com_dir(self):
+        copy_h_bond_files(self.production_sim_dir, self.com_dir)
+
+    def spawn_continuous_to_discrete_unbiasing(self, max_hb, join=False):
+        self.spawn(self.continuous_to_discrete_unbiasing, args=(max_hb,), join=False)
+    
+    def continuous_to_discrete_unbiasing(self, max_hb):
+        def count_division_normalize(arr):
+            row_sums = np.sum(arr, axis=1, keepdims=True, dtype=np.double)
+            return np.divide(arr, row_sums, out=np.zeros_like(arr, dtype=np.double), where=row_sums!=0)
+        
+        if self.com_by_window is None:
+            self.get_com_distance_by_window()
+        if self.hb_by_window is None:
+            self.get_hb_list_by_window()
+        if self.umbrella_bias is None:
+            self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
+                
+        unbiased_discrete_window = np.array([np.zeros(max_hb + 1) for _ in range(self.n_windows)], dtype=np.double)
+
+        temperature = np.array(self.temperature, dtype=np.double)
+        beta = 1 / temperature
+        bias = []
+        bias_norm = []
+        for idx, window in enumerate(self.umbrella_bias):
+            bias_values = window.values.T[0]
+            bias.append(beta * bias_values)
+            bias_norm.append(beta * bias_values)
+
+        self.bias = bias
+        index_to_add_at = [np.array(self.hb_by_window[idx].values.T[0]) for idx in range(self.n_windows)]
+        
+        
+        hb_by_window = np.array(list(self.hb_by_window.values())).squeeze(-1)
+        hb_by_window = np.where(hb_by_window <= max_hb, hb_by_window, max_hb)
+        index_to_add_at = hb_by_window
+        self.index_to_add_at = index_to_add_at
+
+        b_u_sq_hb_list = [[[] for _ in range(max_hb + 1)] for _ in range(self.n_windows)]        
+
+        for win_idx, (b_u_win,hb_win) in enumerate(zip(bias, index_to_add_at)):
+            for b_u, hb in zip(b_u_win, hb_win):
+                b_u_sq_hb_list[win_idx][hb].append(b_u)
+
+        e_to_beta_u_sq = np.empty((self.n_windows, max_hb+1), dtype=np.double)
+
+        for win_idx, b_u_hb_lists in enumerate(b_u_sq_hb_list):
+            for hb_idx, b_u_hb in enumerate(b_u_hb_lists):
+                if len(b_u_hb) > 0:
+                    e_to_beta_u_sq[win_idx][hb_idx] = logsumexp(b_u_hb)
+                else:
+                    e_to_beta_u_sq[win_idx][hb_idx] = 0
+
+        e_to_beta_u = [logsumexp(b_U) for b_U in bias]
+        self.e_to_beta_u = e_to_beta_u
+        self.e_to_beta_u_sq = e_to_beta_u_sq
+        
+        log_p_i_h = [e_b_u_sq - e_b_u for e_b_u_sq,e_b_u in zip(e_to_beta_u_sq, e_to_beta_u)] 
+        self.log_p_i_h = log_p_i_h
+
+        
+        f_i = self.get_biases()
+        weight = -beta * np.array(f_i)
+        self.weight = weight
+        weight_norm = logsumexp(weight)
+        A_i = weight - weight_norm
+
+        self.com_max = np.max(np.array([com_dist for com_dist in self.com_by_window.values()]))
+        last_conf_file = self.production_sims[0].sim_files.last_conf
+        with open(last_conf_file, 'r') as f:
+            next(f)
+            box_info = f.readline().split(' ')
+            self.box_size = float(box_info[-1].strip())
+        
+        self.volume_correction = np.log((self.box_size**3) / ((4/3)*np.pi*self.com_max**3))
+        
+        self.windowed_log_prob_discrete = np.array([p_i + a for p_i,a in zip(log_p_i_h, A_i)])
+        self.log_prob_discrete = np.array([logsumexp(hb_list) for hb_list in self.windowed_log_prob_discrete.T])
+
+        self.free_energy_discrete = np.array([-free for free in self.log_prob_discrete])
+        self.free_energy_discrete -= self.free_energy_discrete[0]
+        self.free_energy_discrete[0] -= self.volume_correction
+        self.free_energy_discrete += self.volume_correction
+        
+        self.normed_free_energy = -self.free_energy_discrete - logsumexp(-self.free_energy_discrete)
+        
+        self.prob_discrete = np.exp(self.normed_free_energy)
         
     def modify_topology_for_unique_pairing(self):
         """
@@ -1458,100 +1467,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             
             # Write the modified topology back to the file
             with open(topology_file_path, 'w') as f:
-                f.writelines(new_lines)    
-
-    def weight_sample(self, temp_range, n_bins, xmin, xmax, max_hb, epsilon=1e-7, reread_files=False, all_observables=False, max_iterations=100000, convergence_slice=None):
-        
-        if all_observables is False:
-            if reread_files is False:
-                if self.com_by_window is None:
-                    self.get_com_distance_by_window()
-                if self.umbrella_bias is None:
-                    self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-                if self.potential_energy_by_window is None:
-                    self.read_kinetic_and_potential_energy()
-                    self.read_potential_energy()
-                #if self.r0 is None:
-                   #self.get_r0_values()
-            elif reread_files is True:
-                self.get_com_distance_by_window()
-                self.get_bias_potential_value(self.wham.xmin, self.wham.xmax, self.n_windows, self.wham.umbrella_stiff)
-                self.read_potential_energy()
-                #self.get_r0_values()
-                self.read_kinetic_and_potential_energy()
-        elif all_observables is True:
-            if reread_files is False:
-                if self.obs_df is None:
-                    self.analysis.read_all_observables('prod')
-                #self.get_r0_values()
-            elif reread_files is True:
-                self.analysis.read_all_observables('prod')
-                #self.get_r0_values()
-        
-        
-        try:
-            with open(self.pre_equlibration_sims[0].sim_files.force, 'r') as f:
-                force_js = load(f)
-                number_of_forces = len(force_js.keys())
-        except:
-            with open(self.equlibration_sims[0].sim_files.force, 'r') as f:
-                force_js = load(f)
-                number_of_forces = len(force_js.keys())
-        force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
-
-        if all_observables is False:
-            #Truncate data to the shortest window in order to have use numpy vector arthimetic
-            min_length = min([len(inner_list) for inner_list in self.umbrella_bias])
-            truncated_com_values = [inner_list[:min_length] for inner_list in self.com_by_window.values()]
-            truncated_umbrella_bias = [inner_list[:min_length] for inner_list in self.umbrella_bias]
-            truncated_potential_energy = [inner_list[:min_length] for inner_list in self.potential_energy_by_window.values()]
-            energy = [inner_list[:min_length] for inner_list in self.energy_by_window.values()]
-            kinetic_energy = np.array([ene['K'] for ene in energy])
-        elif all_observables is True:
-            min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
-            truncated_com_values = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df] 
-            x_range = np.round(np.linspace(self.wham.xmin, self.wham.xmax, (self.n_windows + 1), dtype=np.double)[1:], 3)
-            # truncated_umbrella_bias = [0.5 * np.double(self.wham.umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
-            names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-            truncated_potential_energy = [inner_list[names][:min_length] for inner_list in self.obs_df]
-            truncated_kinetic_energy = [inner_list['kinetic_energy'][:min_length] for inner_list in self.obs_df]
-            truncated_force_energy = [inner_list[force_energy][:min_length] for inner_list in self.obs_df]
-        
-        
-        if convergence_slice is not None:
-            truncated_com_values = [inner_list[convergence_slice] for inner_list in truncated_com_values] 
-            names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-            truncated_potential_energy = [inner_list[names][convergence_slice] for inner_list in truncated_potential_energy]
-            truncated_kinetic_energy = [inner_list[convergence_slice] for inner_list in truncated_kinetic_energy]
-            truncated_force_energy = [inner_list[convergence_slice] for inner_list in truncated_force_energy]
-        
-
-        #Get temperature scalar
-        temp_range_scaled = self.celcius_to_scaled(temp_range)
-        beta_range = 1 / temp_range_scaled
-
-        temperature = np.array(self.temperature, dtype=np.double)
-        beta = 1 / temperature
-        
-        com_samples = pd.concat(truncated_com_values).reset_index(drop=True)
-
-        force_samples = pd.concat(truncated_force_energy).reset_index(drop=True)
-        
-        rng = np.random.default_rng()    
-        f_i_old = np.array([rng.normal(loc=0.0, scale=1.0, size=None) for _ in range(18)])
-        f_i_temps_new = np.zeros_like(f_i_old)
-        
-        
-        # exp_numerator = force_samples.to_numpy() - f_i_old[np.newaxis, :]
-        # exp_term = exp * beta
-        
-        # exp_term = logsumexp(-(force_samples.to_numpy() - f_i_old[np.newaxis, :]) * beta, axis=1)
-        # exp_term_norm_factor = logsumexp(-(force_samples.to_numpy() - f_i_old[np.newaxis, :]) * beta)
-        # exp_term_normed = exp_term - exp_term_norm_factor
-        # w_k = np.exp(exp_term_normed)
-        
-        
-        return com_samples, force_samples, f_i_old
+                f.writelines(new_lines) 
     
 class NDimensionalUmbrella(MeltingUmbrellaSampling):
     def __init__(self, file_dir, production_sim_dir):

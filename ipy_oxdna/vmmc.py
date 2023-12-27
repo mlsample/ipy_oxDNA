@@ -69,10 +69,10 @@ class VirtualMoveMonteCarlo(Simulation):
                 else:
                     f.write(f'{idx} 1\n')    
     
-    def build_com_hb_observable(self, p1, p2):
-        self.vmmc_obs.com_distance_observable(p1, p2, print_every=1e3)
+    def build_com_hb_observable(self, p1, p2, print_every=1e3):
+        self.vmmc_obs.com_distance_observable(p1, p2, print_every=print_every)
         self.build_sim.build_hb_list_file(p1, p2)
-        self.vmmc_obs.hb_list_observable(print_every=1e3)
+        self.vmmc_obs.hb_list_observable(print_every=print_every)
         
         for observable in self.vmmc_obs.observables_list:
             self.add_observable(observable)
@@ -153,7 +153,7 @@ class VmmcObservables:
     def hb_list_observable(self, print_every=1e4, name='hb_observable.txt', only_count='true'):
         """ Build center of mass observable"""
         hb_obs = self.obs.hb_list(
-            print_every='1e3',
+            print_every=f'{print_every}',
             name='hb_observable.txt',
             only_count='true'
            )

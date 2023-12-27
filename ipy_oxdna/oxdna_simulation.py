@@ -136,10 +136,10 @@ class Simulation:
         int_type = self.input.input['interaction_type']
         
         if (int_type == 'DNA') or (int_type == 'DNA2'):
-            self.input_file({'use_average_seq': 'no', 'seq_dep_file':'oxDNA2_sequence_dependent_parameters.txt'})
+            self.input_file({'use_average_seq': 'no', 'seq_dep_file_DNA':'oxDNA2_sequence_dependent_parameters.txt'})
             
         if (int_type == 'RNA') or (int_type == 'RNA2'):
-            self.input_file({'use_average_seq': 'no', 'seq_dep_file':'rna_sequence_dependent_parameters.txt'})
+            self.input_file({'use_average_seq': 'no', 'seq_dep_file_RNA':'rna_sequence_dependent_parameters.txt'})
             
         if (int_type == 'NA') :
             self.input_file({'use_average_seq': 'no',
@@ -880,6 +880,8 @@ class Input:
         
     def modify_input(self, parameters):
         """ Modify the parameters of the oxDNA input file."""
+        if os.path.exists(os.path.join(self.sim_dir, 'input.json')):
+            self.read_input()
         for k, v in parameters.items():
                 self.input[k] = v
         self.write_input()
@@ -1828,18 +1830,31 @@ class Observable:
         """
         Return the energy exerted by external forces
         """
-        return({
-            "output": {
-                "print_every": f'{print_every}',
-                "name": name,
-                "cols": [
-                    {
-                        "type": "force_energy", 
-                        "print_group": f"{print_group}"            
-                    }
-                ]
-            }
-        })
+        if print_group is not None:
+            return({
+                "output": {
+                    "print_every": f'{print_every}',
+                    "name": name,
+                    "cols": [
+                        {
+                            "type": "force_energy", 
+                            "print_group": f"{print_group}"            
+                        }
+                    ]
+                }
+            })
+        else:
+            return({
+                "output": {
+                    "print_every": f'{print_every}',
+                    "name": name,
+                    "cols": [
+                        {
+                            "type": "force_energy", 
+                        }
+                    ]
+                }
+            })
         
     @staticmethod
     def kinetic_energy(print_every=None, name=None):

@@ -18,7 +18,8 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 import pickle
 from json import load, dump
 import traceback
-
+import pymbar
+from pymbar import timeseries
 
 class BaseUmbrellaSampling:
     def __init__(self, file_dir, system, clean_build=False):
@@ -33,6 +34,7 @@ class BaseUmbrellaSampling:
         self.us_build = UmbrellaBuild(self)
         self.analysis = UmbrellaAnalysis(self)
         self.wham = WhamAnalysis(self)
+        self.pymbar = PymbarAnalysis(self)
         
         self.f = Force()
         self.obs = Observable()
@@ -250,7 +252,7 @@ class BaseUmbrellaSampling:
             self.vmmc_sim.analysis.calculate_sampling_and_probabilities()
             self.vmmc_sim.analysis.calculate_and_estimate_melting_profiles()
                 
-    def get_biases(self):
+    def get_wham_biases(self):
         #I need to get the freefile
         #The free file is in the com_dim
         with open(f'{self.com_dir}/freefile', 'r') as f:
@@ -270,8 +272,6 @@ class BaseUmbrellaSampling:
  
         return data
    
-
-   
     def get_com_distance_by_window(self):
         com_distance_by_window = {}
         for idx,sim in enumerate(self.production_sims):
@@ -279,19 +279,36 @@ class BaseUmbrellaSampling:
             df = pd.read_csv(sim.sim_files.com_distance, header=None, engine='pyarrow', dtype=np.double)
             com_distance_by_window[idx] = df
         self.com_by_window = com_distance_by_window
-
+                
     def get_r0_values(self):
         self.r0 = []
-        with open(join(self.com_dir, 'metadata'), 'r') as f:
-            for line in f:
-                self.r0.append(float(line.split(' ')[1]))
-                
+        force_files = [sim.sim_files.force for sim in self.production_sims]
+        for force_file in force_files:
+            with open(force_file, 'r') as f:
+                force_js = load(f)
+            forces = list(force_js.keys())
+            self.r0.append(float(force_js[forces[-1]]['r0']))
+            
+    def get_stiff_value(self):
+        force_files = [sim.sim_files.force for sim in self.production_sims]
+        for force_file in force_files:
+            with open(force_file, 'r') as f:
+                force_js = load(f)
+            forces = list(force_js.keys())
+            break
+        self.stiff = float(force_js[forces[-1]]['stiff'])
+        
     def get_temperature(self):
         pre_temp = self.production_sims[0].input.input['T']
         if ('C'.upper() in pre_temp) or ('C'.lower() in pre_temp):
             self.temperature = (float(pre_temp[:-1]) + 273.15) / 3000
         elif ('K'.upper() in pre_temp) or ('K'.lower() in pre_temp):
              self.temperature = float(pre_temp[:-1]) / 3000
+             
+    def get_n_particles_in_system(self):
+        top_file = self.production_sims[0].sim_files.top
+        with open(top_file, 'r') as f:
+            self.n_particles_in_system = np.double(f.readline().split(' ')[0])
              
     def get_n_windows(self):
         
@@ -692,13 +709,16 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
                 sim.build_sim.build_hb_list_file(com_list, ref_list)
         self.queue_sims(simulation_manager, self.production_sims, continue_run=continue_run)   
         
-    def initialize_observables(self, com_list, ref_list, print_every=1e4, name='all_observables.txt'):
+    def initialize_observables(self, com_list, ref_list, print_every=1e4, name='all_observables.txt', force_energy_split=False):
         self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         self.hb_list_observable(print_every=print_every, only_count='true', name=name)
         
-        number_of_forces = self.get_n_external_forces()      
-        for idx in range(number_of_forces):
-            self.force_energy_observable(print_every=print_every, name=name, print_group=f'force_{idx}')
+        if force_energy_split is True:
+            number_of_forces = self.get_n_external_forces()      
+            for idx in range(number_of_forces):
+                self.force_energy_observable(print_every=print_every, name=name, print_group=f'force_{idx}')
+        else:
+            self.force_energy_observable(print_every=print_every, name=name)
                     
         self.kinetic_energy_observable(print_every=print_every, name=name)
         self.potential_energy_observable(print_every=print_every, name=name, split='True')
@@ -722,7 +742,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         force_energy_obs = self.obs.force_energy(
             print_every=str(print_every),
             name=str(name),
-            print_group=str(print_group)
+            print_group=print_group
         )
         self.observables_list.append(force_energy_obs)
     
@@ -767,8 +787,8 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             self.analysis.read_all_observables('prod')
 
         number_of_forces = self.get_n_external_forces()
-        force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
-        # force_energy = ['force_energy']
+        # force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
+        force_energy = ['force_energy']
 
         min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
         truncated_com_values = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df] 
@@ -848,11 +868,11 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
                     if len(b_u_hb) > 0:
                         log_e_beta_u[win_idx][temp_idx][hb_idx] = logsumexp(b_u_hb)
                     else:
-                        log_e_beta_u[win_idx][temp_idx][hb_idx] = 0
+                        log_e_beta_u[win_idx][temp_idx][hb_idx] = -np.inf
         self.log_e_beta_u = log_e_beta_u
         
         
-        # f_i = self.get_biases()
+        # f_i = self.get_wham_biases()
         f_i = self.F_i
         weight = -beta_range[:, np.newaxis] * np.array(f_i)
         weight_norm = logsumexp(weight)
@@ -866,13 +886,13 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             next(f)
             box_info = f.readline().split(' ')
             self.box_size = float(box_info[-1].strip())
-        
+        print(self.box_size)
         
         if molcon is not None:
             box_size = self.molar_concentration_to_box_size(molcon)
-            self.volume_correction = list(map(self.volume_correction, box_size))
+            self.volume_correction = list(map(self.volume_correction, (box_size,xmax)))
         else:    
-            self.volume_correction = np.log((((self.box_size / 2) * np.sqrt(3))**3) / ((4/3) * np.pi * (self.box_size / 2)**3))
+            self.volume_correction = np.log((((self.box_size / 2) * np.sqrt(3))**3) / ((4/3) * np.pi * xmax**3))
                 
         log_p_i_h = self.log_e_beta_u - logsumexp(self.log_e_beta_u, axis=2, keepdims=True)
         self.log_p_i_h = log_p_i_h
@@ -897,13 +917,50 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
         return self.free_energy_discrete, self.prob_discrete
     
-    def volume_correction(self, box_size):
-        return np.log((((box_size / 2) * np.sqrt(3))**3) / ((4/3) * np.pi * (self.box_size / 2)**3))
+    def volume_correction(self, box_size, xmax):
+        return np.log((((box_size / 2) * np.sqrt(3))**3) / ((4/3) * np.pi * xmax**3))
 
+    # Function to convert molar concentration to box size
     def molar_concentration_to_box_size(self, molcon):
         box = ((2/(molcon*6.0221415*10**23))**(1/3)) / 8.5179*10.0**(9)
         return box
     
+    def na_tm_to_mg_tm(self, na_tm, mg_concentration, fGC, Nbp):
+        """_summary_
+        citation: Owczarzy, Richard, et al. "Predicting stability of DNA duplexes in solutions containing magnesium and monovalent cations." Biochemistry 47.19 (2008): 5336-5353.
+        Args:
+            na_tm (_type_): _description_
+            mg_concentration (_type_): _description_
+            fGC (_type_): _description_
+            Nbp (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        log_mg = np.log(mg_concentration)
+        a = 3.92e-5
+        b = -9.11e-6
+        c = 6.26e-5
+        d = 1.42e-5
+        e = -4.82e-4
+        f = 5.25e-4
+        g = 8.31e-5
+        
+        t1 = 1 / (na_tm + 273.15)
+        t2 = a
+        t3 = b * log_mg
+        t4 = fGC * (c + d * log_mg)
+        t5_1 = 1 / (2 * (Nbp - 1))
+        t5_2 = e + f * log_mg + g * (log_mg)**2
+        
+        one_over_mg_tm = t1 + t2 + t3 + t4 + t5_1 * t5_2
+        mg_tm = (1 / one_over_mg_tm) - 273.15
+        
+        return mg_tm
+    
+    def box_size_to_molar_concentration(self, box_size):
+        molcon = (2/(8.5179*10.0**(-9)*box_size)**3)/(6.0221415*10**23)
+        return molcon
     def _new_calcualte_bias_energy(self, umbrella_bias, temperature_range, truncated_potential_energy=None):
         #Constants
         STCK_FACT_EPS_OXDNA2 = 2.6717
@@ -1073,12 +1130,12 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             self.analysis.read_all_observables('prod')
         
         number_of_forces = self.get_n_external_forces()
-        force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
-        # force_energy = ['force_energy']
+        # force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
+        force_energy = ['force_energy']
 
         min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
         truncated_com_values = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df] 
-        x_range = np.round(np.linspace(xmin, xmax, (self.n_windows + 1), dtype=np.double)[1:], 3)
+        x_range = np.round(np.linspace(xmin, xmax, (len(self.obs_df) + 1), dtype=np.double)[1:], 3)
         names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
         truncated_potential_energy = [inner_list[names][:min_length] for inner_list in self.obs_df]
         truncated_kinetic_energy = [inner_list['kinetic_energy'][:min_length] for inner_list in self.obs_df]
@@ -1111,17 +1168,16 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
         n_particles_in_op = max_hb * 2
         
-        truncated_non_pot_energy = truncated_kinetic_energy + (np.array(truncated_umbrella_bias) * 2 / n_particles_in_system)
+        truncated_non_pot_energy = truncated_kinetic_energy + truncated_force_energy
 
         new_energy_per_window = self._new_calcualte_bias_energy(truncated_non_pot_energy, temp_range, truncated_potential_energy=truncated_potential_energy)
         new_energy_per_window = np.array(new_energy_per_window) * n_particles_in_system
 
         new_energy_per_window_reshaped = np.array(new_energy_per_window).swapaxes(0,1)
-        # temp_biases = np.exp(np.array(new_energy_per_window).swapaxes(0,1))# *beta_range[:,np.newaxis, np.newaxis])
         
         calculated_bin_centers, bin_edges = self.get_bins(xmin, xmax, n_bins=n_bins)
 
-        self.r0 = np.round(np.linspace(xmin, xmax, (self.n_windows + 1))[1:], 3)
+        # self.r0 = np.round(np.linspace(xmin, xmax, (self.n_windows + 1))[1:], 3)
         #Calculate the biases in the windows
         window_biases = np.array([[
             self.w_i(bin_value, r0_value, umbrella_stiff)
@@ -1133,15 +1189,6 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         #Get the com values
         all_com_values = np.array(truncated_com_values)
 
-        # Calculate the counts of each bin
-        # count = [
-        #     [
-        #     np.histogram(com_values, bins=bin_edges, weights=t_bias)[0]
-        #     for com_values, t_bias in zip(all_com_values, temp_bias)
-        #     ] 
-        #     for temp_bias in temp_biases
-        # ]
-        # print(count)
         
         # Initialize the 4D list
         weights_in_bins = [[[[] for _ in range(len(bin_edges) -1 )] for _ in range(len(self.obs_df)) ] for _ in range(len(temp_range))] 
@@ -1150,7 +1197,6 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         # return bin_idx
         # Populate the weights in bins
         for temp_idx, temp_bias in enumerate(new_energy_per_window_reshaped):
-            print(f'{temp_idx=}')
             for window_idx, (bin_i, t_bias) in enumerate(zip(bin_idx, temp_bias)):
                 for val_idx, val in enumerate(bin_i):
                     # Find the bin index for this value
@@ -1168,32 +1214,31 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
                     if len(weights_in_bins[temp_idx][window_idx][bin_idx]) > 0:
                         log_histogram[temp_idx, window_idx, bin_idx] = logsumexp(weights_in_bins[temp_idx][window_idx][bin_idx])
                     else:
-                        log_histogram[temp_idx, window_idx, bin_idx] = 0
+                        log_histogram[temp_idx, window_idx, bin_idx] = -np.inf
 
         self.log_histogram = log_histogram
-        
-        
-        # count = self.fast_histogram(all_com_values, temp_biases, bin_edges)
 
-        #Put the counts into an array
-        # p_i_b_s = np.array(count)
-        # p_i_b_s = np.exp(log_histogram, out=np.zeros_like(log_histogram, dtype=np.double), where=log_histogram!=0)
-        norm_factor = np.max(logsumexp(log_histogram, axis=2, keepdims=True), axis=1)
-        p_i_b_s = np.exp(log_histogram - norm_factor[:, np.newaxis, :], out=np.zeros_like(log_histogram, dtype=np.double), where=log_histogram!=0)
-        summed_p_i_b_s = np.sum(p_i_b_s, axis=2)
+        norm_factor = np.max(logsumexp(log_histogram, axis=2), axis=1)
         
-        # return p_i_b_s, log_histogram
+        p_i_b_s = np.exp(log_histogram - norm_factor[:, np.newaxis, np.newaxis])
+        
+        summed_p_i_b_s = np.sum(p_i_b_s, axis=2)
+        summed_log_histogram = logsumexp(log_histogram, axis=2)
+        
+        
         beta_range_reshaped = beta_range[:, np.newaxis, np.newaxis]
         
-        # return p_i_b_s, log_histogram
+
         #The numerator of p_x is the sum of the counts from each window
         numerator = np.sum(p_i_b_s, axis=1)
-        
+        log_numerator = logsumexp(log_histogram, axis=1)
         
         rng = np.random.default_rng()    
         # epsilon = 1e-7
 
         f_i_bias_factor = np.array([np.exp(-window_biases * bet) for bet in beta_range])
+        log_f_i_bias_factor = np.array([(-window_biases * bet) for bet in beta_range])
+        
         f_i_temps_old = np.array([[rng.normal(loc=0.0, scale=1.0, size=None) for _ in range(len(self.obs_df))] for _ in temp_range_scaled])
         f_i_temps_new = np.zeros_like(f_i_temps_old)
         f_i_temps_over_time = []
@@ -1208,17 +1253,18 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
                 f_i_temps_old = deepcopy(f_i_temps_new)
                 # print(f'{type(f_i_temps_old)=}{type(window_biases)=}{type(beta_range)=}{type(summed_p_i_b_s)=}{type(numerator)=}{type(f_i_bias_factor)=}{type(temp_range_scaled)=}{type(f_i_temps_new)=}{type(f_i_temps_over_time)=}')
                 # f_i_temps_new = self.compute_f_i_temps(f_i_temps_old, window_biases, beta_range, summed_p_i_b_s, numerator, f_i_bias_factor, temp_range_scaled)
+                
                 intermediate_result = f_i_temps_old[:, :, np.newaxis] - window_biases
-                exponential_term = np.exp(intermediate_result * beta_range[:, np.newaxis, np.newaxis])
-                denominator = summed_p_i_b_s[:, :, np.newaxis] * exponential_term 
+                exponential_term = intermediate_result * beta_range[:, np.newaxis, np.newaxis]
+                log_denominator = logsumexp(summed_log_histogram[:, :, np.newaxis] + exponential_term, axis=1)
                                 
                 #Compute the probability of each bin
-                p_x = numerator / np.sum(denominator, axis=1)
+                log_p_x = log_numerator - log_denominator
 
                 #Recompute the f_i values per window. This value will update till convergence
-                sum_p_bf = np.sum(p_x[:, np.newaxis, :] * f_i_bias_factor, axis=2)
+                log_sum_p_bf = logsumexp(log_p_x[:, np.newaxis, :] + log_f_i_bias_factor, axis=2)
 
-                f_i_temps_new = -temp_range_scaled[:,np.newaxis] * np.log(sum_p_bf)
+                f_i_temps_new = -temp_range_scaled[:,np.newaxis] * log_sum_p_bf
 
                 convergence_criterion = np.max(np.abs(f_i_temps_new - f_i_temps_old))
                 f_i_temps_over_time.append(convergence_criterion)
@@ -1238,6 +1284,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         # F_i_temps = F_i_temps * n_particles_in_system
         
         #Get free energy
+        p_x = np.exp(log_p_x)
         free = -np.log(p_x)
         # free = free * n_particles_in_system
         free = free - np.min(free, axis=1, keepdims=True)
@@ -1249,6 +1296,190 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             
         self.F_i = F_i_temps
         return free, F_i_temps, f_i_temps_over_time
+    
+    # def wham_temperature_interpolation(self, temp_range, n_bins, xmin, xmax, umbrella_stiff, max_hb, epsilon=1e-7, reread_files=False, all_observables=False, max_iterations=100000, convergence_slice=None):
+        
+    #     if reread_files is False:
+    #         if self.obs_df is None:
+    #             self.analysis.read_all_observables('prod')
+    #     elif reread_files is True:
+    #         self.analysis.read_all_observables('prod')
+        
+    #     number_of_forces = self.get_n_external_forces()
+    #     # force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
+    #     force_energy = ['force_energy']
+
+    #     min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
+    #     truncated_com_values = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df] 
+    #     x_range = np.round(np.linspace(xmin, xmax, (self.n_windows + 1), dtype=np.double)[1:], 3)
+    #     names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+    #     truncated_potential_energy = [inner_list[names][:min_length] for inner_list in self.obs_df]
+    #     truncated_kinetic_energy = [inner_list['kinetic_energy'][:min_length] for inner_list in self.obs_df]
+    #     truncated_force_energy = [inner_list[force_energy][:min_length] for inner_list in self.obs_df]
+    #     truncated_umbrella_bias = [0.5 * np.double(umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
+        
+        
+    #     if convergence_slice is not None:
+    #         truncated_com_values = [inner_list[convergence_slice] for inner_list in truncated_com_values] 
+    #         names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+    #         truncated_potential_energy = [inner_list[names][convergence_slice] for inner_list in truncated_potential_energy]
+    #         truncated_kinetic_energy = [inner_list[convergence_slice] for inner_list in truncated_kinetic_energy]
+    #         truncated_force_energy = [inner_list[force_energy][convergence_slice] for inner_list in truncated_force_energy]
+    #         truncated_umbrella_bias = [0.5 * np.double(umbrella_stiff) * (com_values - eq_pos)**2 for com_values, eq_pos in zip(truncated_com_values, x_range)]
+
+
+    #     #Get temperature scalar
+    #     temp_range_scaled = self.celcius_to_scaled(temp_range)
+    #     beta_range = 1 / temp_range_scaled
+
+    #     self.get_temperature()
+    #     temperature = np.array(self.temperature, dtype=np.double)
+    #     beta = 1 / temperature
+
+
+    #     top_file = self.production_sims[0].sim_files.top
+    #     with open(top_file, 'r') as f:
+    #         n_particles_in_system = np.double(f.readline().split(' ')[0])
+        
+    #     n_particles_in_op = max_hb * 2
+        
+    #     truncated_non_pot_energy = truncated_kinetic_energy
+
+    #     new_energy_per_window = self._new_calcualte_bias_energy(truncated_non_pot_energy, temp_range, truncated_potential_energy=truncated_potential_energy)
+    #     new_energy_per_window = np.array(new_energy_per_window) * 27
+
+    #     new_energy_per_window_reshaped = np.array(new_energy_per_window).swapaxes(0,1)
+    #     temp_biases = np.exp(np.array(new_energy_per_window).swapaxes(0,1))# *beta_range[:,np.newaxis, np.newaxis])
+        
+    #     calculated_bin_centers, bin_edges = self.get_bins(xmin, xmax, n_bins=n_bins)
+
+    #     # self.r0 = np.round(np.linspace(xmin, xmax, (self.n_windows + 1))[1:], 3)
+    #     #Calculate the biases in the windows
+    #     window_biases = np.array([[
+    #         self.w_i(bin_value, r0_value, umbrella_stiff)
+    #         for bin_value in calculated_bin_centers
+    #         ] 
+    #         for r0_value in self.r0
+    #     ], dtype=np.double)
+
+    #     #Get the com values
+    #     all_com_values = np.array(truncated_com_values)
+
+    #     # Calculate the counts of each bin
+    #     count = [
+    #         [
+    #         np.histogram(com_values, bins=bin_edges, weights=t_bias)[0]
+    #         for com_values, t_bias in zip(all_com_values, temp_bias)
+    #         ] 
+    #         for temp_bias in temp_biases
+    #     ]
+    #     # print(count)
+        
+    #     # Initialize the 4D list
+    #     # weights_in_bins = [[[[] for _ in range(len(bin_edges) -1 )] for _ in range(len(self.obs_df)) ] for _ in range(len(temp_range))] 
+
+    #     # bin_idx = np.digitize(all_com_values, bin_edges) - 1  # -1 because np.digitize starts from 1
+    #     # # return bin_idx
+    #     # # Populate the weights in bins
+    #     # for temp_idx, temp_bias in enumerate(new_energy_per_window_reshaped):
+    #     #     for window_idx, (bin_i, t_bias) in enumerate(zip(bin_idx, temp_bias)):
+    #     #         for val_idx, val in enumerate(bin_i):
+    #     #             # Find the bin index for this value
+    #     #             # bin_idx = np.digitize(val, bin_edges) - 1  # -1 because np.digitize starts from 1
+    #     #             if val < n_bins:
+    #     #                 weights_in_bins[temp_idx][window_idx][val].append(t_bias[val_idx])
+    #     # # Convert to 3D array and apply logsumexp
+    #     # n_temps = len(temp_range)
+    #     # n_windows = len(self.obs_df)
+    #     # n_bins = len(bin_edges) - 1
+    #     # log_histogram = np.zeros((n_temps, n_windows, n_bins))
+    #     # for temp_idx in range(n_temps):
+    #     #     for window_idx in range(n_windows):
+    #     #         for bin_idx in range(n_bins):
+    #     #             if len(weights_in_bins[temp_idx][window_idx][bin_idx]) > 0:
+    #     #                 log_histogram[temp_idx, window_idx, bin_idx] = logsumexp(weights_in_bins[temp_idx][window_idx][bin_idx])
+    #     #             else:
+    #     #                 log_histogram[temp_idx, window_idx, bin_idx] = -np.inf
+
+    #     # self.log_histogram = log_histogram
+        
+    #     # count = self.fast_histogram(all_com_values, temp_biases, bin_edges)
+
+    #     #Put the counts into an array
+    #     p_i_b_s = np.array(count)
+    #     # p_i_b_s = np.exp(log_histogram, out=np.zeros_like(log_histogram, dtype=np.double), where=log_histogram!=0)
+        
+    #     # norm_factor = np.max(logsumexp(log_histogram, axis=2), axis=1)
+        
+    #     # p_i_b_s = np.exp(log_histogram - norm_factor[:, np.newaxis, np.newaxis])
+    #     summed_p_i_b_s = np.sum(p_i_b_s, axis=2)
+        
+    #     beta_range_reshaped = beta_range[:, np.newaxis, np.newaxis]
+        
+    #     # return p_i_b_s, log_histogram
+    #     #The numerator of p_x is the sum of the counts from each window
+    #     numerator = np.sum(p_i_b_s, axis=1)
+        
+        
+    #     rng = np.random.default_rng()    
+    #     # epsilon = 1e-7
+
+    #     f_i_bias_factor = np.array([np.exp(-window_biases * bet) for bet in beta_range])
+    #     f_i_temps_old = np.array([[rng.normal(loc=0.0, scale=1.0, size=None) for _ in range(len(self.obs_df))] for _ in temp_range_scaled])
+    #     f_i_temps_new = np.zeros_like(f_i_temps_old)
+    #     f_i_temps_over_time = []
+        
+    #     first = True
+    #     iteration = 0
+    #     update_frequency = 1000
+    #     significant_digits = abs(int(np.floor(np.log10(abs(epsilon))))) +1
+    #     custom_bar_format = '{desc} {r_bar}'
+    #     with tqdm(desc='WHAM', leave=True, bar_format=custom_bar_format) as pbar:
+    #         while ((first is True) or (np.max(np.abs(f_i_temps_new - f_i_temps_old)) > epsilon)) and (iteration < max_iterations):
+    #             f_i_temps_old = deepcopy(f_i_temps_new)
+    #             # print(f'{type(f_i_temps_old)=}{type(window_biases)=}{type(beta_range)=}{type(summed_p_i_b_s)=}{type(numerator)=}{type(f_i_bias_factor)=}{type(temp_range_scaled)=}{type(f_i_temps_new)=}{type(f_i_temps_over_time)=}')
+    #             # f_i_temps_new = self.compute_f_i_temps(f_i_temps_old, window_biases, beta_range, summed_p_i_b_s, numerator, f_i_bias_factor, temp_range_scaled)
+    #             intermediate_result = f_i_temps_old[:, :, np.newaxis] - window_biases
+    #             exponential_term = np.exp(intermediate_result * beta_range[:, np.newaxis, np.newaxis])
+    #             denominator = summed_p_i_b_s[:, :, np.newaxis] * exponential_term 
+                                
+    #             #Compute the probability of each bin
+    #             p_x = numerator / np.sum(denominator, axis=1)
+
+    #             #Recompute the f_i values per window. This value will update till convergence
+    #             sum_p_bf = np.sum(p_x[:, np.newaxis, :] * f_i_bias_factor, axis=2)
+
+    #             f_i_temps_new = -temp_range_scaled[:,np.newaxis] * np.log(sum_p_bf)
+
+    #             convergence_criterion = np.max(np.abs(f_i_temps_new - f_i_temps_old))
+    #             f_i_temps_over_time.append(convergence_criterion)
+    #             iteration +=1
+
+    #             if (iteration % update_frequency == 0) or (iteration == max_iterations) or (first == True):
+    #                 formatted_convergence = f"{convergence_criterion:.{significant_digits}f} / {float(epsilon)}"
+    #                 pbar.set_postfix_str(f"Convergence: {formatted_convergence}")
+    #                 if first is True:
+    #                     pbar.update(0)
+    #                 else:
+    #                     pbar.update(update_frequency)
+    #             first = False
+
+    #     value = f_i_temps_new[:,0]
+    #     F_i_temps = f_i_temps_new - value[:,np.newaxis]
+    #     # F_i_temps = F_i_temps * n_particles_in_system
+        
+    #     #Get free energy
+    #     free = -np.log(p_x)
+    #     # free = free * n_particles_in_system
+    #     free = free - np.min(free, axis=1, keepdims=True)
+
+    #     if iteration < max_iterations:
+    #         print(f'Converged in [{iteration}] iterations')
+    #     else:
+    #         print(f'Failed to converge in [{iteration}] iterations')
+            
+    #     self.F_i = F_i_temps
+    #     return free, F_i_temps, f_i_temps_over_time
     
     def w_i(self, r, r0, stiff):
         return 0.5 * float(stiff) * (r - r0)**2
@@ -1274,8 +1505,42 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
     def celcius_to_scaled(self, temp):
         return (temp + 273.15) / 3000
     
-    def weight_sample(self, epsilon=1e-15, reread_files=False, convergence_slice=None):
+    def _pre_compute_input(self, truncated_com_distance, truncated_potential_energy, truncated_force_energy, beta, n_particles_in_system, n_restraints):
+        
+        def force_potential_energy(r0, com_position):
+            return 0.5 * 5 * (com_position - r0)**2
+        
+        r0_list = self.r0
+        truncated_com_distance = np.concatenate(truncated_com_distance)
+        
+        com_grid, r0_grid = np.meshgrid(truncated_com_distance, r0_list)
+        
+        #I have all hypotheical window energies in the shape total_data x n_windows
+        all_window_energies = force_potential_energy(r0_grid, com_grid) * 2 / n_particles_in_system
+        all_window_energies =  all_window_energies.swapaxes(1,0)
+        
+        #Pot energies in the shape total_data x n_windows
+        all_pot_energies = np.concatenate(np.sum(truncated_potential_energy, axis=2))
+        
+        #Harmonic trap energies in the shape total_data x n_windows
+        all_force_energies = truncated_force_energy[:,:,:n_restraints]
+        all_force_energies = np.sum(all_force_energies, axis=2)
+        all_force_energies = np.concatenate(all_force_energies)
+        
+        #All window and energies and harmonic trap energies
+        all_biasing_energies = all_window_energies + all_force_energies[:, np.newaxis]
+        
+        #All energies in the shape total_data x n_windows
+        all_energies = all_pot_energies[:, np.newaxis] - all_biasing_energies
+        
+        log_biasing_function = all_energies * beta
+        biasing_function = np.exp(all_energies * beta)
+        
+        return biasing_function, log_biasing_function, all_window_energies, all_pot_energies, all_force_energies
 
+    
+    def weight_sample(self, epsilon=1e-15, reread_files=False, convergence_slice=None):
+        
         if reread_files is False:
             if self.obs_df is None:
                 self.analysis.read_all_observables('prod')
@@ -1283,12 +1548,16 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             self.analysis.read_all_observables('prod')
              
         number_of_forces = self.get_n_external_forces()
+        n_restraints = number_of_forces - 2
+        
         force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
 
+        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
 
         min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])        
         truncated_force_energy = [inner_list[force_energy][:min_length] for inner_list in self.obs_df]
-        
+        truncated_potential_energy = [inner_list[names][:min_length] for inner_list in self.obs_df]
+        truncated_com_distance = [inner_list['com_distance'][:min_length] for inner_list in self.obs_df]
         
         if convergence_slice is not None:
             truncated_force_energy = [inner_list[convergence_slice] for inner_list in truncated_force_energy]
@@ -1296,58 +1565,165 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         temperature = np.array(self.temperature, dtype=np.double)
         beta = 1 / temperature
         
-        
-        truncated_com_distance = pd.concat([inner_list['com_distance'][:min_length] for inner_list in self.obs_df]).reset_index(drop=True)
-        r0_list = self.r0
-
-        com_grid, r0_grid = np.meshgrid(truncated_com_distance, r0_list)
-        
-        def force_potential_energy(r0, com_position):
-            return 0.5 * 5 * (com_position - r0)**2
-        result = force_potential_energy(r0_grid, com_grid)
-
-        number_of_forces = self.get_n_external_forces()
-        force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
-
-
-        force_samples = np.concatenate([result, np.array(np.concatenate(truncated_force_energy))[:, :16].T])
-        force_samples =  force_samples.T 
-        force_samples[:, 17:] = force_samples[:, 17:] / 16
-        
-        # force_samples = pd.concat(truncated_force_energy).reset_index(drop=True)
-        
-        rng = np.random.default_rng()    
-        f_i_old = np.array([rng.normal(loc=0.0, scale=1.0, size=None) for _ in range(force_samples.shape[1])])
-        
-        
         top_file = self.production_sims[0].sim_files.top
         with open(top_file, 'r') as f:
             n_particles_in_system = np.double(f.readline().split(' ')[0])
         
-        e_to_neg_u_beta = np.exp(-force_samples * n_particles_in_system * beta)
-        e_to_neg_fi_beta_old = np.exp(-f_i_old * beta)
-        e_to_neg_fi_beta_new = np.zeros_like(e_to_neg_fi_beta_old)
+        truncated_force_energy = np.array(truncated_force_energy)
+        truncated_potential_energy = np.array(truncated_potential_energy)
+        truncated_com_distance = np.array(truncated_com_distance)
+        
+        self.get_r0_values()
+        
+        num_samples_per_window = truncated_force_energy.shape[1]
+        n_windows = truncated_force_energy.shape[0]
 
-        convergence_criterion_list = []
-        convergence_criterion = np.max(np.abs(e_to_neg_fi_beta_new - e_to_neg_fi_beta_old))
+        biasing_function, log_biasing_function, all_window_energies, all_pot_energies, all_force_energies = self._pre_compute_input(truncated_com_distance, truncated_potential_energy, truncated_force_energy, beta, n_particles_in_system, n_restraints)
+        return all_window_energies, all_pot_energies, all_force_energies
+        constant_term = biasing_function * num_samples_per_window
+        
+        # f_i_old = np.ones(biasing_function.shape[1])
+        # rho_old = np.ones([n_windows, int(biasing_function.shape[0]/n_windows)])
 
-        while convergence_criterion > epsilon:
-            denom = np.sum(e_to_neg_u_beta * (1 / e_to_neg_fi_beta_old), axis=1)
+        log_f_i_old = np.ones(biasing_function.shape[1])
 
-            numerator = 1 / np.sum(1 / denom)
+        convergence_criterion = 1
+        iteration = 0
+        update_frequency = 5
+        significant_digits = abs(int(np.floor(np.log10(abs(epsilon))))) +1
+        custom_bar_format = '{desc} {r_bar}'
+        first = True
 
-            w_i =  numerator / denom
+        with tqdm(desc='Non-parametric WHAM', leave=True, bar_format=custom_bar_format) as pbar:
+            while convergence_criterion > epsilon:
+                
+                log_rho_new = np.log(1) - logsumexp(log_biasing_function + log_f_i_old, b=num_samples_per_window, axis=1)
+                log_fi_new = np.log(1) - logsumexp(log_biasing_function + log_rho_new[:, np.newaxis], axis=0)
+                
+                # rho_new = 1 / np.sum(constant_term * f_i_old, axis=1)
+                # f_i_new = 1 / np.sum(biasing_function * rho_new[:, np.newaxis], axis=0)
+                
+                # f_i_new, rho_new = single_iteration(f_i_old, biasing_function, constant_term, num_samples_per_window)
+                convergence_criterion = np.max(np.abs(log_fi_new - log_f_i_old))
 
-            e_to_neg_fi_beta_new = np.sum(w_i[:, np.newaxis] * e_to_neg_u_beta, axis=0)
+                log_fi_old = log_fi_new
+                # f_i_old = f_i_new
+                iteration +=1
 
-            convergence_criterion = np.max(np.abs(e_to_neg_fi_beta_new - e_to_neg_fi_beta_old))
-            print(convergence_criterion)
+                if (iteration % update_frequency == 0) or (first == True):
+                    formatted_convergence = f"{convergence_criterion:.{significant_digits}f} / {float(epsilon)}"
+                    pbar.set_postfix_str(f"Convergence: {formatted_convergence}")
+                    if first is True:
+                        pbar.update(0)
+                    else:
+                        pbar.update(update_frequency)
+                first = False
+            
+        # f_i_new = f_i_new - np.min(f_i_new)
+        # rho_new = 1 / np.sum(constant_term * f_i_new, axis=1)
+        # rho_new = rho_new / np.sum(rho_new)
+         
+        return log_rho_new, log_fi_new
 
-            convergence_criterion_list.append(convergence_criterion)
-            e_to_neg_fi_beta_old = deepcopy(e_to_neg_fi_beta_new)
+
+    
+    # def weight_sample(self, epsilon=1e-15, reread_files=False, convergence_slice=None):
+
+    #     if reread_files is False:
+    #         if self.obs_df is None:
+    #             self.analysis.read_all_observables('prod')
+    #     elif reread_files is True:
+    #         self.analysis.read_all_observables('prod')
+             
+    #     number_of_forces = self.get_n_external_forces()
+    #     force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
+
+
+    #     min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])        
+    #     truncated_force_energy = [inner_list[force_energy][:min_length] for inner_list in self.obs_df]
         
         
-        return w_i
+    #     if convergence_slice is not None:
+    #         truncated_force_energy = [inner_list[convergence_slice] for inner_list in truncated_force_energy]
+
+    #     temperature = np.array(self.temperature, dtype=np.double)
+    #     beta = 1 / temperature
+        
+        
+    #     # truncated_com_distance = pd.concat([inner_list['com_distance'][:min_length] for inner_list in self.obs_df]).reset_index(drop=True)
+    #     # r0_list = self.r0
+
+    #     # com_grid, r0_grid = np.meshgrid(truncated_com_distance, r0_list)
+        
+    #     # def force_potential_energy(r0, com_position):
+    #     #     return 0.5 * 5 * (com_position - r0)**2
+    #     # result = force_potential_energy(r0_grid, com_grid)
+
+    #     # number_of_forces = self.get_n_external_forces()
+    #     # force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
+
+
+    #     # force_samples = np.concatenate([result, np.array(np.concatenate(truncated_force_energy))[:, :16].T])
+    #     # force_samples =  force_samples.T 
+    #     # force_samples[:, 17:] = force_samples[:, 17:] / 16
+        
+    #     # force_samples = pd.concat(truncated_force_energy).reset_index(drop=True)
+        
+    #     rng = np.random.default_rng()    
+    #     n_restraints = (number_of_forces - 2)
+    #     n_fi = (self.n_windows * 2) + n_restraints
+        
+    #     f_i_old = np.array([rng.normal(loc=0.0, scale=1.0, size=None) for _ in range(n_fi)])
+        
+        
+    #     top_file = self.production_sims[0].sim_files.top
+    #     with open(top_file, 'r') as f:
+    #         n_particles_in_system = np.double(f.readline().split(' ')[0])
+        
+    #     truncated_force_energy = np.array(truncated_force_energy)
+        
+    #     #First thing to do is precalculate e_to_neg_u_beta
+    #     e_to_neg_u_beta = np.exp(-truncated_force_energy * n_particles_in_system * beta)
+        
+    #     e_to_neg_fi_beta_old = np.exp(-f_i_old * beta)
+    #     e_to_neg_fi_beta_new = np.zeros_like(e_to_neg_fi_beta_old)
+        
+
+    #     convergence_criterion_list = []
+    #     convergence_criterion = np.max(np.abs(e_to_neg_fi_beta_new - e_to_neg_fi_beta_old))
+
+    #     e_to_neg_u_beta_new = np.zeros_like(e_to_neg_u_beta)
+    #     while convergence_criterion > epsilon:
+    #         e_to_neg_u_beta_new = np.zeros_like(e_to_neg_u_beta)
+            
+    #         #Calculate the e_to_neg_u_beta_new
+    #         e_to_neg_u_beta_new[:, :, :n_restraints] = e_to_neg_u_beta[:, :, :n_restraints] * (e_to_neg_fi_beta_old[:n_restraints])
+            
+    #         for idx in range(len(e_to_neg_fi_beta_old[n_restraints:])):
+    #             e_to_neg_u_beta_new[int(np.floor(idx/2)), :,n_restraints + (idx % 2)] = e_to_neg_u_beta[int(np.floor(idx/2)), :, n_restraints + (idx % 2)] * (e_to_neg_fi_beta_old[idx  + n_restraints])
+    #         w_i = 1 / np.sum(e_to_neg_u_beta_new, axis=2)
+            
+            
+    #         w_i_fi_restraint_factor = w_i.flatten()
+    #         fi_restrain_intermediate = e_to_neg_u_beta[:,:,:n_restraints].reshape([e_to_neg_u_beta.shape[0] * e_to_neg_u_beta.shape[1], n_restraints])
+            
+    #         e_to_neg_fi_beta_new[:n_restraints] = np.sum(w_i_fi_restraint_factor[:,np.newaxis] * fi_restrain_intermediate, axis=0)
+            
+    #         for idx in range(len(e_to_neg_fi_beta_old[n_restraints:])):
+    #             temp = e_to_neg_u_beta[int(np.floor(idx/2)), :, n_restraints + (idx % 2)]  * w_i[int(np.floor(idx/2)), :]
+    #             e_to_neg_fi_beta_new[idx  + n_restraints] = np.sum(temp)
+            
+  
+    #         convergence_criterion = np.max(np.abs(e_to_neg_fi_beta_new - e_to_neg_fi_beta_old))
+    #         print(w_i)
+    #         print(convergence_criterion)
+
+    #         convergence_criterion_list.append(convergence_criterion)
+    #         e_to_neg_fi_beta_old = deepcopy(e_to_neg_fi_beta_new)
+    #         e_to_neg_fi_beta_old -= logsumexp(e_to_neg_fi_beta_old)
+
+        
+    #     return w_i
     
     
     def read_kinetic_and_potential_energy(self):
@@ -1467,7 +1843,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.log_p_i_h = log_p_i_h
 
         
-        f_i = self.get_biases()
+        f_i = self.get_wham_biases()
         weight = -beta * np.array(f_i)
         self.weight = weight
         weight_norm = logsumexp(weight)
@@ -1659,61 +2035,457 @@ class NDimensionalUmbrella(MeltingUmbrellaSampling):
             umbrella_forces_2.append(self.umbrella_force_2)  
         self.forces_list = np.transpose(np.array([umbrella_forces_1, umbrella_forces_2])) 
     
+
+class PymbarAnalysis:
+    def __init__(self, base_umbrella):
+        self.base_umbrella = base_umbrella
+    
+    def run_mbar_fes(self, reread_files=False, sim_type='prod', uncorrelated_samples=False, restraints=False, force_energy_split=False):
+        
+        if uncorrelated_samples is False:
+            u_kln, N_k = self.setup_input_data(reread_files=reread_files, sim_type=sim_type, restraints=restraints, force_energy_split=force_energy_split)
+        elif uncorrelated_samples is True:
+            u_kln, N_k = self.setup_input_data_with_uncorrelated_samples(reread_files=reread_files, sim_type=sim_type, restraints=restraints, force_energy_split=force_energy_split)
+        
+        mbar_options = {'maximum_iterations':1000000, 'relative_tolerance':1e-9}
+        print("Running FES calculation...")
+        
+        self.basefes = pymbar.FES(u_kln, N_k, verbose=True)#, mbar_options=mbar_options)
+    
+    def init_param_and_arrays(self):
+        
+        self.base_umbrella.get_r0_values()
+        self.base_umbrella.get_stiff_value()
+        self.base_umbrella.get_temperature()
+        self.base_umbrella.get_n_particles_in_system()
+        
+        kB = 1 # Boltzmann constant
+        temperature = self.base_umbrella.temperature # temperature
+        beta = 1.0 / (kB * temperature) # inverse temperature of simulations
+
+        K = len(self.base_umbrella.obs_df) # number of umbrellas
+        T_k = np.ones(K, float) * temperature  # inital temperatures are all equal
+        beta_k = np.ones(K, float) * beta # inverse temperatures of umbrellas
+
+        min_length = min([len(inner_list['com_distance']) for inner_list in self.base_umbrella.obs_df])  
+        max_length = max([len(inner_list['com_distance']) for inner_list in self.base_umbrella.obs_df])  
+
+        N_max = max_length # maximum number of snapshots
+
+        # Allocate storage for simulation data
+        # N_k[k] is the number of snapshots from umbrella simulation k
+        N_k = np.zeros([K], dtype=int)
+        # K_k[k] is the spring constant (in sim_units) for umbrella simulation k
+        K_k = np.zeros([K])
+        # com0_k[k] is the spring center location (in sim_units) for umbrella simulation k
+        com0_k = np.zeros([K])
+        # com_kn[k,n] is the distance (in sim_units) for snapshot n from umbrella simulation k
+        com_kn = np.zeros([K, N_max])
+        # u_kn[k,n] is the reduced potential energy without umbrella restraints of snapshot n of umbrella simulation k
+        u_kn = np.zeros([K, N_max])
+        # u_res_kn[k,n] is the reduced potential energy of external resstraints (that are not the umbrella pot) at snapshot n of umbrella simulation k
+        u_res_kn = np.zeros([K, N_max])
+        #Statistical inefficency
+        g_k = np.zeros([K])
+
+        # u_kln[k,l,n] is the reduced potential energy of snapshot n from umbrella simulation k evaluated at umbrella l
+        u_kln = np.zeros([K, K, N_max])
+        
+        return K, N_max, beta_k, N_k, K_k, com0_k, com_kn, u_kn, u_res_kn, u_kln
+
+
+    def setup_input_data(self, reread_files=False, sim_type='prod', restraints=False, force_energy_split=False):
+        if reread_files is False:
+            if self.base_umbrella.obs_df == None:
+                self.base_umbrella.analysis.read_all_observables(sim_type=sim_type)
+        if reread_files is True:
+            self.base_umbrella.analysis.read_all_observables(sim_type=sim_type)
+        
+        K, N_max, beta_k, N_k, K_k, com0_k, com_kn, u_kn, u_res_kn, u_kln = self.init_param_and_arrays()
+        
+        subsample = 10
+        
+        # u_kn = self._setup_temp_scaled_potential(N_max)[::subsample]
+        
+        com_kn = [inner_list['com_distance'] for inner_list in self.base_umbrella.obs_df]
+        N_k = np.array([len(inner_list) for inner_list in com_kn])
+        
+        com_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant')
+                           for inner_list in com_kn])
+
+        if restraints is True:
+            u_res_kn = self._setup_restrain_potential(com_kn, N_k, N_max, force_energy_split)
+            u_res_kn = ((u_res_kn) * beta_k[:, np.newaxis])
+        
+        N = np.sum(N_k)
+        
+        com0_k = np.array(self.base_umbrella.r0) # umbrella potential centers        
+        K_k = np.array([self.base_umbrella.stiff for _ in range(K)]) # umbrella potential stiffness
+        
+        print("Evaluating reduced potential energies...")
+        for k in range(K):
+            for n in range(int(N_k[k])):
+                # Compute minimum-image torsion deviation from umbrella center l
+                dchi = com_kn[k, n] - com0_k
+                
+                # Compute energy of snapshot n from simulation k in umbrella potential l
+                if restraints is True:
+                    u_kln[k, :, n] = beta_k[k] * (K_k / 2.0) * dchi**2 + u_res_kn[k, n] + u_kn[k, n]
+                
+                else:
+                    u_kln[k, :, n] = beta_k[k] * (K_k / 2.0) * dchi**2 + u_kn[k, n]
+                
+        return u_kln, N_k
+    
+    def _setup_temp_scaled_potential(self, N_max, temp_range):
+        
+        names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
+        u_kn = [inner_list[names] for inner_list in self.base_umbrella.obs_df]
+        
+        # u_kn = np.array([np.pad(inner_list, ((0, N_max - len(inner_list)), (0,0)), 'constant') for inner_list in u_kn])
+        kinetic_energy = [inner_list['kinetic_energy'] for inner_list in self.base_umbrella.obs_df]
+        force_energy = [inner_list['force_energy_0'] for inner_list in self.base_umbrella.obs_df]
+        non_pot_energy = [kin for kin,force in zip(kinetic_energy, force_energy)]
+        
+        # non_pot_energy = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant') for inner_list in non_pot_energy])
+        new_energy_per_window = self.base_umbrella._new_calcualte_bias_energy(non_pot_energy, temp_range, truncated_potential_energy=u_kn)
+        new_energy_per_window = [val.swapaxes(1, 0) for val in new_energy_per_window]
+        new_energy_per_window = np.array([np.pad(inner_list, ((0, N_max - len(inner_list)), (0,0)), 'constant') for inner_list in new_energy_per_window])
+        new_energy_per_window = new_energy_per_window * self.base_umbrella.n_particles_in_system
+        
+        return new_energy_per_window
+
+    def _setup_restrain_potential(self, com_kn, N_k, N_max, force_energy_split):
+        if force_energy_split is True:
+            number_of_forces = self.base_umbrella.get_n_external_forces()
+            n_restraints = number_of_forces - 2
+            force_energy = [f'force_energy_{idx}' for idx in range(n_restraints)]
+            u_res_kn = [np.sum(inner_list[force_energy], axis=1) for inner_list in self.base_umbrella.obs_df]
+        else:
+            n_restraints = 1
+            force_energy = [f'force_energy_{idx}' for idx in range(n_restraints)]
+            u_res_kn = [inner_list[force_energy[0]] for inner_list in self.base_umbrella.obs_df]
+            umbrella_potentials_kn = [self.base_umbrella.w_i(com_n_k[:N_k_k], r0, self.base_umbrella.stiff)* 2 /self.base_umbrella.n_particles_in_system 
+                                   for com_n_k, N_k_k, r0 in zip(com_kn, N_k, self.base_umbrella.r0)]
+            u_res_kn = [res_pot - umb_pot for res_pot, umb_pot in zip(u_res_kn, umbrella_potentials_kn)]
+
+        u_res_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant')
+                       for inner_list in u_res_kn])
+        u_res_kn = u_res_kn * self.base_umbrella.n_particles_in_system / 2
+        
+        return u_res_kn  
+    
+    def _fes_histogram(self, u_kn, op_n, bin_edges, bin_center_i):
+        histogram_parameters = {}
+        histogram_parameters["bin_edges"] = bin_edges
+        self.basefes.generate_fes(u_kn, op_n, fes_type="histogram", histogram_parameters=histogram_parameters)
+        results = self.basefes.get_fes(bin_center_i, reference_point="from-lowest", uncertainty_method="analytical")
+        return results
+    
+    def _bin_centers(self, op_min, op_max, nbins, discrete=False):
+        # compute bin centers
+        bin_center_i = np.zeros([nbins])
+        if discrete:
+            bin_edges = np.arange(0, nbins + 1)
+        else:
+            bin_edges = np.linspace(op_min, op_max, nbins + 1)
+        for i in range(nbins):
+            bin_center_i[i] = 0.5 * (bin_edges[i] + bin_edges[i + 1])
+            
+        return bin_center_i, bin_edges
+    
+    def _subsample_correlated_data(K, N_k, op_kn):
+        com_kn = [inner_list['com_distance'] for inner_list in self.base_umbrella.obs_df]
+        com_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant') for inner_list in com_kn])
+        for k in range(K):
+            t0, g, Neff_max = timeseries.detect_equilibration_binary_search(com_kn[k, :])
+            indices = timeseries.subsample_correlated_data(com_kn[k, t0:], g=g)
+            N_k[k] = len(indices)
+            op_kn[k, 0 : N_k[k]] = op_kn[k, t0:][indices]
+        return op_kn, N_k
+    
+    def calculate_melting_temperature(self, temp_range, probabilities):        
+        #probabilities: n_temps x n_hb
+        
+        bound_states = probabilities[:,1:].sum(axis=1)
+        unbound_states = probabilities[:,0]
+        ratio = bound_states / unbound_states 
+    
+        finf = 1. + 1. / (2. * ratio) - np.sqrt((1. + 1. / (2. * ratio))**2 - 1.)
+        
+        inverted_finfs = 1 - finf
+        
+        # Fit the sigmoid function to the inverted data
+        p0 = [max(inverted_finfs), np.median(temp_range), 1, min(inverted_finfs)]  # initial guesses for L, x0, k, b
+        popt, _ = curve_fit(self.base_umbrella.sigmoid, temp_range, inverted_finfs, p0, method='dogbox')
+    
+        # Generate fitted data
+        x_fit = np.linspace(min(temp_range), max(temp_range), 500)
+        y_fit = self.base_umbrella.sigmoid(x_fit, *popt)
+        
+        
+        idx = np.argmin(np.abs(y_fit - 0.5))
+        Tm = x_fit[idx]
+        
+        return Tm, x_fit, y_fit, inverted_finfs
+        
+    def n_hb_fes_hist(self, max_hb, uncorrelated_samples=False, temp_range=None):
+        K = len(self.base_umbrella.obs_df)
+        N_max = max([len(inner_list['hb_list']) for inner_list in self.base_umbrella.obs_df])
+        N_k = np.array([len(inner_list['hb_list']) for inner_list in self.base_umbrella.obs_df])
+        u_kn = np.zeros([K, N_max])
+        
+        hb_list_kn = [inner_list['hb_list'] for inner_list in self.base_umbrella.obs_df]
+        hb_list_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant') for inner_list in hb_list_kn])
+        hb_list_n = pymbar.utils.kn_to_n(hb_list_kn, N_k=N_k)
+        
+        if uncorrelated_samples is True:
+            hb_list_kn, N_k = self._subsample_correlated_data(K, N_k, hb_list_kn)
+            hb_list_n = pymbar.utils.kn_to_n(hb_list_kn, N_k=N_k)
+        
+        op_min = 0 # min of reaction coordinate
+        op_max = max_hb # max of reaction coordinate
+        nbins = max_hb + 1 # number of bins
+
+        bin_center_i, bin_edges = self._bin_centers(op_min, op_max, nbins, discrete=True)
+
+        if temp_range is not None:
+            f_i = np.zeros([len(temp_range), len(bin_center_i)])
+            df_i = np.zeros([len(temp_range), len(bin_center_i)])
+            u_knt = -self._setup_temp_scaled_potential(N_max, temp_range)
+            for temp_idx in range(u_knt.shape[2]):
+                u_kn = u_knt[:, :, temp_idx]
+                results = self._fes_histogram(u_kn, hb_list_n, bin_edges, bin_center_i)
+                f_i[temp_idx, :] = results["f_i"]
+                df_i[temp_idx, :] = results["df_i"]
+                
+                f_i[temp_idx, :] = f_i[temp_idx, :] - f_i[temp_idx, 0]
+            bin_center_i = bin_center_i - 0.5
+            return f_i, bin_center_i, df_i
+                
+        else:
+            results = self._fes_histogram(u_kn, hb_list_n, bin_edges, bin_center_i)
+            center_f_i = results["f_i"]
+            center_df_i = results["df_i"]
+            center_f_i = center_f_i - center_f_i.min()
+            bin_center_i = bin_center_i - 0.5
+        
+            return center_f_i, bin_center_i, center_df_i
+    
+    def com_fes_hist(self, n_bins=200, uncorrelated_samples=False, temp_range=None):
+        
+        K = len(self.base_umbrella.obs_df)
+        N_max = max([len(inner_list['com_distance']) for inner_list in self.base_umbrella.obs_df])
+        N_k = np.array([len(inner_list['com_distance']) for inner_list in self.base_umbrella.obs_df])
+        u_kn = np.zeros([K, N_max])
+
+        
+        com_kn = [inner_list['com_distance'] for inner_list in self.base_umbrella.obs_df]
+        com_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant') for inner_list in com_kn])
+        com_n = pymbar.utils.kn_to_n(com_kn, N_k=N_k)
+        
+        if uncorrelated_samples is True:
+            com_kn, N_k = self._subsample_correlated_data(K, N_k, com_kn)
+            com_n = pymbar.utils.kn_to_n(com_kn, N_k=N_k)
+        
+        op_min = 1e-2 # min of reaction coordinate
+        op_max = com_n.max() -1e-1  # max of reaction coordinate
+        nbins = n_bins # number of bins
+
+        # compute bin centers
+        bin_center_i, bin_edges = self._bin_centers(op_min, op_max, nbins)
+        
+        if temp_range is not None:
+            f_i = np.zeros([len(temp_range), len(bin_center_i)])
+            df_i = np.zeros([len(temp_range), len(bin_center_i)])
+            u_knt = -self._setup_temp_scaled_potential(N_max, temp_range)
+            for temp_idx in range(u_knt.shape[2]):
+                u_kn = u_knt[:, :, temp_idx]
+                results = self._fes_histogram(u_kn, com_n, bin_edges, bin_center_i)
+                f_i[temp_idx, :] = results["f_i"]
+                df_i[temp_idx, :] = results["df_i"]
+                f_i[temp_idx, :] = f_i[temp_idx, :] - f_i[temp_idx, :].min()
+                
+            bin_center_i = bin_center_i * 0.8518
+            return f_i, bin_center_i, df_i
+        
+        results = self._fes_histogram(u_kn, com_n, bin_edges, bin_center_i)
+        center_f_i = results["f_i"]
+        center_df_i = results["df_i"]
+        
+        center_f_i = center_f_i - center_f_i.min()
+        bin_center_i = bin_center_i * 0.8518
+        
+        return center_f_i, bin_center_i, center_df_i
+    
+    def hb_contact_fes_hist(self, n_bins=200, uncorrelated_samples=False, temp_range=None):
+        # self.base_umbrella.read_hb_contacts(sim_type='prod')
+        K = len(self.base_umbrella.obs_df)
+        N_max = max([len(value.squeeze()) for value in self.base_umbrella.hb_contacts_by_window.values()])
+        N_k = np.array([len(value.squeeze()) for value in self.base_umbrella.hb_contacts_by_window.values()])
+        u_kn = np.zeros([K, N_max])
+        
+        hb_contacts_kn = [value.squeeze()[:N_max] for value in self.base_umbrella.hb_contacts_by_window.values()]
+        hb_contacts_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant') for inner_list in hb_contacts_kn])
+        hb_contacts_n = pymbar.utils.kn_to_n(hb_contacts_kn, N_k=N_k)
+        
+        if uncorrelated_samples is True:
+            hb_contacts_kn, N_k = self._subsample_correlated_data(K, N_k, hb_contacts_kn)
+            hb_contacts_n = pymbar.utils.kn_to_n(hb_contacts_kn, N_k=N_k)
+        
+        op_min = 0 # min of reaction coordinate
+        op_max = 1 # max of reaction coordinate
+        nbins = n_bins # number of bins
+
+        # compute bin centers
+        bin_center_i, bin_edges = self._bin_centers(op_min, op_max, nbins)
+        
+        if temp_range is not None:
+            f_i = np.zeros([len(temp_range), len(bin_center_i)])
+            df_i = np.zeros([len(temp_range), len(bin_center_i)])
+            u_knt = -self._setup_temp_scaled_potential(N_max, temp_range)
+            for temp_idx in range(u_knt.shape[2]):
+                u_kn = u_knt[:, :, temp_idx]
+                results = self._fes_histogram(u_kn, hb_contacts_n, bin_edges, bin_center_i)
+                f_i[temp_idx, :] = results["f_i"]
+                df_i[temp_idx, :] = results["df_i"]
+                f_i[temp_idx, :] = f_i[temp_idx, :] - f_i[temp_idx, :].min()
+                
+            return f_i, bin_center_i, df_i
+        
+        results = self._fes_histogram(u_kn, hb_contacts_n, bin_edges, bin_center_i)
+        center_f_i = results["f_i"]
+        center_df_i = results["df_i"]
+        
+        center_f_i = center_f_i - center_f_i.min()
+        bin_center_i = bin_center_i
+        
+        return center_f_i, bin_center_i, center_df_i      
+    
+    def setup_input_data_with_uncorrelated_samples(self, reread_files=False, sim_type='prod', restraints=False, force_energy_split=False):
+        if reread_files is False:
+            if self.base_umbrella.obs_df == None:
+                self.base_umbrella.analysis.read_all_observables(sim_type=sim_type)
+        if reread_files is True:
+            self.base_umbrella.analysis.read_all_observables(sim_type=sim_type)
+        
+        K, N_max, beta_k, min_length, N_k, K_k, com0_k, com_kn, u_kn, u_kln = self.init_param_and_arrays()
+        
+        com_kn = [inner_list['com_distance']for inner_list in self.base_umbrella.obs_df]
+        N_k = np.array([len(inner_list) for inner_list in com_kn])
+        
+        com_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant')
+                           for inner_list in com_kn])
+
+        if restraints is True:
+            if force_energy_split is True:
+                number_of_forces = self.base_umbrella.get_n_external_forces()
+                n_restraints = number_of_forces - 2
+                force_energy = [f'force_energy_{idx}' for idx in range(n_restraints)]
+                restraints_kn = [np.sum(inner_list[force_energy], axis=1) for inner_list in self.base_umbrella.obs_df]
+            else:
+                n_restraints = 1
+                force_energy = [f'force_energy_{idx}' for idx in range(n_restraints)]
+                restraints_kn = [inner_list[force_energy[0]] for inner_list in self.base_umbrella.obs_df]
+                umbrella_potentials_kn = [self.base_umbrella.w_i(com_n_k[:N_k_k], r0, self.base_umbrella.stiff)* 2 /self.base_umbrella.n_particles_in_system 
+                                       for com_n_k, N_k_k, r0 in zip(com_kn, N_k, self.base_umbrella.r0)]
+                restraints_kn = [res_pot - umb_pot for res_pot, umb_pot in zip(restraints_kn, umbrella_potentials_kn)]
+
+            restraints_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant')
+                           for inner_list in restraints_kn])
+            
+            restraints_kn = restraints_kn * self.base_umbrella.n_particles_in_system / 2
+            u_kn = (restraints_kn) * beta_k[:, np.newaxis]
+        
+        for k in range(K):
+            t0, g, Neff_max = timeseries.detect_equilibration_binary_search(com_kn[k, :N_k[k]])
+            indices = timeseries.subsample_correlated_data(com_kn[k, t0:N_k[k]], g=g)
+            print(f'Sim {k}: t0: {t0}, g: {g}, Neff_max: {Neff_max}')
+            N_k[k] = len(indices)
+            com_kn[k, 0 : N_k[k]] = com_kn[k, t0:][indices]
+            u_kn[k, 0 : N_k[k]] = u_kn[k, t0:][indices]
+        
+        N_max = np.max(N_k)
+        u_kln = np.zeros([K, K, N_max])
+        N = np.sum(N_k)
+        
+        com0_k = np.array(self.base_umbrella.r0) # umbrella potential centers        
+        K_k = np.array([self.base_umbrella.stiff for _ in range(K)]) # umbrella potential stiffness
+        
+        print("Evaluating reduced potential energies...")
+        for k in range(K):
+            for n in range(int(N_k[k])):
+                # Compute minimum-image torsion deviation from umbrella center l
+                dchi = com_kn[k, n] - com0_k
+                
+                # Compute energy of snapshot n from simulation k in umbrella potential l
+                u_kln[k, :, n] = beta_k[k] * (K_k / 2.0) * dchi**2 + u_kn[k, n]
+                
+        return u_kln, N_k
     
 class UmbrellaAnalysis:
     def __init__(self, base_umbrella):
         self.base_umbrella = base_umbrella
         self.base_umbrella.obs_df = None
     
+    
     def read_all_observables(self, sim_type):
-        
-
         file_name = self.base_umbrella.observables_list[0]['output']['name']
         print_every = int(float(self.base_umbrella.observables_list[0]['output']['print_every']))
         
+        # Determine the simulation list based on sim_type
         if sim_type == 'eq':
             sim_list = self.base_umbrella.equlibration_sims
         elif sim_type == 'prod':
             sim_list = self.base_umbrella.production_sims
         elif sim_type == 'pre_eq':
             sim_list = self.base_umbrella.pre_equlibration_sims
+
+        # Assuming force_js is accessible and relevant here
+        # with open(sim_list[0].sim_files.force, 'r') as f:
+        #     force_js = load(f)
+        #     number_of_forces = len(force_js.keys())
         
-        obs_types = [observe['output']['cols'][0]['type'] for observe in self.base_umbrella.observables_list]
-
-
-        with open(sim_list[0].sim_files.force, 'r') as f:
-            force_js = load(f)
-            number_of_forces = len(force_js.keys())
-
-                        
-        all_observables = []
-        for sim in sim_list:
-            try:
-                all_observables.append(pd.read_csv(f"{sim.sim_dir}/{file_name}", header=None, engine='pyarrow'))
-            except FileNotFoundError:
-                all_observables.append(pd.DataFrame())
+        number_of_forces = 0
+        with open(sim_list[0].sim_files.observables, 'r') as f:
+            obs_file = load(f)
+        obs_file_cols = obs_file['output']['cols']
+        for col in obs_file_cols:
+            if 'force_energy' in col['type']:
+                number_of_forces += 1
         
         names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
         force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
         columns = ['com_distance', 'hb_list', *force_energy, 'kinetic_energy', *names]
         # columns = ['com_distance', 'hb_list', 'force_energy', 'kinetic_energy', *names]
+        # Parallel processing using ProcessPoolExecutor
+        with ProcessPoolExecutor() as executor:
+            results = list(executor.map(self.process_simulation, sim_list, 
+                                        [file_name]*len(sim_list), 
+                                        [number_of_forces]*len(sim_list), 
+                                        [columns]*len(sim_list), 
+                                        [print_every]*len(sim_list)))
 
-        
-        obs = [pd.DataFrame([
-                list(filter(lambda a: a != '',all_observables[window_idx].iloc[data_idx][0].split(' ')))
-                for data_idx in range(len(all_observables[window_idx]))
-                ],columns=columns, dtype=np.double)
-                for window_idx in range(len(all_observables))
-            ]
-        
-        obs = [pd.concat([obs[window_idx],
-                  pd.DataFrame([np.arange(len(obs[window_idx])) * print_every]
-                           , dtype=np.int64).T.rename(columns={0: 'steps'})]
-                         , axis=1)
-               for window_idx in range(len(obs))]
-        
-        self.base_umbrella.obs_df = obs
+        self.base_umbrella.obs_df = results
         return self.base_umbrella.obs_df
+
+    def process_simulation(self, sim, file_name, number_of_forces, columns, print_every):
+        """
+        Standalone function to process a single simulation.
+        """
+        try:
+            observable = pd.read_csv(f"{sim.sim_dir}/{file_name}", header=None, engine='pyarrow')
+        except FileNotFoundError:
+            observable = pd.DataFrame()
+
+        if not observable.empty:
+            data = [list(filter(lambda a: a != '', row[0].split(' '))) for row in observable.itertuples(index=False)]
+            df = pd.DataFrame(data, columns=columns, dtype=np.double)
+            df['steps'] = np.arange(len(df)) * print_every
+        else:
+            df = pd.DataFrame(columns=columns + ['steps'])
+
+        return df
         
     def view_observable(self, sim_type, idx, sliding_window=False, observable=None):
         if observable == None:

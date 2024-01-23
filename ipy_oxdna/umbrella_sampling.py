@@ -114,7 +114,7 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
         self.observables_list = []
         self.windows.pre_equlibration_windows(n_windows)
         self.rate_umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows, starting_r0, steps)
-        self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
+        self.observables.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         if continue_run is False:
             self.us_build.build(self.pre_equlibration_sims, input_parameters,
                                 self.forces_list, self.observables_list,
@@ -163,7 +163,7 @@ class ComUmbrellaSampling(BaseUmbrellaSampling):
         self.n_windows = n_windows
         self.windows.equlibration_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
-        self.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
+        self.observables.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         if continue_run is False:
             self.us_build.build(self.equlibration_sims, input_parameters,
                                 self.forces_list, self.observables_list,
@@ -1934,7 +1934,7 @@ class UmbrellaAnalysis:
         else:
             df = pd.DataFrame(columns=columns + ['steps'])
         
-        if hasattr(sim.sim_files, ''hb_contacts'):
+        if hasattr(sim.sim_files, 'hb_contacts'):
             try:
                 sim.sim_files.parse_current_files()
                 hb_contact = pd.read_csv(sim.sim_files.hb_contacts, header=None, engine='pyarrow')
@@ -1947,6 +1947,9 @@ class UmbrellaAnalysis:
     def view_observable(self, sim_type, idx, sliding_window=False, observable=None):
         if observable == None:
             observable=self.base_umbrella.observables_list[0]
+        
+        if sim_type == 'pre_eq':
+            self.base_umbrella.pre_equlibration_sims[idx].analysis.plot_observable(observable, fig=False, sliding_window=sliding_window)
         
         if sim_type == 'eq':
             self.base_umbrella.equlibration_sims[idx].analysis.plot_observable(observable, fig=False, sliding_window=sliding_window)

@@ -11,5 +11,20 @@ setup(
     author='Matthew Sample',
     author_email='matsample1@gmail.com',
     license='MIT',
+    install_requires=[
+    'numpy>=1.26',
+    'scipy',
+    'matplotlib',
+    'pymbar[jax]',
+    'nvidia-ml-py3',
+    'py',
+    'scienceplots',
+    'ipywidgets',
+    'ipykernel',
+    'pandas',
+    'statsmodels',
+    'tqdm',
+    # ... other dependencies ...
+    ],
     # dependencies can be listed under install_requires
 )

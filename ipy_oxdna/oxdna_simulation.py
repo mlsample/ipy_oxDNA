@@ -633,6 +633,8 @@ class SimulationManager:
     def worker_manager(self, gpu_mem_block=True, custom_observables=None, run_when_failed=False, cpu_run=False):
         """ Head process in charge of allocating queued simulations to processes and gpu memory."""
         tic = timeit.default_timer()
+        if cpu_run is True:
+            gpu_mem_block = False
         self.custom_observables = custom_observables
         while not self.sim_queue.empty():
             #get simulation from queue
@@ -691,6 +693,9 @@ class SimulationManager:
     def run(self, log=None, join=False, gpu_mem_block=True, custom_observables=None, run_when_failed=False, cpu_run=False):
         """ Run the worker manager in a subprocess"""
         print('spawning')
+        if cpu_run is True:
+            gpu_mem_block = False
+            
         p = mp.Process(target=self.worker_manager, args=(), kwargs={'gpu_mem_block':gpu_mem_block, 'custom_observables':custom_observables, 'run_when_failed':run_when_failed, 'cpu_run':cpu_run}) 
         self.manager_process = p
         p.start()

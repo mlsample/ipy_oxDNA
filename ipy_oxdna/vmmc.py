@@ -718,7 +718,8 @@ class VmmcAnalysis(Analysis):
         self.popt, _ = curve_fit(self.sigmoid, self.temperatures, self.inverted_finfs, p0, method='dogbox')
     
         # Generate fitted data
-        self.x_fit = np.linspace(min(self.temperatures), max(self.temperatures), 500)
+        # self.x_fit = np.linspace(min(self.temperatures), max(self.temperatures), 500)
+        self.x_fit = np.linspace(5, 70, 500)
         self.y_fit = self.sigmoid(self.x_fit, *self.popt)
         
         

@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import shutil
-from json import dumps, loads
+from json import dumps, loads, dump, load
 import oxpy
 import multiprocessing as mp
 import py
@@ -136,10 +136,10 @@ class Simulation:
         int_type = self.input.input['interaction_type']
         
         if (int_type == 'DNA') or (int_type == 'DNA2'):
-            self.input_file({'use_average_seq': 'no', 'seq_dep_file':'oxDNA2_sequence_dependent_parameters.txt'})
+            self.input_file({'use_average_seq': 'no', 'seq_dep_file_DNA':'oxDNA2_sequence_dependent_parameters.txt'})
             
         if (int_type == 'RNA') or (int_type == 'RNA2'):
-            self.input_file({'use_average_seq': 'no', 'seq_dep_file':'rna_sequence_dependent_parameters.txt'})
+            self.input_file({'use_average_seq': 'no', 'seq_dep_file_RNA':'rna_sequence_dependent_parameters.txt'})
             
         if (int_type == 'NA') :
             self.input_file({'use_average_seq': 'no',
@@ -421,6 +421,7 @@ class OxpyRun:
         self.log = log
         self.join = join
         self.custom_observables = custom_observables
+
         if self.verbose == True:
             print(f'Running: {self.sim_dir.split("/")[-1]}')
         if self.subprocess:
@@ -454,7 +455,9 @@ class OxpyRun:
                 ox_input[k] = v
             try:
                 manager = oxpy.OxpyManager(ox_input)
-                if self.my_obs:
+                if hasattr(self.sim.sim_files, 'run_time_custom_observable'):
+                    with open(self.sim.sim_files.run_time_custom_observable, 'r') as f:
+                        self.my_obs = load(f)
                     for key, value in self.my_obs.items():
                         my_obs = [eval(observable_string,{"self": self}) for observable_string in value['observables']]
                         manager.add_output(key, print_every=value['print_every'], observables=my_obs)
@@ -483,9 +486,12 @@ class OxpyRun:
         self.my_obs[name] = {'print_every':print_every, 'observables':[]}
         for particle_indexes in args:
             self.my_obs[name]['observables'].append(f'self.cms_observables({particle_indexes})()')
-    
-    # def write_custom_observable(self, name, observables, print_every):
-    #     with open(os.path.join(self.sim_dir, "custom_observable.txt"), 'w') as f:
+        
+        self.write_custom_observable()
+
+    def write_custom_observable(self):
+        with open(os.path.join(self.sim_dir, "run_time_custom_observable.json"), 'w') as f:
+            dump(self.my_obs, f, indent=4)
             
     def cms_observables(self, particle_indexes):
             class ComPositionObservable(oxpy.observables.BaseObservable):
@@ -627,6 +633,8 @@ class SimulationManager:
     def worker_manager(self, gpu_mem_block=True, custom_observables=None, run_when_failed=False, cpu_run=False):
         """ Head process in charge of allocating queued simulations to processes and gpu memory."""
         tic = timeit.default_timer()
+        if cpu_run is True:
+            gpu_mem_block = False
         self.custom_observables = custom_observables
         while not self.sim_queue.empty():
             #get simulation from queue
@@ -685,6 +693,9 @@ class SimulationManager:
     def run(self, log=None, join=False, gpu_mem_block=True, custom_observables=None, run_when_failed=False, cpu_run=False):
         """ Run the worker manager in a subprocess"""
         print('spawning')
+        if cpu_run is True:
+            gpu_mem_block = False
+            
         p = mp.Process(target=self.worker_manager, args=(), kwargs={'gpu_mem_block':gpu_mem_block, 'custom_observables':custom_observables, 'run_when_failed':run_when_failed, 'cpu_run':cpu_run}) 
         self.manager_process = p
         p.start()
@@ -874,6 +885,8 @@ class Input:
         
     def modify_input(self, parameters):
         """ Modify the parameters of the oxDNA input file."""
+        if os.path.exists(os.path.join(self.sim_dir, 'input.json')):
+            self.read_input()
         for k, v in parameters.items():
                 self.input[k] = v
         self.write_input()
@@ -1501,24 +1514,52 @@ class Analysis:
         (ti,di), conf = self.get_conf(id)
         oxdna_conf(ti, conf)
         sleep(2.5)
-
-    def plot_energy(self, fig=None, ax=None):
+        
+    def get_energy_df(self):
         """ Plot energy of oxDNA simulation."""
         try:
             self.sim_files.parse_current_files()
-            df = pd.read_csv(self.sim_files.energy, delimiter="\s+",names=['time', 'U','P','K'])
+            sim_type = self.sim.input.input['sim_type']
+            if (sim_type == 'MC') or (sim_type == 'VMMC'):
+                df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U','P','K', 'empty'])
+            else:
+                df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U','P','K'])
+
+            df = df[df.U <= 10]
+            self.energy_df = df
+        
+        except Exception as e:
+            raise Exception(e)
+
+    def plot_energy(self, fig=None, ax=None, label=None):
+        """ Plot energy of oxDNA simulation."""
+        try:
+            self.sim_files.parse_current_files()
+            sim_type = self.sim.input.input['sim_type']
+            if (sim_type == 'MC') or (sim_type == 'VMMC'):
+                df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U','P','K', 'empty'])
+            else:
+                df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U','P','K'])
             dt = float(self.sim.input.input["dt"])
             steps = float(self.sim.input.input["steps"])
+            df = df[df.U <= 10]
+            df = df[df.U >= -10]
             # make sure our figure is bigger
             if fig is None:
                 plt.figure(figsize=(15,3)) 
             # plot the energy
             if ax is None:
-                plt.plot(df.time/dt,df.U)
+                if (sim_type == 'MC') or (sim_type == 'VMMC'):
+                    plt.plot(df.time,df.U, label=label)
+                else:
+                    plt.plot(df.time/dt,df.U, label=label)
                 plt.ylabel("Energy")
                 plt.xlabel("Steps")
             else:
-                ax.plot(df.time/dt,df.U)
+                if (sim_type == 'MC') or (sim_type == 'VMMC'):
+                    ax.plot(df.time,df.U, label=label)
+                else:
+                    ax.plot(df.time/dt,df.U, label=label)
                 ax.set_ylabel("Energy")
                 ax.set_xlabel("Steps")
         except:
@@ -1794,18 +1835,31 @@ class Observable:
         """
         Return the energy exerted by external forces
         """
-        return({
-            "output": {
-                "print_every": f'{print_every}',
-                "name": name,
-                "cols": [
-                    {
-                        "type": "force_energy", 
-                        "print_group": f"{print_group}"            
-                    }
-                ]
-            }
-        })
+        if print_group is not None:
+            return({
+                "output": {
+                    "print_every": f'{print_every}',
+                    "name": name,
+                    "cols": [
+                        {
+                            "type": "force_energy", 
+                            "print_group": f"{print_group}"            
+                        }
+                    ]
+                }
+            })
+        else:
+            return({
+                "output": {
+                    "print_every": f'{print_every}',
+                    "name": name,
+                    "cols": [
+                        {
+                            "type": "force_energy", 
+                        }
+                    ]
+                }
+            })
         
     @staticmethod
     def kinetic_energy(print_every=None, name=None):
@@ -2066,5 +2120,7 @@ class SimFiles:
                     self.all_observables = os.path.abspath(os.path.join(self.sim_dir, file))
                 elif 'hb_contacts.txt' in file:
                     self.hb_contacts = os.path.abspath(os.path.join(self.sim_dir, file))
+                elif 'run_time_custom_observable.json' in file:
+                    self.run_time_custom_observable = os.path.abspath(os.path.join(self.sim_dir, file))
 
 

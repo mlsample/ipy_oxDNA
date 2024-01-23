@@ -69,10 +69,10 @@ class VirtualMoveMonteCarlo(Simulation):
                 else:
                     f.write(f'{idx} 1\n')    
     
-    def build_com_hb_observable(self, p1, p2):
-        self.vmmc_obs.com_distance_observable(p1, p2, print_every=1e3)
+    def build_com_hb_observable(self, p1, p2, print_every=1e3):
+        self.vmmc_obs.com_distance_observable(p1, p2, print_every=print_every)
         self.build_sim.build_hb_list_file(p1, p2)
-        self.vmmc_obs.hb_list_observable(print_every=1e3)
+        self.vmmc_obs.hb_list_observable(print_every=print_every)
         
         for observable in self.vmmc_obs.observables_list:
             self.add_observable(observable)
@@ -153,7 +153,7 @@ class VmmcObservables:
     def hb_list_observable(self, print_every=1e4, name='hb_observable.txt', only_count='true'):
         """ Build center of mass observable"""
         hb_obs = self.obs.hb_list(
-            print_every='1e3',
+            print_every=f'{print_every}',
             name='hb_observable.txt',
             only_count='true'
            )
@@ -413,12 +413,20 @@ class VmmcReplicas(GenerateReplicas):
         axes[1, 1].set_ylabel('Number of Hydrogen Bonds')
         plt.colorbar(im, ax=axes[1, 1])
         
+        self.temperatures = temperatures
+        self.inverted_finfs_mean = inverted_finfs_mean
+        self.inverted_finfs_ci = inverted_finfs_ci
+        self.x_fit = x_fit
+        self.y_fit_mean = y_fit_mean
+        self.tm_mean = tm_mean
+        self.tm_ci = tm_ci
+        
         plt.figure()
         plt.scatter(temperatures, inverted_finfs_mean, marker='o', label='Data Mean')
         plt.plot(x_fit, y_fit_mean, linestyle='--', linewidth=2, label='Sigmoid Fit')
         plt.fill_between(temperatures, inverted_finfs_ci[0], inverted_finfs_ci[1], interpolate=True, color='gray', alpha=0.5)
         plt.axvline(x=tm_mean, color='r', linestyle='--', linewidth=2, label=f'Tm = {tm_mean:.2f} \u00b1 {tm_ci[1] - tm_mean:.2f} °C')
-        plt.xlabel('Temperature (°C)')
+        plt.xlabel('Temperature (C)')
         plt.ylabel('Fraction of ssDNA')
         plt.title(f'Melting Profile')
         
@@ -427,6 +435,25 @@ class VmmcReplicas(GenerateReplicas):
         
         plt.legend()
         plt.grid(True)
+        
+    def plot_melting_curve(self, ax=None):
+        
+        if ax is None:
+            fig, ax = plt.subplots()
+            
+        ax.scatter(self.temperatures, self.inverted_finfs_mean, marker='o', label='Data Mean')
+        ax.plot(self.x_fit, self.y_fit_mean, linestyle='--', linewidth=2, label='Sigmoid Fit')
+        ax.fill_between(self.temperatures, self.inverted_finfs_ci[0], self.inverted_finfs_ci[1], interpolate=True, color='gray', alpha=0.5)
+        ax.axvline(x=self.tm_mean, color='r', linestyle='--', linewidth=2, label=f'Tm = {self.tm_mean:.2f} \u00b1 {self.tm_ci[1] - self.tm_mean:.2f} °C')
+        ax.set_xlabel('Temperature (' + u'\N{DEGREE SIGN}'+'C)')
+        ax.set_ylabel('Fraction of ssDNA')
+        ax.set_title(f'Melting Profile')
+        
+        # Set y-axis limits
+        ax.set_ylim(0, 1.1)
+        
+        ax.legend()
+        ax.grid(True)
         
 
         
@@ -691,7 +718,8 @@ class VmmcAnalysis(Analysis):
         self.popt, _ = curve_fit(self.sigmoid, self.temperatures, self.inverted_finfs, p0, method='dogbox')
     
         # Generate fitted data
-        self.x_fit = np.linspace(min(self.temperatures), max(self.temperatures), 500)
+        # self.x_fit = np.linspace(min(self.temperatures), max(self.temperatures), 500)
+        self.x_fit = np.linspace(5, 70, 500)
         self.y_fit = self.sigmoid(self.x_fit, *self.popt)
         
         

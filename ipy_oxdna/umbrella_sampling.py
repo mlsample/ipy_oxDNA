@@ -20,6 +20,8 @@ from json import load, dump
 import traceback
 import pymbar
 from pymbar import timeseries
+import warnings
+from scipy.optimize import OptimizeWarning
 
 
 class BaseUmbrellaSampling:
@@ -356,7 +358,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.queue_sims(simulation_manager, self.production_sims, continue_run=continue_run)   
         
         
-    def initialize_observables(self, com_list, ref_list, print_every=1e4, name='all_observables.txt', force_energy_split=False):
+    def initialize_observables(self, com_list, ref_list, print_every=1e4, name='all_observables.txt', force_energy_split=True):
         self.observables.com_distance_observable(com_list, ref_list, print_every=print_every, name=name)
         self.observables.hb_list_observable(print_every=print_every, only_count='true', name=name)
         
@@ -372,7 +374,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
 
     
-    def wham_cont_and_disc_temp_interp_converg_analysis(self, convergence_slice, temp_range, n_bins, xmin, xmax, umbrella_stiff, max_hb, epsilon=1e-7, reread_files=False, max_iterations=100000):
+    def discrete_and_continuous_converg_analysis(self, convergence_slice, temp_range, n_bins, xmin, xmax, umbrella_stiff, max_hb, epsilon=1e-7, reread_files=False, max_iterations=100000):
         self.wham_temp_interp_converg_analysis(convergence_slice, temp_range, n_bins, xmin, xmax, max_hb, umbrella_stiff, epsilon=epsilon, reread_files=reread_files, max_iterations=max_iterations)
         self.discrete_temp_interp_converg_analysis(convergence_slice, xmin, xmax, max_hb, temp_range, reread_files=reread_files)
     
@@ -399,7 +401,6 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             self.convergence_discrete_prob_discrete.append(prob_discrete)
             
             self.calculate_melting_temperature(temp_range)
-            print(self.Tm)
             self.convergence_Tm.append(self.Tm)
             self.convergence_x_fit.append(self.x_fit)
             self.convergence_y_fit.append(self.y_fit)
@@ -531,7 +532,6 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             next(f)
             box_info = f.readline().split(' ')
             self.box_size = float(box_info[-1].strip())
-        print(self.box_size)
         
         if molcon is not None:
             box_size = self.molar_concentration_to_box_size(molcon)
@@ -954,7 +954,10 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
         # Fit the sigmoid function to the inverted data
         p0 = [max(self.inverted_finfs), np.median(temp_range), 1, min(self.inverted_finfs)]  # initial guesses for L, x0, k, b
-        self.popt, _ = curve_fit(self.sigmoid, temp_range, self.inverted_finfs, p0, method='dogbox')
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", OptimizeWarning)
+            self.popt, _ = curve_fit(self.sigmoid, temp_range, self.inverted_finfs, p0, method='dogbox')
     
         # Generate fitted data
         self.x_fit = np.linspace(min(temp_range), max(temp_range), 500)
@@ -1132,7 +1135,7 @@ class PymbarAnalysis:
                            for inner_list in com_kn])
 
         names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-        u_kn = [inner_list[names] for inner_list in self.base_umbrella.obs_df]
+        u_kn = [np.sum(inner_list[names], axis=1) for inner_list in self.base_umbrella.obs_df]
         u_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant')
                            for inner_list in u_kn])
 
@@ -1477,7 +1480,7 @@ class UmbrellaBuild:
             sim.input_file(input_parameters)
             if (protein is not None) and (protein is not False):
                 sim.add_protein_par()
-            if (force_file is not None) and (forces is not False):
+            if (force_file is not None) and  (force_file is not False):
                 sim.add_force_file()
             for force in forces:
                 sim.add_force(force)
@@ -1613,7 +1616,7 @@ class UmbrellaInfoUtils:
    
     def get_com_distance_by_window(self):
         com_distance_by_window = {}
-        for idx,sim in enumerate(self.base.production_sims):
+        for idx,sim in enumerate(self.base.equlibration_sims):
             sim.sim_files.parse_current_files()
             df = pd.read_csv(sim.sim_files.com_distance, header=None, engine='pyarrow', dtype=np.double)
             com_distance_by_window[idx] = df
@@ -1621,7 +1624,7 @@ class UmbrellaInfoUtils:
                 
     def get_r0_values(self):
         self.base.r0 = []
-        force_files = [sim.sim_files.force for sim in self.base.production_sims]
+        force_files = [sim.sim_files.force for sim in self.base.equlibration_sims]
         for force_file in force_files:
             with open(force_file, 'r') as f:
                 force_js = load(f)
@@ -1629,7 +1632,7 @@ class UmbrellaInfoUtils:
             self.base.r0.append(float(force_js[forces[-1]]['r0']))
             
     def get_stiff_value(self):
-        force_files = [sim.sim_files.force for sim in self.base.production_sims]
+        force_files = [sim.sim_files.force for sim in self.base.equlibration_sims]
         for force_file in force_files:
             with open(force_file, 'r') as f:
                 force_js = load(f)
@@ -1638,14 +1641,14 @@ class UmbrellaInfoUtils:
         self.base.stiff = float(force_js[forces[-1]]['stiff'])
         
     def get_temperature(self):
-        pre_temp = self.base.production_sims[0].input.input['T']
+        pre_temp = self.base.equlibration_sims[0].input.input['T']
         if ('C'.upper() in pre_temp) or ('C'.lower() in pre_temp):
             self.base.temperature = (float(pre_temp[:-1]) + 273.15) / 3000
         elif ('K'.upper() in pre_temp) or ('K'.lower() in pre_temp):
              self.base.temperature = float(pre_temp[:-1]) / 3000
              
     def get_n_particles_in_system(self):
-        top_file = self.base.production_sims[0].sim_files.top
+        top_file = self.base.equlibration_sims[0].sim_files.top
         with open(top_file, 'r') as f:
             self.base.n_particles_in_system = np.double(f.readline().split(' ')[0])
              
@@ -1848,7 +1851,31 @@ class UmbrellaAnalysis:
         self.base_umbrella = base_umbrella
         self.base_umbrella.obs_df = None
     
-            
+    def plot_melting_CVs(self, rolling_window=1):
+        fig, ax = plt.subplots(2, 2, figsize=(8, 6),)
+
+        for idx, df in enumerate(self.base_umbrella.obs_df):
+            ax[0,0].plot(df['steps'], df['com_distance'].rolling(rolling_window).mean())
+            ax[0,1].plot(df['steps'], df['hb_list'].rolling(rolling_window).mean())
+            ax[1,0].plot(df['steps'], df['force_energy_0'].rolling(rolling_window).mean())
+            try:
+                ax[1,1].plot(df['steps'], df['hb_contact'].rolling(rolling_window).mean())
+            except:
+                ax[1,1].plot(self.base_umbrella.hb_contacts_by_window[idx].rolling(rolling_window).mean())
+
+
+        ax[0,0].set_ylabel('Center of Mass Distance')
+        ax[0,1].set_ylabel('Number of H-bonds')
+        ax[1,0].set_ylabel('Force Energy')
+        ax[1,1].set_ylabel('HB Contacts / Total HBs')
+
+        ax[0,0].set_xlabel('Steps')
+        ax[0,1].set_xlabel('Steps')
+        ax[1,0].set_xlabel('Steps')
+        ax[1,1].set_xlabel('Steps')
+
+        fig.tight_layout()
+         
 
     def read_all_observables(self, sim_type):
         file_name = self.base_umbrella.observables_list[0]['output']['name']
@@ -1887,17 +1914,7 @@ class UmbrellaAnalysis:
                                         [columns]*len(sim_list), 
                                         [print_every]*len(sim_list)))
 
-        self.base_umbrella.obs_df = results
-        if hasattr(sim_list[0].sim_files, 'hb_contacts'):
-            try:
-                self.hb_contacts_by_window = {}
-                for idx,sim in enumerate(sim_list):
-                    sim.sim_files.parse_current_files()
-                    df = pd.read_csv(sim.sim_files.hb_contacts, header=None, engine='pyarrow')
-                    self.base_umbrella.obs_df[idx]['hb_contact'] = df
-            except Exception as e:
-                print('Unable to read hb_contacts file: ', e)
-            
+        self.base_umbrella.obs_df = results    
             
         return self.base_umbrella.obs_df
 
@@ -1916,7 +1933,15 @@ class UmbrellaAnalysis:
             df['steps'] = np.arange(len(df)) * print_every
         else:
             df = pd.DataFrame(columns=columns + ['steps'])
-
+        
+        if hasattr(sim.sim_files, ''hb_contacts'):
+            try:
+                sim.sim_files.parse_current_files()
+                hb_contact = pd.read_csv(sim.sim_files.hb_contacts, header=None, engine='pyarrow')
+                df['hb_contact'] = hb_contact
+            except Exception as e:
+                pass
+        
         return df
         
     def view_observable(self, sim_type, idx, sliding_window=False, observable=None):

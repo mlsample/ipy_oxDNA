@@ -8,3 +8,5 @@ ipy_oxdna.egg-info
 /examples/notebooks
 /examples/umbrella_scripts
 *.pyc
+
+examples/tutorials/8_nt_duplex_melting_cpu/oxdna_files/8_nt_duplex_melting_tutorial

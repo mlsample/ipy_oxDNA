@@ -302,13 +302,13 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.potential_energy_by_window = None
     
     
-    def build_pre_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters, starting_r0, steps, observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False, protein=None, force_file=None, custom_observable=False):
+    def build_pre_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters, starting_r0, steps, observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False, protein=None, force_file=None, custom_observable=False, force_energy_split=True):
         self.observables_list = []
         self.windows.pre_equlibration_windows(n_windows)
         self.rate_umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows, starting_r0, steps)
         
         if observable:
-            self.initialize_observables(com_list, ref_list, print_every, name)
+            self.initialize_observables(com_list, ref_list, print_every, name, force_energy_split=force_energy_split)
         
         if continue_run is False:
             self.us_build.build(self.pre_equlibration_sims, input_parameters,
@@ -321,13 +321,13 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
     def build_equlibration_runs(self, simulation_manager,  n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
                                 observable=False, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
-                                protein=None, force_file=None, custom_observable=False):
+                                protein=None, force_file=None, custom_observable=False, force_energy_split=True):
         self.observables_list = []
         self.windows.equlibration_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
 
         if observable:
-            self.initialize_observables(com_list, ref_list, print_every, name)
+            self.initialize_observables(com_list, ref_list, print_every, name, force_energy_split=force_energy_split)
         
         if continue_run is False:
             self.us_build.build(self.equlibration_sims, input_parameters,
@@ -340,14 +340,14 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         
     def build_production_runs(self, simulation_manager, n_windows, com_list, ref_list, stiff, xmin, xmax, input_parameters,
                               observable=True, sequence_dependant=False, print_every=1e4, name='com_distance.txt', continue_run=False,
-                              protein=None, force_file=None, custom_observable=False):
+                              protein=None, force_file=None, custom_observable=False, force_energy_split=True):
         self.observables_list = []
         self.windows.equlibration_windows(n_windows)
         self.windows.production_windows(n_windows)
         self.umbrella_forces(com_list, ref_list, stiff, xmin, xmax, n_windows)
 
         if observable:
-            self.initialize_observables(com_list, ref_list, print_every, name)
+            self.initialize_observables(com_list, ref_list, print_every, name, force_energy_split=force_energy_split)
 
         if continue_run is False:
             self.us_build.build(self.production_sims, input_parameters,
@@ -1135,9 +1135,9 @@ class PymbarAnalysis:
                            for inner_list in com_kn])
 
         names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-        u_kn = [np.sum(inner_list[names], axis=1) for inner_list in self.base_umbrella.obs_df]
-        u_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant')
-                           for inner_list in u_kn])
+        # u_kn = [np.sum(inner_list[names], axis=1) for inner_list in self.base_umbrella.obs_df]
+        # u_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant')
+        #                    for inner_list in u_kn])
 
         if restraints is True:
             u_res_kn = self._setup_restrain_potential(com_kn, N_k, N_max, force_energy_split)
@@ -1616,9 +1616,9 @@ class UmbrellaInfoUtils:
    
     def get_com_distance_by_window(self):
         com_distance_by_window = {}
-        for idx,sim in enumerate(self.base.equlibration_sims):
+        for idx,sim in enumerate(self.base.production_sims):
             sim.sim_files.parse_current_files()
-            df = pd.read_csv(sim.sim_files.com_distance, header=None, engine='pyarrow', dtype=np.double)
+            df = pd.read_csv(sim.sim_files.com_distance, header=None, engine='pyarrow', dtype=np.double, names=['com_distance'])
             com_distance_by_window[idx] = df
         self.base.com_by_window = com_distance_by_window
                 
@@ -1861,7 +1861,8 @@ class UmbrellaAnalysis:
             try:
                 ax[1,1].plot(df['steps'], df['hb_contact'].rolling(rolling_window).mean())
             except:
-                ax[1,1].plot(self.base_umbrella.hb_contacts_by_window[idx].rolling(rolling_window).mean())
+                pass
+                # ax[1,1].plot(self.base_umbrella.hb_contacts_by_window[idx].rolling(rolling_window).mean())
 
 
         ax[0,0].set_ylabel('Center of Mass Distance')

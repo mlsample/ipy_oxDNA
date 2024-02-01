@@ -374,7 +374,24 @@ class BuildSimulation:
     def build_hb_list_file(self, p1, p2):
         self.sim.sim_files.parse_current_files()
         column_names = ['strand', 'nucleotide', '3_prime', '5_prime']
-        top = pd.read_csv(self.sim.sim_files.top, sep=' ', names=column_names).iloc[1:,:].reset_index(drop=True)
+        try:
+            top = pd.read_csv(self.sim.sim_files.top, sep=' ', names=column_names).iloc[1:,:].reset_index(drop=True)
+        
+        except:
+            
+            with open(self.sim.sim_files.force, 'r') as f:
+                lines = f.readlines()
+                lines = [int(line.strip().split()[1].replace('"', '')[:-1]) for line in lines if 'particle' in line]
+                line_sets = [(lines[i], lines[i+1]) for i in range(0, len(lines), 2)]
+                line_sets = {tuple(sorted(t)) for t in line_sets}
+            with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'w') as f:
+                f.write("{\norder_parameter = bond\nname = all_native_bonds\n")    
+                for idx, line_set in enumerate(line_sets):
+                    f.write(f'pair{idx} = {line_set[0]}, {line_set[1]}\n')
+                f.write("}\n")
+            
+            return None
+
         top['index'] = top.index  
         
         p1 = p1.split(',')
@@ -669,7 +686,7 @@ class SimulationManager:
                             wait_for_gpu_memory = False      
             else:
                 if cpu_run is False:
-                    sleep(1)
+                    sleep(2)
                 elif cpu_run is True:
                     sleep(0.1)
 
@@ -806,7 +823,11 @@ class Input:
             parameters: depreciated
         """
         self.sim_dir = sim_dir
-        if os.path.exists(os.path.join(self.sim_dir, 'input.json')):
+        
+        exsiting_input = (os.path.exists(os.path.join(self.sim_dir, 'input.json')) or 
+                          os.path.exists(os.path.join(self.sim_dir, 'input')))
+        if exsiting_input:
+               
             self.read_input()
         else:
             self.input = {
@@ -889,13 +910,24 @@ class Input:
             self.read_input()
         for k, v in parameters.items():
                 self.input[k] = v
-        self.write_input()
+        self.write_input(production=True)
                          
     def read_input(self):
         """ Read parameters of exsisting input file in sim_dir"""
-        with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
-            my_input = loads(f.read())
-        self.input = my_input
+        if os.path.exists(os.path.join(self.sim_dir, 'input.json')):
+            with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
+                my_input = loads(f.read())
+            self.input = my_input
+            
+        else:
+            with open(os.path.join(self.sim_dir, 'input'), 'r') as f:
+                lines = f.readlines()
+                lines = [line for line in lines if '=' in line]
+                lines = [line.strip().split('=') for line in lines]
+                my_input = {line[0].strip():line[1].strip() for line in lines}
+
+            self.input = my_input
+        
 
         
 class SequenceDependant:

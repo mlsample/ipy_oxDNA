@@ -136,10 +136,10 @@ class Simulation:
         int_type = self.input.input['interaction_type']
         
         if (int_type == 'DNA') or (int_type == 'DNA2'):
-            self.input_file({'use_average_seq': 'no', 'seq_dep_file_DNA':'oxDNA2_sequence_dependent_parameters.txt'})
+            self.input_file({'use_average_seq': 'no', 'seq_dep_file':'oxDNA2_sequence_dependent_parameters.txt'})
             
         if (int_type == 'RNA') or (int_type == 'RNA2'):
-            self.input_file({'use_average_seq': 'no', 'seq_dep_file_RNA':'rna_sequence_dependent_parameters.txt'})
+            self.input_file({'use_average_seq': 'no', 'seq_dep_file':'rna_sequence_dependent_parameters.txt'})
             
         if (int_type == 'NA') :
             self.input_file({'use_average_seq': 'no',

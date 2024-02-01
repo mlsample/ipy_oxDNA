@@ -1052,6 +1052,8 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         self.hb_contacts_by_window = {}
         for idx,sim in enumerate(sim_list):
             sim.sim_files.parse_current_files()
+            if hasattr(sim.sim_files, 'hb_contacts') is False:
+                continue
             df = pd.read_csv(sim.sim_files.hb_contacts, header=None, engine='pyarrow')
             self.hb_contacts_by_window[idx] = df
     
@@ -1861,8 +1863,10 @@ class UmbrellaAnalysis:
             try:
                 ax[1,1].plot(df['steps'], df['hb_contact'].rolling(rolling_window).mean())
             except:
-                pass
-                # ax[1,1].plot(self.base_umbrella.hb_contacts_by_window[idx].rolling(rolling_window).mean())
+                try:
+                    ax[1,1].plot(self.base_umbrella.hb_contacts_by_window[idx].rolling(rolling_window).mean())
+                except KeyError:
+                    pass
 
 
         ax[0,0].set_ylabel('Center of Mass Distance')

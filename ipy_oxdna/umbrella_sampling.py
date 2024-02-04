@@ -1701,8 +1701,8 @@ class UmbrellaAnalysis:
                 all_observables.append(pd.DataFrame())
         
         names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-        force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
-        columns = ['com_distance', 'hb_list', *force_energy, 'kinetic_energy', *names]
+        # force_energy = [f'force_energy' for idx in range(number_of_forces)]
+        columns = ['com_distance', 'hb_list', 'force_energy', 'kinetic_energy', *names]
         
         obs = [pd.DataFrame([
                 list(filter(lambda a: a != '',all_observables[window_idx].iloc[data_idx][0].split(' ')))

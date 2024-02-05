@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Union
+from pathlib import Path
+from typing import Any, Union, IO
 import os
 import numpy as np
 import shutil
@@ -863,7 +864,7 @@ class Input:
 
     """ Lower level input file methods"""
 
-    def __init__(self, sim_dir, parameters: Union[None, dict[str, Any]] = None):
+    def __init__(self, sim_dir: str, parameters: Union[None, dict[str, Any]] = None):
         """ 
         Read input file in simulation dir if it exsists, other wise define default input parameters.
         
@@ -873,7 +874,11 @@ class Input:
         """
         self.sim_dir = sim_dir
         if os.path.exists(os.path.join(self.sim_dir, 'input.json')):
-            self.read_input()
+            # read from json
+            self.read_input() # todo: deprecate. it's extremely not good to have the same data in two files
+        elif os.path.exists(os.path.join(self.sim_dir, "input")):
+            # read input file directory
+            self.read_input_raw()
         else:
             # TODO: make default input params specified externally
             self.input = {
@@ -962,10 +967,35 @@ class Input:
         self.write_input()
 
     def read_input(self):
-        """ Read parameters of exsisting input file in sim_dir"""
+        """ Read parameters of exsisting input json file in sim_dir"""
         with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
             my_input = loads(f.read())
         self.input = my_input
+
+    def read_input_raw(self):
+        """Read parameters of real existing input file in sim_dir"""
+        self.input = dict()
+        with (Path(self.sim_dir) / "input").open("r") as f:
+            self.input = read_input(f)
+
+def read_input(f: IO) -> dict[str, Any]:
+    """Reads an input file-type object from a file input stream"""
+    input_file_dict = dict()
+    for line in f:
+        # skip comments or empty lines
+        if line.strip() == "" or line.strip().startswith("#"):
+            continue
+        key, val = line.split("=")
+        key = key.strip()
+        val = val.strip()
+        # objects
+        if val == "{":
+            input_file_dict[key] = read_input(f)
+        elif val == "}": # if the object is ending, return whatever we have so far
+            return input_file_dict
+        else:
+            input_file_dict[key] = val
+    return input_file_dict
 
 
 class SequenceDependant:

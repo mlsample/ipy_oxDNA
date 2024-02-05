@@ -416,27 +416,26 @@ class BuildSimulation:
     def build_hb_list_file(self, p1, p2):
         self.sim.sim_files.parse_current_files()
         column_names = ['strand', 'nucleotide', '3_prime', '5_prime']
-        top = pd.read_csv(self.sim.sim_files.top, sep=' ', names=column_names).iloc[1:, :].reset_index(drop=True)
-        top['index'] = top.index
 
-        p1 = p1.split(',')
-        p2 = p2.split(',')
-        i = 1
-        with open(os.path.join(self.sim.sim_dir, "hb_list.txt"), 'w') as f:
-            f.write("{\norder_parameter = bond\nname = all_native_bonds\n")
-        complement = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
-        for nuc1 in p1:
-            nuc1_data = top.iloc[int(nuc1)]
-            nuc1_complement = complement[nuc1_data['nucleotide']]
-            for nuc2 in p2:
-                nuc2_data = top.iloc[int(nuc2)]
-                if nuc2_data['nucleotide'] == nuc1_complement:
-                    with open(os.path.join(self.sim.sim_dir, "hb_list.txt"), 'a') as f:
-                        f.write(f'pair{i} = {nuc1}, {nuc2}\n')
-                    i += 1
-        with open(os.path.join(self.sim.sim_dir, "hb_list.txt"), 'a') as f:
-            f.write("}\n")
-        return None
+        try:
+            top = pd.read_csv(self.sim.sim_files.top, sep=' ', names=column_names).iloc[1:,:].reset_index(drop=True)
+        
+        except:
+            
+            with open(self.sim.sim_files.force, 'r') as f:
+                lines = f.readlines()
+                lines = [int(line.strip().split()[1].replace('"', '')[:-1]) for line in lines if 'particle' in line]
+                line_sets = [(lines[i], lines[i+1]) for i in range(0, len(lines), 2)]
+                line_sets = {tuple(sorted(t)) for t in line_sets}
+            with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'w') as f:
+                f.write("{\norder_parameter = bond\nname = all_native_bonds\n")    
+                for idx, line_set in enumerate(line_sets):
+                    f.write(f'pair{idx} = {line_set[0]}, {line_set[1]}\n')
+                f.write("}\n")
+            
+            return None
+
+        top['index'] = top.index  
 
 
 class OxpyRun:
@@ -727,7 +726,7 @@ class SimulationManager:
                             wait_for_gpu_memory = False
             else:
                 if cpu_run is False:
-                    sleep(1)
+                    sleep(2)
                 elif cpu_run is True:
                     sleep(0.1)
 
@@ -873,12 +872,11 @@ class Input:
             parameters: depreciated
         """
         self.sim_dir = sim_dir
-        if os.path.exists(os.path.join(self.sim_dir, 'input.json')):
-            # read from json
-            self.read_input() # todo: deprecate. it's extremely not good to have the same data in two files
-        elif os.path.exists(os.path.join(self.sim_dir, "input")):
-            # read input file directory
-            self.read_input_raw()
+        
+        exsiting_input = (os.path.exists(os.path.join(self.sim_dir, 'input.json')) or 
+                          os.path.exists(os.path.join(self.sim_dir, 'input')))
+        if exsiting_input:
+            self.read_input()
         else:
             # TODO: make default input params specified externally
             self.input = {
@@ -965,37 +963,23 @@ class Input:
         for k, v in parameters.items():
             self.input[k] = v
         self.write_input()
-
+                         
     def read_input(self):
-        """ Read parameters of exsisting input json file in sim_dir"""
-        with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
-            my_input = loads(f.read())
-        self.input = my_input
-
-    def read_input_raw(self):
-        """Read parameters of real existing input file in sim_dir"""
-        self.input = dict()
-        with (Path(self.sim_dir) / "input").open("r") as f:
-            self.input = read_input(f)
-
-def read_input(f: IO) -> dict[str, Any]:
-    """Reads an input file-type object from a file input stream"""
-    input_file_dict = dict()
-    for line in f:
-        # skip comments or empty lines
-        if line.strip() == "" or line.strip().startswith("#"):
-            continue
-        key, val = line.split("=")
-        key = key.strip()
-        val = val.strip()
-        # objects
-        if val == "{":
-            input_file_dict[key] = read_input(f)
-        elif val == "}": # if the object is ending, return whatever we have so far
-            return input_file_dict
+        """ Read parameters of exsisting input file in sim_dir"""
+        if os.path.exists(os.path.join(self.sim_dir, 'input.json')):
+            with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
+                my_input = loads(f.read())
+            self.input = my_input
+            
         else:
-            input_file_dict[key] = val
-    return input_file_dict
+            with open(os.path.join(self.sim_dir, 'input'), 'r') as f:
+                lines = f.readlines()
+                lines = [line for line in lines if '=' in line]
+                lines = [line.strip().split('=') for line in lines]
+                my_input = {line[0].strip():line[1].strip() for line in lines}
+                # TODO: objects?
+
+            self.input = my_input
 
 
 class SequenceDependant:

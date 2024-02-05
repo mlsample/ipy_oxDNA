@@ -13,5 +13,9 @@ examples/tutorials/8_nt_duplex_melting_cpu/oxdna_files/8_nt_duplex_melting_tutor
 examples/tutorials/origami_tile_N_nt_overhangs_gpu/rro/rro_k02
 examples/tutorials/origami_tile_N_nt_overhangs_gpu/t9/t9_k02
 examples/tutorials/origami_tile_N_nt_overhangs_gpu/t20/t20_k02
+<<<<<<< HEAD
 
 /venv
+=======
+ipy_oxdna/patchy_particles.py
+>>>>>>> 4925ec34f4da7854eaa99d213ab115bd7429e532

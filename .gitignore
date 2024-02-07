@@ -5,11 +5,7 @@ ipy_oxdna.egg-info
 /.vscode
 **/.ipynb_checkpoints/
 /examples/run_files
-<<<<<<< HEAD
-*.pyc
 
-examples/notebooks/
-=======
 /examples/notebooks
 /examples/umbrella_scripts
 *.pyc
@@ -19,4 +15,3 @@ examples/tutorials/origami_tile_N_nt_overhangs_gpu/rro/rro_k02
 examples/tutorials/origami_tile_N_nt_overhangs_gpu/t9/t9_k02
 examples/tutorials/origami_tile_N_nt_overhangs_gpu/t20/t20_k02
 ipy_oxdna/patchy_particles.py
->>>>>>> 239c213abac5c4ffdac4524bcf3f311baa5be870

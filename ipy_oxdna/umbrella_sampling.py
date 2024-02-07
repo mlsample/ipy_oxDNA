@@ -1904,10 +1904,7 @@ class UmbrellaAnalysis:
                 number_of_forces += 1
         
         names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-<<<<<<< HEAD
-        # force_energy = [f'force_energy' for idx in range(number_of_forces)]
-        columns = ['com_distance', 'hb_list', 'force_energy', 'kinetic_energy', *names]
-=======
+
         force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
         columns = ['com_distance', 'hb_list', *force_energy, 'kinetic_energy', *names]
         # columns = ['com_distance', 'hb_list', 'force_energy', 'kinetic_energy', *names]
@@ -1938,7 +1935,6 @@ class UmbrellaAnalysis:
             df['steps'] = np.arange(len(df)) * print_every
         else:
             df = pd.DataFrame(columns=columns + ['steps'])
->>>>>>> 239c213abac5c4ffdac4524bcf3f311baa5be870
         
         if hasattr(sim.sim_files, 'hb_contacts'):
             try:

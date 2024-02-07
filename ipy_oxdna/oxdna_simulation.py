@@ -1574,8 +1574,8 @@ class Analysis:
                 df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U','P','K'])
             dt = float(self.sim.input.input["dt"])
             steps = float(self.sim.input.input["steps"])
-            df = df[df.U <= 10]
-            df = df[df.U >= -10]
+            # df = df[df.U <= 10]
+            # df = df[df.U >= -10]
             # make sure our figure is bigger
             if fig is None:
                 plt.figure(figsize=(15,3)) 

@@ -1851,29 +1851,78 @@ class UmbrellaAnalysis:
         self.base_umbrella = base_umbrella
         self.base_umbrella.obs_df = None
     
-    def plot_melting_CVs(self, rolling_window=1):
-        fig, ax = plt.subplots(2, 2, figsize=(8, 6),)
+    def plot_melting_CVs(self, rolling_window=1, n_bins=50):
+        try:
+            fig, ax = plt.subplots(2, 4, figsize=(15, 6), dpi=300)
 
-        for idx, df in enumerate(self.base_umbrella.obs_df):
-            ax[0,0].plot(df['steps'], df['com_distance'].rolling(rolling_window).mean())
-            ax[0,1].plot(df['steps'], df['hb_list'].rolling(rolling_window).mean())
-            ax[1,0].plot(df['steps'], df['force_energy_0'].rolling(rolling_window).mean())
-            try:
-                ax[1,1].plot(df['steps'], df['hb_contact'].rolling(rolling_window).mean())
-            except:
-                pass
-                # ax[1,1].plot(self.base_umbrella.hb_contacts_by_window[idx].rolling(rolling_window).mean())
+            for idx, df in enumerate(self.base_umbrella.obs_df):
+                ax[0,0].plot(df['steps'], df['com_distance'].rolling(rolling_window).mean())
+                H, bins = np.histogram(df['com_distance'], bins=n_bins)
+                ax[1,0].plot(bins[:-1], H)
 
+                ax[0,1].plot(df['steps'], df['hb_list'].rolling(rolling_window).mean())
+                H, bins = np.histogram(df['hb_list'], bins=n_bins)
+                ax[1,1].plot(bins[:-1], H)
 
-        ax[0,0].set_ylabel('Center of Mass Distance')
-        ax[0,1].set_ylabel('Number of H-bonds')
-        ax[1,0].set_ylabel('Force Energy')
-        ax[1,1].set_ylabel('HB Contacts / Total HBs')
+                ax[0,2].plot(df['steps'], df['force_energy_0'].rolling(rolling_window).mean())
+                H, bins = np.histogram(df['force_energy_0'], bins=n_bins)
+                ax[1,2].plot(bins[:-1], H)
 
-        ax[0,0].set_xlabel('Steps')
-        ax[0,1].set_xlabel('Steps')
-        ax[1,0].set_xlabel('Steps')
-        ax[1,1].set_xlabel('Steps')
+                ax[0,3].plot(df['steps'], df['hb_contact'].rolling(rolling_window).mean())
+                H, bins = np.histogram(df['hb_contact'], bins=n_bins)
+                ax[1,3].plot(bins[:-1], H)
+            ax[0,0].set_ylabel('Center of Mass Distance')
+            ax[0,1].set_ylabel('Number of H-bonds')
+            ax[0,2].set_ylabel('Force Energy')
+            ax[0,3].set_ylabel('HB Contacts / Total HBs')
+
+            ax[0,0].set_xlabel('Steps')
+            ax[0,1].set_xlabel('Steps')
+            ax[0,2].set_xlabel('Steps')
+            ax[0,3].set_xlabel('Steps')
+
+            ax[1,0].set_ylabel('Count')
+            ax[1,1].set_ylabel('Count')
+            ax[1,2].set_ylabel('Count')
+            ax[1,3].set_ylabel('Count')
+
+            ax[1,0].set_xlabel('Center of Mass Distance')
+            ax[1,1].set_xlabel('Number of H-bonds')
+            ax[1,2].set_xlabel('Force Energy')
+            ax[1,3].set_xlabel('HB Contacts / Total HBs')
+
+        except:
+            plt.clf()
+            fig, ax = plt.subplots(2, 3, figsize=(10, 6), dpi=300)
+
+            for idx, df in enumerate(self.base_umbrella.obs_df):
+                ax[0,0].plot(df['steps'], df['com_distance'].rolling(rolling_window).mean())
+                H, bins = np.histogram(df['com_distance'], bins=n_bins)
+                ax[1,0].plot(bins[:-1], H)
+
+                ax[0,1].plot(df['steps'], df['hb_list'].rolling(rolling_window).mean())
+                H, bins = np.histogram(df['hb_list'], bins=n_bins)
+                ax[1,1].plot(bins[:-1], H)
+
+                ax[0,2].plot(df['steps'], df['force_energy_0'].rolling(rolling_window).mean())
+                H, bins = np.histogram(df['force_energy_0'], bins=n_bins)
+                ax[1,2].plot(bins[:-1], H)
+
+            ax[0,0].set_ylabel('Center of Mass Distance')
+            ax[0,1].set_ylabel('Number of H-bonds')
+            ax[0,2].set_ylabel('Force Energy')
+
+            ax[0,0].set_xlabel('Steps')
+            ax[0,1].set_xlabel('Steps')
+            ax[0,2].set_xlabel('Steps')
+
+            ax[1,0].set_ylabel('Count')
+            ax[1,1].set_ylabel('Count')
+            ax[1,2].set_ylabel('Count')
+
+            ax[1,0].set_xlabel('Center of Mass Distance')
+            ax[1,1].set_xlabel('Number of H-bonds')
+            ax[1,2].set_xlabel('Force Energy')
 
         fig.tight_layout()
          

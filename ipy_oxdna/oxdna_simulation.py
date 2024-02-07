@@ -136,10 +136,10 @@ class Simulation:
         int_type = self.input.input['interaction_type']
         
         if (int_type == 'DNA') or (int_type == 'DNA2'):
-            self.input_file({'use_average_seq': 'no', 'seq_dep_file':'oxDNA2_sequence_dependent_parameters.txt'})
+            self.input_file({'use_average_seq': 'no', 'seq_dep_file_DNA':'oxDNA2_sequence_dependent_parameters.txt'})
             
         if (int_type == 'RNA') or (int_type == 'RNA2'):
-            self.input_file({'use_average_seq': 'no', 'seq_dep_file':'rna_sequence_dependent_parameters.txt'})
+            self.input_file({'use_average_seq': 'no', 'seq_dep_file_RNA':'rna_sequence_dependent_parameters.txt'})
             
         if (int_type == 'NA') :
             self.input_file({'use_average_seq': 'no',
@@ -374,7 +374,24 @@ class BuildSimulation:
     def build_hb_list_file(self, p1, p2):
         self.sim.sim_files.parse_current_files()
         column_names = ['strand', 'nucleotide', '3_prime', '5_prime']
-        top = pd.read_csv(self.sim.sim_files.top, sep=' ', names=column_names).iloc[1:,:].reset_index(drop=True)
+        try:
+            top = pd.read_csv(self.sim.sim_files.top, sep=' ', names=column_names).iloc[1:,:].reset_index(drop=True)
+        
+        except:
+            
+            with open(self.sim.sim_files.force, 'r') as f:
+                lines = f.readlines()
+                lines = [int(line.strip().split()[1].replace('"', '')[:-1]) for line in lines if 'particle' in line]
+                line_sets = [(lines[i], lines[i+1]) for i in range(0, len(lines), 2)]
+                line_sets = {tuple(sorted(t)) for t in line_sets}
+            with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'w') as f:
+                f.write("{\norder_parameter = bond\nname = all_native_bonds\n")    
+                for idx, line_set in enumerate(line_sets):
+                    f.write(f'pair{idx} = {line_set[0]}, {line_set[1]}\n')
+                f.write("}\n")
+            
+            return None
+
         top['index'] = top.index  
         
         p1 = p1.split(',')
@@ -633,6 +650,8 @@ class SimulationManager:
     def worker_manager(self, gpu_mem_block=True, custom_observables=None, run_when_failed=False, cpu_run=False):
         """ Head process in charge of allocating queued simulations to processes and gpu memory."""
         tic = timeit.default_timer()
+        if cpu_run is True:
+            gpu_mem_block = False
         self.custom_observables = custom_observables
         while not self.sim_queue.empty():
             #get simulation from queue
@@ -667,7 +686,7 @@ class SimulationManager:
                             wait_for_gpu_memory = False      
             else:
                 if cpu_run is False:
-                    sleep(1)
+                    sleep(2)
                 elif cpu_run is True:
                     sleep(0.1)
 
@@ -691,6 +710,9 @@ class SimulationManager:
     def run(self, log=None, join=False, gpu_mem_block=True, custom_observables=None, run_when_failed=False, cpu_run=False):
         """ Run the worker manager in a subprocess"""
         print('spawning')
+        if cpu_run is True:
+            gpu_mem_block = False
+            
         p = mp.Process(target=self.worker_manager, args=(), kwargs={'gpu_mem_block':gpu_mem_block, 'custom_observables':custom_observables, 'run_when_failed':run_when_failed, 'cpu_run':cpu_run}) 
         self.manager_process = p
         p.start()
@@ -801,7 +823,11 @@ class Input:
             parameters: depreciated
         """
         self.sim_dir = sim_dir
-        if os.path.exists(os.path.join(self.sim_dir, 'input.json')):
+        
+        exsiting_input = (os.path.exists(os.path.join(self.sim_dir, 'input.json')) or 
+                          os.path.exists(os.path.join(self.sim_dir, 'input')))
+        if exsiting_input:
+               
             self.read_input()
         else:
             self.input = {
@@ -880,15 +906,28 @@ class Input:
         
     def modify_input(self, parameters):
         """ Modify the parameters of the oxDNA input file."""
+        if os.path.exists(os.path.join(self.sim_dir, 'input.json')):
+            self.read_input()
         for k, v in parameters.items():
                 self.input[k] = v
-        self.write_input()
+        self.write_input(production=True)
                          
     def read_input(self):
         """ Read parameters of exsisting input file in sim_dir"""
-        with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
-            my_input = loads(f.read())
-        self.input = my_input
+        if os.path.exists(os.path.join(self.sim_dir, 'input.json')):
+            with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
+                my_input = loads(f.read())
+            self.input = my_input
+            
+        else:
+            with open(os.path.join(self.sim_dir, 'input'), 'r') as f:
+                lines = f.readlines()
+                lines = [line for line in lines if '=' in line]
+                lines = [line.strip().split('=') for line in lines]
+                my_input = {line[0].strip():line[1].strip() for line in lines}
+
+            self.input = my_input
+        
 
         
 class SequenceDependant:
@@ -1828,18 +1867,31 @@ class Observable:
         """
         Return the energy exerted by external forces
         """
-        return({
-            "output": {
-                "print_every": f'{print_every}',
-                "name": name,
-                "cols": [
-                    {
-                        "type": "force_energy", 
-                        "print_group": f"{print_group}"            
-                    }
-                ]
-            }
-        })
+        if print_group is not None:
+            return({
+                "output": {
+                    "print_every": f'{print_every}',
+                    "name": name,
+                    "cols": [
+                        {
+                            "type": "force_energy", 
+                            "print_group": f"{print_group}"            
+                        }
+                    ]
+                }
+            })
+        else:
+            return({
+                "output": {
+                    "print_every": f'{print_every}',
+                    "name": name,
+                    "cols": [
+                        {
+                            "type": "force_energy", 
+                        }
+                    ]
+                }
+            })
         
     @staticmethod
     def kinetic_energy(print_every=None, name=None):

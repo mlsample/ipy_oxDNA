@@ -1866,8 +1866,8 @@ class UmbrellaAnalysis:
                 H, bins = np.histogram(df['hb_list'], bins=n_bins)
                 ax[1,1].plot(bins[:-1], H)
 
-                ax[0,2].plot(df['steps'], df['force_energy_0'].rolling(rolling_window).mean())
-                H, bins = np.histogram(df['force_energy_0'], bins=n_bins)
+                ax[0,2].plot(df['steps'], df.filter(like='force_energy').sum(axis=1).rolling(rolling_window).mean())
+                H, bins = np.histogram(df.filter(like='force_energy').sum(axis=1), bins=n_bins)
                 ax[1,2].plot(bins[:-1], H)
 
                 ax[0,3].plot(df['steps'], df['hb_contact'].rolling(rolling_window).mean())
@@ -1906,8 +1906,8 @@ class UmbrellaAnalysis:
                 H, bins = np.histogram(df['hb_list'], bins=n_bins)
                 ax[1,1].plot(bins[:-1], H)
 
-                ax[0,2].plot(df['steps'], df['force_energy_0'].rolling(rolling_window).mean())
-                H, bins = np.histogram(df['force_energy_0'], bins=n_bins)
+                ax[0,2].plot(df['steps'], df.filter(like='force_energy').sum(axis=1).rolling(rolling_window).mean())
+                H, bins = np.histogram(df.filter(like='force_energy').sum(axis=1), bins=n_bins)
                 ax[1,2].plot(bins[:-1], H)
 
             ax[0,0].set_ylabel('Center of Mass Distance')

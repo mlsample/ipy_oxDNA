@@ -6,6 +6,7 @@ ipy_oxdna.egg-info
 **/.ipynb_checkpoints/
 /examples/run_files
 
+/examples/python_scripts
 /examples/notebooks
 /examples/umbrella_scripts
 *.pyc

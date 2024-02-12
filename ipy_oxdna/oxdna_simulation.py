@@ -953,7 +953,7 @@ class Input:
             with oxpy.Context(print_coda=False):
                 ox_input = oxpy.InputFile()
                 for k, v in self.input.items():
-                    ox_input[k] = v
+                    ox_input[k] = str(v)
                 print(ox_input, file=f)
 
     def modify_input(self, parameters):

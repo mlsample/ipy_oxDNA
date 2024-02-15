@@ -162,7 +162,7 @@ class Simulation:
         if (int_type == 'RNA') or (int_type == 'RNA2'):
             self.input_file({'use_average_seq': 'no', 'seq_dep_file': 'rna_sequence_dependent_parameters.txt'})
 
-        if (int_type == 'NA'):
+        if int_type == 'NA':
             self.input_file({'use_average_seq': 'no',
                              'seq_dep_file_DNA': 'oxDNA2_sequence_dependent_parameters.txt',
                              'seq_dep_file_RNA': 'rna_sequence_dependent_parameters.txt',
@@ -177,7 +177,20 @@ class GenerateReplicas:
     Methods to generate multisystem replicas
     """
 
-    def multisystem_replica(self, systems, n_replicas_per_system, file_dir_list, sim_dir_list):
+    systems: Any
+    n_replicas_per_system: int
+    file_dir_list: list[str]
+    sim_dir_list: list[str]
+    sim_list: list[Simulation]
+    queue_of_sims: queue.Queue
+
+    # TODO: init
+
+    def multisystem_replica(self,
+                            systems,
+                            n_replicas_per_system,
+                            file_dir_list,
+                            sim_dir_list):
         """
         Create simulation replicas, with across multiple systems with diffrent inital files
         

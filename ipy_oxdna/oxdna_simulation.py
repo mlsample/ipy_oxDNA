@@ -5,7 +5,7 @@ from json import dumps, loads, dump, load
 import oxpy
 import multiprocessing as mp
 import py
-from oxDNA_analysis_tools.UTILS.oxview import oxdna_conf
+from oxDNA_analysis_tools.UTILS.oxview import oxdna_conf, from_path
 from oxDNA_analysis_tools.UTILS.RyeReader import describe, get_confs
 import ipywidgets as widgets
 from IPython.display import display, IFrame
@@ -1021,6 +1021,18 @@ class OxdnaAnalysisTools:
     def __init__(self, sim):
         self.sim = sim            
     
+    
+    def describe(self):
+        try:
+            try:
+                self.top_info, self.traj_info =  describe(self.sim.sim_files.top,self.sim.sim_files.traj)
+            except:
+                self.top_info, self.traj_info =  describe(self.sim.sim_files.top,self.sim.sim_files.dat)
+        except:
+            self.top_info, self.traj_info =  describe(self.sim.sim_files.top,self.sim.sim_files.last_conf)
+
+
+    
     def align(self, outfile='aligned.dat', args='', join=False):
         """
         Align trajectory to mean strucutre
@@ -1326,7 +1338,7 @@ class OxdnaAnalysisTools:
         def run_output_bonds(self, args=''):
             start_dir = os.getcwd()
             os.chdir(self.sim.sim_dir)
-            os.system(f'oat output_bonds {self.sim.sim_files.input} {self.sim.sim_files.traj} {args}')
+            os.system(f'oat output_bonds {self.sim.sim_files.input} {self.sim.sim_files.traj} {args} -v bonds.json')
             os.chdir(start_dir)
         p = mp.Process(target=run_output_bonds, args=(self,), kwargs={'args':args})
         p.start()
@@ -1367,19 +1379,37 @@ class OxdnaAnalysisTools:
         if join == True:
             p.join()
 
-    def conformational_entropy(self, traj='trajectory.dat', meanfile='mean.dat', outfile='conformational_entropy.json', args='', join=False):
+    def conformational_entropy(self, traj='trajectory.dat',temperature='293.15', meanfile='mean.dat', outfile='conformational_entropy.json', args='', join=False):
         """
         Calculate a strucutres conformational entropy (not currently supported in general). Use args='-h' for more details.
         """
         if args == '-h':
             os.system('oat conformational_entropy -h')
             return None
-        def run_conformational_entropy(self,traj, meanfile, outfile, args=''):
+        def run_conformational_entropy(self,traj, temperature, meanfile, outfile, args=''):
             start_dir = os.getcwd()
             os.chdir(self.sim.sim_dir)
-            os.system(f'oat conformational_entropy {traj} {meanfile} {outfile} {args}')
+            os.system(f'oat conformational_entropy {traj} {temperature} {meanfile} {outfile} {args}')
             os.chdir(start_dir)
-        p = mp.Process(target=run_conformational_entropy, args=(self,traj, meanfile, outfile,), kwargs={'args':args})
+        p = mp.Process(target=run_conformational_entropy, args=(self,traj, temperature, meanfile, outfile,), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
+            
+            
+    def radius_of_gyration(self, traj='trajectory.dat',  args='', join=False):
+        """
+        Calculate a strucutres radius_of_gyration (not currently supported in general). Use args='-h' for more details.
+        """
+        if args == '-h':
+            os.system('oat radius_of_gyration -h')
+            return None
+        def run_radius_of_gyration(self,traj, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat radius_of_gyration {traj} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_radius_of_gyration, args=(self, traj), kwargs={'args':args})
         p.start()
         if join == True:
             p.join()

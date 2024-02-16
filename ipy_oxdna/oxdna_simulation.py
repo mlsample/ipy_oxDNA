@@ -496,7 +496,8 @@ class OxpyRun:
         with oxpy.Context():
             ox_input = oxpy.InputFile()
             for k, v in my_input.items():
-                ox_input[k] = v
+                # todo: error-handling for vals that don't stringify nicely
+                ox_input[k] = str(v)
             try:
                 manager = oxpy.OxpyManager(ox_input)
                 if hasattr(self.sim.sim_files, 'run_time_custom_observable'):
@@ -942,9 +943,13 @@ class Input:
     def write_input(self, production=False):
         """ Write an oxDNA input file as a json file to sim_dir"""
         if production is False:
-            self.get_last_conf_top()
-            self.input["conf_file"] = self.dat
-            self.input["topology"] = self.top
+            if "conf_file" not in self.input:
+                self.get_last_conf_top()
+                self.input["conf_file"] = self.dat
+                self.input["topology"] = self.top
+            else:
+                self.dat = self.input["conf_file"]
+                self.top = self.input["topology"]
         # Write input file
         with open(os.path.join(self.sim_dir, f'input.json'), 'w') as f:
             input_json = dumps(self.input, indent=4)

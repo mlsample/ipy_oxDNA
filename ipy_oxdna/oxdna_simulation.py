@@ -432,6 +432,25 @@ class BuildSimulation:
 
         try:
             top = pd.read_csv(self.sim.sim_files.top, sep=' ', names=column_names).iloc[1:,:].reset_index(drop=True)
+            top['index'] = top.index 
+            p1 = p1.split(',')
+            p2 = p2.split(',')
+            i = 1
+            with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'w') as f:
+                f.write("{\norder_parameter = bond\nname = all_native_bonds\n")
+            complement = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
+            for nuc1 in p1:
+                nuc1_data = top.iloc[int(nuc1)]
+                nuc1_complement = complement[nuc1_data['nucleotide']]
+                for nuc2 in p2:
+                    nuc2_data = top.iloc[int(nuc2)]
+                    if nuc2_data['nucleotide'] == nuc1_complement:
+                        with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'a') as f:
+                            f.write(f'pair{i} = {nuc1}, {nuc2}\n')
+                        i += 1
+            with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'a') as f:
+                f.write("}\n")
+            return None
         
         except:
             
@@ -447,8 +466,6 @@ class BuildSimulation:
                 f.write("}\n")
             
             return None
-
-        top['index'] = top.index  
 
 
 class OxpyRun:

@@ -968,7 +968,8 @@ class Input:
             ox_input = oxpy.InputFile()
             for k, v in self.input.items():
                 ox_input[k] = v
-            print(ox_input, file=f)
+            with open(os.path.join(self.sim_dir, f'input'), 'w') as f:
+                print(ox_input, file=f)
 
     def write_input(self, production=False):
         """ Write an oxDNA input file as a json file to sim_dir"""

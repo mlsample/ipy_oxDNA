@@ -7,6 +7,7 @@
 **/.ipynb_checkpoints/
 
 /examples/run_files
+
 /examples/notebooks
 /examples/umbrella_scripts
 examples/tutorials/8_nt_duplex_melting_cpu/oxdna_files/8_nt_duplex_melting_tutorial
@@ -14,7 +15,7 @@ examples/tutorials/origami_tile_N_nt_overhangs_gpu/rro/rro_k02
 examples/tutorials/origami_tile_N_nt_overhangs_gpu/t9/t9_k02
 examples/tutorials/origami_tile_N_nt_overhangs_gpu/t20/t20_k02
 
-
 *.pyc
 ipy_oxdna.egg-info
 ipy_oxdna/patchy_particles.py
+

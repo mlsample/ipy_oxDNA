@@ -7,7 +7,7 @@ This repository contains Python code for running oxDNA umbrella sampling and lar
 
 Sample, Matthew, Michael Matthies, and Petr Šulc. "Hairygami: Analysis of DNA Nanostructure's Conformational Change Driven by Functionalizable Overhangs." arXiv preprint arXiv:2302.09109 (2023).
 
-Within the `examples/notebooks` folder exist Jupyter notebook tutorials and examples. The full documentation can be found [here](https://mlsample.github.io/ipy_oxDNA/index.html).
+Within the `examples/tutorials` folder exist Jupyter notebook tutorials and examples. The full documentation can be found [here](https://mlsample.github.io/ipy_oxDNA/index.html).
 
 ## Contents
 - [Introduction](#introduction)

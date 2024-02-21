@@ -315,7 +315,7 @@ class BuildSimulation:
 
     def build_input(self, production=False):
         """Calls a methods from the Input class which writes a oxDNA input file in plain text and json"""
-        self.sim.input = Input(self.sim)
+        self.sim.input.initalize_input()
         self.sim.input.write_input(production=production)
 
     def get_par(self):
@@ -884,14 +884,11 @@ int main() {
 
 
 class Input:
-    sim_dir: Any
     input: dict[str, str]
-    top: str
-    dat: str
 
     """ Lower level input file methods"""
 
-    def __init__(self, sim: Simulation, parameters: Union[None, dict[str, Any]] = None):
+    def __init__(self, sim: Simulation):
         """ 
         Read input file in simulation dir if it exsists, other wise define default input parameters.
         
@@ -901,8 +898,17 @@ class Input:
         """
         self.sim = sim
         
-        exsiting_input = (os.path.exists(os.path.join(self.sim.sim_dir, 'input.json')) or 
-                          os.path.exists(os.path.join(self.sim.sim_dir, 'input')))
+        if os.path.exists(self.sim.sim_dir):
+            self.initalize_input()
+                
+    def initalize_input(self, read_exsisting_input=True):
+        
+        if read_exsisting_input:
+            exsiting_input = (os.path.exists(os.path.join(self.sim.sim_dir, 'input.json')) or 
+                              os.path.exists(os.path.join(self.sim.sim_dir, 'input')))
+        else:
+            exsiting_input = False
+            
         if exsiting_input:
             self.read_input()
         else:
@@ -942,9 +948,6 @@ class Input:
                 "external_forces_file": "forces.json",
                 "external_forces_as_JSON": "true"
             }
-            if parameters is not None:
-                for k, v in parameters.items():
-                    self.input[k] = v
 
     def get_last_conf_top(self):
         """Set attributes containing the name of the inital conf (dat file) and topology"""
@@ -971,7 +974,7 @@ class Input:
     def write_input(self, production=False):
         """ Write an oxDNA input file as a json file to sim_dir"""
         if production is False:
-            if "conf_file" not in self.input:
+            if self.input["conf_file"] == None:
                 self.get_last_conf_top()
                 self.input["conf_file"] = self.dat
                 self.input["topology"] = self.top
@@ -1000,9 +1003,13 @@ class Input:
     def read_input(self):
         """ Read parameters of exsisting input file in sim_dir"""
         if os.path.exists(os.path.join(self.sim.sim_dir, 'input.json')):
-            with open(os.path.join(self.sim.sim_dir, 'input.json'), 'r') as f:
-                my_input = loads(f.read())
-            self.input = my_input
+            try:
+                with open(os.path.join(self.sim.sim_dir, 'input.json'), 'r') as f:
+                    content = f.read()
+                    my_input = loads(content)
+                self.input = my_input
+            except json.JSONDecodeError:
+                self.initalize_input(read_exsisting_input=False)
             
         else:
             with open(os.path.join(self.sim.sim_dir, 'input'), 'r') as f:

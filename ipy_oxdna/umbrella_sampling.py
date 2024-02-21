@@ -22,7 +22,7 @@ import pymbar
 from pymbar import timeseries
 import warnings
 from scipy.optimize import OptimizeWarning
-
+import pyarrow
 
 class BaseUmbrellaSampling:
     def __init__(self, file_dir, system, clean_build=False):
@@ -1137,9 +1137,9 @@ class PymbarAnalysis:
                            for inner_list in com_kn])
 
         names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-        # u_kn = [np.sum(inner_list[names], axis=1) for inner_list in self.base_umbrella.obs_df]
-        # u_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant')
-        #                    for inner_list in u_kn])
+        u_kn = [np.sum(inner_list[names], axis=1) for inner_list in self.base_umbrella.obs_df]
+        u_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant')
+                           for inner_list in u_kn])
 
         if restraints is True:
             u_res_kn = self._setup_restrain_potential(com_kn, N_k, N_max, force_energy_split)
@@ -1859,39 +1859,41 @@ class UmbrellaAnalysis:
 
             for idx, df in enumerate(self.base_umbrella.obs_df):
                 ax[0,0].plot(df['steps'], df['com_distance'].rolling(rolling_window).mean())
-                H, bins = np.histogram(df['com_distance'], bins=n_bins)
+                H, bins = np.histogram(df['com_distance'], bins=n_bins, density=True)
                 ax[1,0].plot(bins[:-1], H)
 
                 ax[0,1].plot(df['steps'], df['hb_list'].rolling(rolling_window).mean())
-                H, bins = np.histogram(df['hb_list'], bins=n_bins)
+                H, bins = np.histogram(df['hb_list'], bins=n_bins, density=True)
                 ax[1,1].plot(bins[:-1], H)
 
-                ax[0,2].plot(df['steps'], df.filter(like='force_energy').sum(axis=1).rolling(rolling_window).mean())
-                H, bins = np.histogram(df.filter(like='force_energy').sum(axis=1), bins=n_bins)
+                ax[0,2].plot(df['steps'], df['hb_contact'].rolling(rolling_window).mean())
+                H, bins = np.histogram(df['hb_contact'], bins=n_bins, density=True)
                 ax[1,2].plot(bins[:-1], H)
 
-                ax[0,3].plot(df['steps'], df['hb_contact'].rolling(rolling_window).mean())
-                H, bins = np.histogram(df['hb_contact'], bins=n_bins)
+                ax[0,3].plot(df['steps'], df.filter(like='force_energy').sum(axis=1).rolling(rolling_window).mean())
+                H, bins = np.histogram(df.filter(like='force_energy').sum(axis=1), bins=n_bins, density=True)
                 ax[1,3].plot(bins[:-1], H)
+
+
             ax[0,0].set_ylabel('Center of Mass Distance')
             ax[0,1].set_ylabel('Number of H-bonds')
-            ax[0,2].set_ylabel('Force Energy')
-            ax[0,3].set_ylabel('HB Contacts / Total HBs')
+            ax[0,3].set_ylabel('Force Energy')
+            ax[0,2].set_ylabel('HB Contacts / Total HBs')
 
             ax[0,0].set_xlabel('Steps')
             ax[0,1].set_xlabel('Steps')
-            ax[0,2].set_xlabel('Steps')
             ax[0,3].set_xlabel('Steps')
+            ax[0,2].set_xlabel('Steps')
 
             ax[1,0].set_ylabel('Count')
             ax[1,1].set_ylabel('Count')
-            ax[1,2].set_ylabel('Count')
             ax[1,3].set_ylabel('Count')
+            ax[1,2].set_ylabel('Count')
 
             ax[1,0].set_xlabel('Center of Mass Distance')
             ax[1,1].set_xlabel('Number of H-bonds')
-            ax[1,2].set_xlabel('Force Energy')
-            ax[1,3].set_xlabel('HB Contacts / Total HBs')
+            ax[1,3].set_xlabel('Force Energy')
+            ax[1,2].set_xlabel('HB Contacts / Total HBs')
 
         except:
             plt.clf()
@@ -1899,15 +1901,15 @@ class UmbrellaAnalysis:
 
             for idx, df in enumerate(self.base_umbrella.obs_df):
                 ax[0,0].plot(df['steps'], df['com_distance'].rolling(rolling_window).mean())
-                H, bins = np.histogram(df['com_distance'], bins=n_bins)
+                H, bins = np.histogram(df['com_distance'], bins=n_bins, density=True)
                 ax[1,0].plot(bins[:-1], H)
 
                 ax[0,1].plot(df['steps'], df['hb_list'].rolling(rolling_window).mean())
-                H, bins = np.histogram(df['hb_list'], bins=n_bins)
+                H, bins = np.histogram(df['hb_list'], bins=n_bins, density=True)
                 ax[1,1].plot(bins[:-1], H)
 
                 ax[0,2].plot(df['steps'], df.filter(like='force_energy').sum(axis=1).rolling(rolling_window).mean())
-                H, bins = np.histogram(df.filter(like='force_energy').sum(axis=1), bins=n_bins)
+                H, bins = np.histogram(df.filter(like='force_energy').sum(axis=1), bins=n_bins, density=True)
                 ax[1,2].plot(bins[:-1], H)
 
             ax[0,0].set_ylabel('Center of Mass Distance')
@@ -1977,7 +1979,8 @@ class UmbrellaAnalysis:
         """
         try:
             observable = pd.read_csv(f"{sim.sim_dir}/{file_name}", header=None, engine='pyarrow')
-        except FileNotFoundError:
+        except (FileNotFoundError, pyarrow.lib.ArrowInvalid) as e:
+            print(f'Error reading:\n {sim.sim_dir}\nWith Exception:\n {e}')
             observable = pd.DataFrame()
 
         if not observable.empty:

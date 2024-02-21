@@ -8,6 +8,7 @@
 
 /examples/run_files
 
+/examples/python_scripts
 /examples/notebooks
 /examples/umbrella_scripts
 examples/tutorials/8_nt_duplex_melting_cpu/oxdna_files/8_nt_duplex_melting_tutorial

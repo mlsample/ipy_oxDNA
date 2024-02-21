@@ -1069,10 +1069,12 @@ class PymbarAnalysis:
         elif uncorrelated_samples is True:
             u_kln, N_k = self.setup_input_data_with_uncorrelated_samples(reread_files=reread_files, sim_type=sim_type, restraints=restraints, force_energy_split=force_energy_split)
         
-        mbar_options = {'maximum_iterations':1000000, 'relative_tolerance':1e-9}
+        
+        
+        mbar_options = {'solver_protocol':'jax'}
         print("Running FES calculation...")
         
-        self.basefes = pymbar.FES(u_kln, N_k, verbose=True)#, mbar_options=mbar_options)
+        self.basefes = pymbar.FES(u_kln, N_k, mbar_options=mbar_options, verbose=True, timings=True)#, mbar_options=mbar_options)
     
     
     def init_param_and_arrays(self):
@@ -1245,7 +1247,10 @@ class PymbarAnalysis:
         
         # Fit the sigmoid function to the inverted data
         p0 = [max(inverted_finfs), np.median(temp_range), 1, min(inverted_finfs)]  # initial guesses for L, x0, k, b
-        popt, _ = curve_fit(self.base_umbrella.sigmoid, temp_range, inverted_finfs, p0, method='dogbox')
+        try:
+            popt, _ = curve_fit(self.base_umbrella.sigmoid, temp_range, inverted_finfs, p0)
+        except:
+            return None, None, None, inverted_finfs
     
         # Generate fitted data
         x_fit = np.linspace(min(temp_range), max(temp_range), 500)

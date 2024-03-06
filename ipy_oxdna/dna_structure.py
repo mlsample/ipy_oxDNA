@@ -634,7 +634,8 @@ def load_dna_structure(top: Union[str, Path], conf_file: Union[str, Path]) -> DN
     # if not conf_file.is_absolute():
     #     conf_file = get_input_dir() / conf_file
 
-    assert top.is_file()
+    assert top.is_file(), f"No file exists {str(top)}"
+    assert conf_file.is_file(), f"No file exists {str(conf_file)}"
 
     with top.open("r") as top_file:
         lines = top_file.readlines()

@@ -30,8 +30,8 @@ import signal
 # import cupy
 
 class Simulation:
-    file_dir: str
-    sim_dir: str
+    file_dir: Path
+    sim_dir: Path
     sim_files: SimFiles
     build_sim: BuildSimulation
     input: Input
@@ -49,16 +49,37 @@ class Simulation:
         sim_dir (str): Path to directory where a simulation will be run using inital files.
     """
 
-    def __init__(self, file_dir: str, sim_dir: Union[str, None] = None):
-        """ Instance lower level class objects used to compose the Simulation class features."""
-        self.file_dir = file_dir
-        if sim_dir is not None:
+    def __init__(self,
+                 file_dir: Union[str, Path],
+                 sim_dir: Union[str, Path, None] = None,
+                 input_file_params: dict = {} ):
+        """
+        Instance lower level class objects used to compose the Simulation class features.
+        """
+
+        # handle alternate param types for file_dir
+        if isinstance(file_dir, Path):
+            self.file_dir = file_dir
+        elif isinstance(file_dir, str):
+            self.file_dir = Path(file_dir)
+        else:
+            raise ValueError(f"Invalid type {type(file_dir)} for parameter file_dir")
+        if not file_dir.exists():
+            raise Exception(f"No such directory {str(file_dir)}")
+        # handle alternate param types for sim_dir
+        if sim_dir is None:   # if no sim dir is provided, use file dir
+            self.sim_dir = self.file_dir
+        elif isinstance(sim_dir, str):
+            self.sim_dir = Path(sim_dir)
+        elif isinstance(sim_dir, Path):
             self.sim_dir = sim_dir
-        else:  # if no sim dir is provided, use file dir
-            self.sim_dir = file_dir
+        else:
+            raise ValueError(f"Invalid type {type(sim_dir)} for parameter sim_dir")
+        # tolerate sim_dir not existing, we can create it later
+
         self.sim_files = SimFiles(self.sim_dir)
         self.build_sim = BuildSimulation(self)
-        self.input = Input(self.sim_dir)
+        self.input = Input(self.sim_dir, input_file_params)
         self.analysis = Analysis(self)
         self.protein = Protein(self)
         self.oxpy_run = OxpyRun(self)
@@ -234,7 +255,7 @@ class GenerateReplicas:
         end_index = start_index + self.n_replicas_per_system
 
         system_specific_sim_list = self.sim_list[start_index:end_index]
-        sim_list_file_dir = [sim.file_dir for sim in system_specific_sim_list]
+        sim_list_file_dir = [str(sim.file_dir) for sim in system_specific_sim_list]
         sim_list_sim_dir = [sim.sim_dir for sim in system_specific_sim_list]
         concat_dir = os.path.abspath(os.path.join(sim_list_file_dir[0], concat_dir))
         if not os.path.exists(concat_dir):
@@ -296,12 +317,12 @@ class BuildSimulation:
         conf_top = os.listdir(self.file_dir)
         self.top = [file for file in conf_top if (file.endswith('.top'))][0]
         try:
-            last_conf = \
-                [file for file in conf_top if (file.startswith('last_conf')) and (not (file.endswith('pyidx')))][0]
+            last_conf = [file for file in conf_top
+                         if (file.startswith('last_conf')) and (not (file.endswith('pyidx')))][0]
         except IndexError:
             last_conf = [file for file in conf_top if
-                         (file.endswith('.dat')) and not (file.endswith(('energy.dat'))) and not (
-                             file.endswith(('trajectory.dat'))) and not (file.endswith(('error_conf.dat')))][0]
+                         file.endswith('.dat') and not file.endswith('energy.dat') and not
+                             file.endswith('trajectory.dat') and not file.endswith(('error_conf.dat'))][0]
         self.dat = last_conf
 
     def build_sim_dir(self):
@@ -312,7 +333,9 @@ class BuildSimulation:
     def build_dat_top(self):
         """Write intial conf and toplogy to simulation directory"""
         self.get_last_conf_top()
+        # copy dat file to sim directory
         shutil.copy(os.path.join(self.file_dir, self.dat), self.sim_dir)
+        # copy top file to sim directory
         shutil.copy(os.path.join(self.file_dir, self.top), self.sim_dir)
 
     def build_input(self, production=False):
@@ -452,9 +475,20 @@ class BuildSimulation:
 
 
 class OxpyRun:
+    # setup params
     sim: Simulation
     sim_dir: str
-    sim_output: Any
+    # run params
+    subprocess: bool
+    verbose: bool
+    continue_run: bool
+    log: Union[False, str]  # name of log file, or False if log is off
+    join: bool
+    custom_observables: bool
+    sim_output: str
+    sim_err: str
+    process: mp.Process
+
     """Automatically runs a built oxDNA simulation using oxpy within a subprocess"""
 
     def __init__(self, sim):
@@ -463,24 +497,27 @@ class OxpyRun:
         self.sim_dir = sim.sim_dir
         self.my_obs = {}
 
-    def run(self, subprocess=True, continue_run=False, verbose=True, log=True, join=False, custom_observables=None):
+    def run(self, subprocess=True, continue_run=False, verbose=True, log: Union[str, bool] =True, join=False, custom_observables=None):
         """ Run oxDNA simulation using oxpy in a subprocess.
         
         Parameters:
             subprocess (bool): If false run simulation in parent process (blocks process), if true spawn sim in child process.
             continue_run (number): If False overide previous simulation results. If True continue previous simulation run.
             verbose (bool): If true print directory of simulation when run.
-            log (bool): If true print a log file to simulation directory.
+            log (bool): If not False, print a log file to simulation directory. If True, the file will be auto-named to "log.log". otherwise it will be given the provided name
             join (bool): If true block main parent process until child process has terminated (simulation finished)
         """
         self.subprocess = subprocess
         self.verbose = verbose
         self.continue_run = continue_run
-        self.log = log
+        if self.log is True:
+            self.log = "log.log"
+        else:
+            self.log = log
         self.join = join
         self.custom_observables = custom_observables
 
-        if self.verbose == True:
+        if self.verbose:
             print(f'Running: {self.sim_dir.split("/")[-1]}')
         if self.subprocess:
             self.spawn(self.run_complete)
@@ -491,7 +528,7 @@ class OxpyRun:
         """Spawn subprocess"""
         p = mp.Process(target=f, args=args)
         p.start()
-        if self.join == True:
+        if self.join:
             p.join()
         self.process = p
 
@@ -499,10 +536,15 @@ class OxpyRun:
         """Run an oxDNA simulation"""
         self.error_message = None
         tic = timeit.default_timer()
+        # capture outputs
         capture = py.io.StdCaptureFD()
         if self.continue_run is not False:
-            self.sim.input_file({"conf_file": self.sim.sim_files.last_conf, "refresh_vel": "0",
-                                 "restart_step_counter": "0", "steps": f'{self.continue_run}'})
+            self.sim.input_file({
+                "conf_file": self.sim.sim_files.last_conf,
+                "refresh_vel": "0",
+                "restart_step_counter": "0",
+                "steps": f'{self.continue_run}'
+            })
         os.chdir(self.sim_dir)
         with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
             my_input = loads(f.read())
@@ -522,7 +564,8 @@ class OxpyRun:
             except Exception as e:
                 self.error_message = traceback.format_exc()
 
-        self.sim_output = capture.reset()
+        # grab captured err and outputs
+        self.sim_output, self.sim_err = capture.reset()
         toc = timeit.default_timer()
         if self.verbose:
             print(f'Run time: {toc - tic}')
@@ -531,11 +574,13 @@ class OxpyRun:
                     f'Exception encountered in {self.sim_dir}:\n{type(self.error_message).__name__}: {self.error_message}')
             else:
                 print(f'Finished: {self.sim_dir.split("/")[-1]}')
+
+        # if log is set
         if self.log:
             with open('log.log', 'w') as f:
-                f.write(self.sim_output[0])
-                f.write(self.sim_output[1])
-                f.write(f'Run time: {toc - tic}')
+                f.write(self.sim_output) # write output log
+                f.write(self.sim_err) # write error log
+                f.write(f'Run time: {toc - tic}') # write runtime
                 if self.error_message is not None:
                     f.write(f'Exception: {self.error_message}')
         self.sim.sim_files.parse_current_files()
@@ -624,11 +669,13 @@ class SlurmRun:
 
 class SimulationManager:
     manager: mp.Manager
-    sim_queue: queue.Queue
+    # todo: replace w/ generator?
+    sim_queue: queue.Queue[Simulation]
     process_queue: queue.Queue
     gpu_memory_queue: queue.Queue
     terminate_queue: queue.Queue
     worker_process_list: list
+
     """ In conjunction with nvidia-cuda-mps-control, allocate simulations to avalible cpus and gpus."""
 
     def __init__(self, n_processes=len(os.sched_getaffinity(0)) - 1):
@@ -667,7 +714,7 @@ class SimulationManager:
         # TODO: make this not a class method?
         return byte / 1048576
 
-    def get_sim_mem(self, sim, gpu_idx):
+    def get_sim_mem(self, sim: Simulation, gpu_idx):
         """
         Returns the amount of simulation memory requried to run an oxDNA simulation.
         Note: A process running a simulation will need more memory then just required for the simulation.
@@ -682,12 +729,12 @@ class SimulationManager:
         sim.input_file({'lastconf_file': os.devnull, 'steps': '0'})
         sim.oxpy_run.run(subprocess=False, verbose=False, log=False)
         sim.input_file({'lastconf_file': f'{last_conf_file}', 'steps': f'{steps}'})
-        err_split = sim.oxpy_run.sim_output[1].split()
+        err_split = sim.oxpy_run.sim_err.split() # get error log, split by whitespace
         mem = err_split.index('memory:')
         sim_mem = err_split[mem + 1]
         return float(sim_mem)
 
-    def queue_sim(self, sim, continue_run=False):
+    def queue_sim(self, sim: Simulation, continue_run=False):
         """ 
         Add simulation object to the queue of all simulations.
         
@@ -701,11 +748,14 @@ class SimulationManager:
         self.sim_queue.put(sim)
 
     def worker_manager(self, gpu_mem_block=True, custom_observables=None, run_when_failed=False, cpu_run=False):
-        """ Head process in charge of allocating queued simulations to processes and gpu memory."""
+        """
+        Head process in charge of allocating queued simulations to processes and gpu memory.
+        """
         tic = timeit.default_timer()
         if cpu_run is True:
             gpu_mem_block = False
         self.custom_observables = custom_observables
+        # as long as there are simulations in the queue
         while not self.sim_queue.empty():
             # get simulation from queue
             if self.terminate_queue.empty():
@@ -748,7 +798,7 @@ class SimulationManager:
         toc = timeit.default_timer()
         print(f'All queued simulations finished in: {toc - tic}')
 
-    def worker_job(self, sim, gpu_idx, gpu_mem_block=True):
+    def worker_job(self, sim: Simulation, gpu_idx: int, gpu_mem_block: bool=True):
         """ Run an allocated oxDNA simulation"""
         if gpu_mem_block is True:
             sim_mem = self.get_sim_mem(sim, gpu_idx)
@@ -762,7 +812,10 @@ class SimulationManager:
 
     def run(self, log=None, join=False, gpu_mem_block=True, custom_observables=None, run_when_failed=False,
             cpu_run=False):
-        """ Run the worker manager in a subprocess"""
+        """
+        Run the worker manager in a subprocess
+        todo: ...logging?
+        """
         print('spawning')
         if cpu_run is True:
             gpu_mem_block = False
@@ -2184,7 +2237,9 @@ class Force:
 
 
 class SimFiles:
-    """ Parse the current files present in simulation directory"""
+    """
+    Parse the current files present in simulation directory
+    """
 
     def __init__(self, sim_dir):
         self.sim_dir = sim_dir

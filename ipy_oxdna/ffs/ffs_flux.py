@@ -9,19 +9,15 @@ from __future__ import annotations
 import argparse
 import logging
 import multiprocessing
-import tempfile
 from pathlib import Path
-from typing import IO, Union, Generator
+from typing import Union, Generator
 
 import networkx as nx
-from ipy_oxdna.oxdna_simulation import Simulation, SimulationManager
-from pypatchy.ffs.ffs_interface import FFSInterface, Condition
+from ..oxdna_simulation import Simulation, SimulationManager
+from .ffs_interface import FFSInterface, Condition
 
-import os, sys
-import subprocess as sp
-import time, random as rnd, tempfile as tf
-import shutil, glob
-from multiprocessing import Process, Lock, JoinableQueue, Value, Array
+import time, random as rnd
+from multiprocessing import Value
 
 from pypatchy.util import get_spec_json
 

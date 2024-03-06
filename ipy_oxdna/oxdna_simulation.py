@@ -9,7 +9,7 @@ from json import dumps, loads, dump, load
 import oxpy
 import multiprocessing as mp
 import py
-from oxDNA_analysis_tools.UTILS.oxview import oxdna_conf
+from oxDNA_analysis_tools.UTILS.oxview import oxdna_conf, from_path
 from oxDNA_analysis_tools.UTILS.RyeReader import describe, get_confs
 import ipywidgets as widgets
 from IPython.display import display, IFrame
@@ -77,9 +77,9 @@ class Simulation:
             raise ValueError(f"Invalid type {type(sim_dir)} for parameter sim_dir")
         # tolerate sim_dir not existing, we can create it later
 
-        self.sim_files = SimFiles(self.sim_dir)
+        self.sim_files = SimFiles(self)
         self.build_sim = BuildSimulation(self)
-        self.input = Input(self.sim_dir, input_file_params)
+        self.input = Input(self)
         self.analysis = Analysis(self)
         self.protein = Protein(self)
         self.oxpy_run = OxpyRun(self)
@@ -307,14 +307,12 @@ class BuildSimulation:
     def __init__(self, sim):
         """ Initalize access to simulation information"""
         self.sim = sim
-        self.file_dir = sim.file_dir
-        self.sim_dir = sim.sim_dir
         self.force = Force()
         self.force_cache = None
 
     def get_last_conf_top(self):
         """Set attributes containing the name of the inital conf (dat file) and topology"""
-        conf_top = os.listdir(self.file_dir)
+        conf_top = os.listdir(self.sim.file_dir)
         self.top = [file for file in conf_top if (file.endswith('.top'))][0]
         try:
             last_conf = [file for file in conf_top
@@ -327,8 +325,8 @@ class BuildSimulation:
 
     def build_sim_dir(self):
         """Make the simulation directory"""
-        if not os.path.exists(self.sim_dir):
-            os.mkdir(self.sim_dir)
+        if not os.path.exists(self.sim.sim_dir):
+            os.mkdir(self.sim.sim_dir)
 
     def build_dat_top(self):
         """Write intial conf and toplogy to simulation directory"""
@@ -338,25 +336,26 @@ class BuildSimulation:
         # copy top file to sim directory
         shutil.copy(os.path.join(self.file_dir, self.top), self.sim_dir)
 
+
     def build_input(self, production=False):
         """Calls a methods from the Input class which writes a oxDNA input file in plain text and json"""
-        self.sim.input = Input(self.sim_dir)
+        self.sim.input.initalize_input()
         self.sim.input.write_input(production=production)
 
     def get_par(self):
-        files = os.listdir(self.file_dir)
+        files = os.listdir(self.sim.file_dir)
         self.par = [file for file in files if (file.endswith('.par'))][0]
 
     def build_par(self):
         self.get_par()
-        shutil.copy(os.path.join(self.file_dir, self.par), self.sim_dir)
+        shutil.copy(os.path.join(self.sim.file_dir, self.par), self.sim.sim_dir)
 
     def get_force_file(self):
-        files = os.listdir(self.file_dir)
+        files = os.listdir(self.sim.file_dir)
         force_file = [file for file in files if (file.endswith('.txt'))][0]
         if len(force_file) > 1:
             force_file = [file for file in files if (file.endswith('force.txt'))][0]
-        self.force_file = os.path.join(self.file_dir, force_file)
+        self.force_file = os.path.join(self.sim.file_dir, force_file)
 
     def build_force_from_file(self):
         forces = []
@@ -381,7 +380,7 @@ class BuildSimulation:
             self.build_force(force)
 
     def build_force(self, force_js):
-        force_file_path = os.path.join(self.sim_dir, "forces.json")
+        force_file_path = os.path.join(self.sim.sim_dir, "forces.json")
 
         # Initialize the cache and create the file if it doesn't exist
         if self.force_cache is None:
@@ -431,11 +430,11 @@ class BuildSimulation:
         Parameters:
             observable_js (dict): observable dictornary obtained from the Observable class methods
         """
-        if not os.path.exists(os.path.join(self.sim_dir, "observables.json")):
-            with open(os.path.join(self.sim_dir, "observables.json"), 'w') as f:
+        if not os.path.exists(os.path.join(self.sim.sim_dir, "observables.json")):
+            with open(os.path.join(self.sim.sim_dir, "observables.json"), 'w') as f:
                 f.write(dumps(observable_js, indent=4))
         else:
-            with open(os.path.join(self.sim_dir, "observables.json"), 'r') as f:
+            with open(os.path.join(self.sim.sim_dir, "observables.json"), 'r') as f:
                 read_observable_js = loads(f.read())
                 multi_col = False
                 for observable in list(read_observable_js.values()):
@@ -446,7 +445,7 @@ class BuildSimulation:
                     read_observable_js[f'output_{len(list(read_observable_js.keys()))}'] = read_observable_js['output']
                     del read_observable_js['output']
                     read_observable_js.update(observable_js.items())
-                with open(os.path.join(self.sim_dir, "observables.json"), 'w') as f:
+                with open(os.path.join(self.sim.sim_dir, "observables.json"), 'w') as f:
                     f.write(dumps(read_observable_js, indent=4))
 
     def build_hb_list_file(self, p1, p2):
@@ -455,6 +454,25 @@ class BuildSimulation:
 
         try:
             top = pd.read_csv(self.sim.sim_files.top, sep=' ', names=column_names).iloc[1:,:].reset_index(drop=True)
+            top['index'] = top.index 
+            p1 = p1.split(',')
+            p2 = p2.split(',')
+            i = 1
+            with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'w') as f:
+                f.write("{\norder_parameter = bond\nname = all_native_bonds\n")
+            complement = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
+            for nuc1 in p1:
+                nuc1_data = top.iloc[int(nuc1)]
+                nuc1_complement = complement[nuc1_data['nucleotide']]
+                for nuc2 in p2:
+                    nuc2_data = top.iloc[int(nuc2)]
+                    if nuc2_data['nucleotide'] == nuc1_complement:
+                        with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'a') as f:
+                            f.write(f'pair{i} = {nuc1}, {nuc2}\n')
+                        i += 1
+            with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'a') as f:
+                f.write("}\n")
+            return None
         
         except:
             
@@ -470,8 +488,6 @@ class BuildSimulation:
                 f.write("}\n")
             
             return None
-
-        top['index'] = top.index  
 
 
 class OxpyRun:
@@ -494,7 +510,6 @@ class OxpyRun:
     def __init__(self, sim):
         """ Initalize access to simulation inforamtion."""
         self.sim = sim
-        self.sim_dir = sim.sim_dir
         self.my_obs = {}
 
     def run(self, subprocess=True, continue_run=False, verbose=True, log: Union[str, bool] =True, join=False, custom_observables=None):
@@ -519,6 +534,7 @@ class OxpyRun:
 
         if self.verbose:
             print(f'Running: {self.sim_dir.split("/")[-1]}')
+
         if self.subprocess:
             self.spawn(self.run_complete)
         else:
@@ -539,19 +555,16 @@ class OxpyRun:
         # capture outputs
         capture = py.io.StdCaptureFD()
         if self.continue_run is not False:
-            self.sim.input_file({
-                "conf_file": self.sim.sim_files.last_conf,
-                "refresh_vel": "0",
-                "restart_step_counter": "0",
-                "steps": f'{self.continue_run}'
-            })
-        os.chdir(self.sim_dir)
-        with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
+            self.sim.input_file({"conf_file": self.sim.sim_files.last_conf, "refresh_vel": "0",
+                                 "restart_step_counter": "0", "steps": f'{self.continue_run}'})
+        os.chdir(self.sim.sim_dir)
+        with open(os.path.join(self.sim.sim_dir, 'input.json'), 'r') as f:
             my_input = loads(f.read())
         with oxpy.Context():
             ox_input = oxpy.InputFile()
             for k, v in my_input.items():
-                ox_input[k] = v
+                # todo: error-handling for vals that don't stringify nicely
+                ox_input[k] = str(v)
             try:
                 manager = oxpy.OxpyManager(ox_input)
                 if hasattr(self.sim.sim_files, 'run_time_custom_observable'):
@@ -571,11 +584,12 @@ class OxpyRun:
             print(f'Run time: {toc - tic}')
             if self.error_message is not None:
                 print(
-                    f'Exception encountered in {self.sim_dir}:\n{type(self.error_message).__name__}: {self.error_message}')
+                    f'Exception encountered in {self.sim.sim_dir}:\n{type(self.error_message).__name__}: {self.error_message}')
             else:
                 print(f'Finished: {self.sim_dir.split("/")[-1]}')
 
         # if log is set
+                print(f'y: {self.sim.sim_dir.split("/")[-1]}')
         if self.log:
             with open('log.log', 'w') as f:
                 f.write(self.sim_output) # write output log
@@ -593,7 +607,7 @@ class OxpyRun:
         self.write_custom_observable()
 
     def write_custom_observable(self):
-        with open(os.path.join(self.sim_dir, "run_time_custom_observable.json"), 'w') as f:
+        with open(os.path.join(self.sim.sim_dir, "run_time_custom_observable.json"), 'w') as f:
             dump(self.my_obs, f, indent=4)
 
     def cms_observables(self, particle_indexes):
@@ -922,14 +936,11 @@ int main() {
 
 
 class Input:
-    sim_dir: Any
     input: dict[str, str]
-    top: str
-    dat: str
 
     """ Lower level input file methods"""
 
-    def __init__(self, sim_dir: str, parameters: Union[None, dict[str, Any]] = None):
+    def __init__(self, sim: Simulation):
         """ 
         Read input file in simulation dir if it exsists, other wise define default input parameters.
         
@@ -937,10 +948,19 @@ class Input:
             sim_dir (str): Simulation directory
             parameters: depreciated
         """
-        self.sim_dir = sim_dir
+        self.sim = sim
         
-        exsiting_input = (os.path.exists(os.path.join(self.sim_dir, 'input.json')) or 
-                          os.path.exists(os.path.join(self.sim_dir, 'input')))
+        if os.path.exists(self.sim.sim_dir):
+            self.initalize_input()
+                
+    def initalize_input(self, read_exsisting_input=True):
+        
+        if read_exsisting_input:
+            exsiting_input = (os.path.exists(os.path.join(self.sim.sim_dir, 'input.json')) or 
+                              os.path.exists(os.path.join(self.sim.sim_dir, 'input')))
+        else:
+            exsiting_input = False
+            
         if exsiting_input:
             self.read_input()
         else:
@@ -980,13 +1000,10 @@ class Input:
                 "external_forces_file": "forces.json",
                 "external_forces_as_JSON": "true"
             }
-            if parameters is not None:
-                for k, v in parameters.items():
-                    self.input[k] = v
 
     def get_last_conf_top(self):
         """Set attributes containing the name of the inital conf (dat file) and topology"""
-        conf_top = os.listdir(self.sim_dir)
+        conf_top = os.listdir(self.sim.sim_dir)
         self.top = [file for file in conf_top if (file.endswith(('.top')))][0]
         try:
             last_conf = \
@@ -1003,19 +1020,24 @@ class Input:
             ox_input = oxpy.InputFile()
             for k, v in self.input.items():
                 ox_input[k] = v
-            print(ox_input, file=f)
+            with open(os.path.join(self.sim_dir, f'input'), 'w') as f:
+                print(ox_input, file=f)
 
     def write_input(self, production=False):
         """ Write an oxDNA input file as a json file to sim_dir"""
         if production is False:
-            self.get_last_conf_top()
-            self.input["conf_file"] = self.dat
-            self.input["topology"] = self.top
+            if self.input["conf_file"] == None:
+                self.get_last_conf_top()
+                self.input["conf_file"] = self.dat
+                self.input["topology"] = self.top
+            else:
+                self.dat = self.input["conf_file"]
+                self.top = self.input["topology"]
         # Write input file
-        with open(os.path.join(self.sim_dir, f'input.json'), 'w') as f:
+        with open(os.path.join(self.sim.sim_dir, f'input.json'), 'w') as f:
             input_json = dumps(self.input, indent=4)
             f.write(input_json)
-        with open(os.path.join(self.sim_dir, f'input'), 'w') as f:
+        with open(os.path.join(self.sim.sim_dir, f'input'), 'w') as f:
             with oxpy.Context(print_coda=False):
                 ox_input = oxpy.InputFile()
                 for k, v in self.input.items():
@@ -1024,7 +1046,7 @@ class Input:
 
     def modify_input(self, parameters):
         """ Modify the parameters of the oxDNA input file."""
-        if os.path.exists(os.path.join(self.sim_dir, 'input.json')):
+        if os.path.exists(os.path.join(self.sim.sim_dir, 'input.json')):
             self.read_input()
         for k, v in parameters.items():
             self.input[k] = v
@@ -1032,13 +1054,17 @@ class Input:
                          
     def read_input(self):
         """ Read parameters of exsisting input file in sim_dir"""
-        if os.path.exists(os.path.join(self.sim_dir, 'input.json')):
-            with open(os.path.join(self.sim_dir, 'input.json'), 'r') as f:
-                my_input = loads(f.read())
-            self.input = my_input
+        if os.path.exists(os.path.join(self.sim.sim_dir, 'input.json')):
+            try:
+                with open(os.path.join(self.sim.sim_dir, 'input.json'), 'r') as f:
+                    content = f.read()
+                    my_input = loads(content)
+                self.input = my_input
+            except json.JSONDecodeError:
+                self.initalize_input(read_exsisting_input=False)
             
         else:
-            with open(os.path.join(self.sim_dir, 'input'), 'r') as f:
+            with open(os.path.join(self.sim.sim_dir, 'input'), 'r') as f:
                 lines = f.readlines()
                 lines = [line for line in lines if '=' in line]
                 lines = [line.strip().split('=') for line in lines]
@@ -1053,7 +1079,6 @@ class SequenceDependant:
 
     def __init__(self, sim):
         self.sim = sim
-        self.sim_dir = sim.sim_dir
         # TODO: hardcode sequence-dependant parameters externally
         self.parameters = """STCK_FACT_EPS = 0.18
 STCK_G_C = 1.69339
@@ -1126,15 +1151,15 @@ ST_T_DEP = 1.97561"""
         # TODO: externalize interaction-type stuff?
         int_type = self.sim.input.input['interaction_type']
         if (int_type == 'DNA') or (int_type == 'DNA2') or (int_type == 'NA'):
-            with open(os.path.join(self.sim_dir, 'oxDNA2_sequence_dependent_parameters.txt'), 'w') as f:
+            with open(os.path.join(self.sim.sim_dir, 'oxDNA2_sequence_dependent_parameters.txt'), 'w') as f:
                 f.write(self.parameters)
 
         if (int_type == 'RNA') or (int_type == 'RNA2') or (int_type == 'NA'):
-            with open(os.path.join(self.sim_dir, 'rna_sequence_dependent_parameters.txt'), 'w') as f:
+            with open(os.path.join(self.sim.sim_dir, 'rna_sequence_dependent_parameters.txt'), 'w') as f:
                 f.write(self.rna_parameters)
 
         if (int_type == 'NA'):
-            with open(os.path.join(self.sim_dir, 'NA_sequence_dependent_parameters.txt'), 'w') as f:
+            with open(os.path.join(self.sim.sim_dir, 'NA_sequence_dependent_parameters.txt'), 'w') as f:
                 f.write(self.na_parameters)
 
 
@@ -1144,6 +1169,18 @@ class OxdnaAnalysisTools:
     def __init__(self, sim):
         self.sim = sim
 
+    
+    def describe(self):
+        try:
+            try:
+                self.top_info, self.traj_info =  describe(self.sim.sim_files.top,self.sim.sim_files.traj)
+            except:
+                self.top_info, self.traj_info =  describe(self.sim.sim_files.top,self.sim.sim_files.dat)
+        except:
+            self.top_info, self.traj_info =  describe(self.sim.sim_files.top,self.sim.sim_files.last_conf)
+
+
+    
     def align(self, outfile: str = 'aligned.dat', args: str = '', join: bool = False):
         """
         Align trajectory to mean strucutre
@@ -1462,7 +1499,7 @@ class OxdnaAnalysisTools:
         def run_output_bonds(self, args=''):
             start_dir = os.getcwd()
             os.chdir(self.sim.sim_dir)
-            os.system(f'oat output_bonds {self.sim.sim_files.input} {self.sim.sim_files.traj} {args}')
+            os.system(f'oat output_bonds {self.sim.sim_files.input} {self.sim.sim_files.traj} {args} -v bonds.json')
             os.chdir(start_dir)
 
         p = mp.Process(target=run_output_bonds, args=(self,), kwargs={'args': args})
@@ -1509,7 +1546,7 @@ class OxdnaAnalysisTools:
         if join:
             p.join()
 
-    def conformational_entropy(self, traj='trajectory.dat', meanfile='mean.dat', outfile='conformational_entropy.json',
+    def conformational_entropy(self, traj='trajectory.dat',temperature='293.15', meanfile='mean.dat', outfile='conformational_entropy.json',
                                args='', join=False):
         """
         Calculate a strucutres conformational entropy (not currently supported in general). Use args='-h' for more details.
@@ -1518,13 +1555,31 @@ class OxdnaAnalysisTools:
             os.system('oat conformational_entropy -h')
             return None
 
-        def run_conformational_entropy(self, traj, meanfile, outfile, args=''):
+        def run_conformational_entropy(self, traj, temperature, meanfile, outfile, args=''):
             start_dir = os.getcwd()
             os.chdir(self.sim.sim_dir)
-            os.system(f'oat conformational_entropy {traj} {meanfile} {outfile} {args}')
+            os.system(f'oat conformational_entropy {traj} {temperature} {meanfile} {outfile} {args}')
             os.chdir(start_dir)
 
-        p = mp.Process(target=run_conformational_entropy, args=(self, traj, meanfile, outfile,), kwargs={'args': args})
+        p = mp.Process(target=run_conformational_entropy, args=(self, traj, temperature, meanfile, outfile,), kwargs={'args': args})
+        p.start()
+        if join == True:
+            p.join()
+            
+            
+    def radius_of_gyration(self, traj='trajectory.dat',  args='', join=False):
+        """
+        Calculate a strucutres radius_of_gyration (not currently supported in general). Use args='-h' for more details.
+        """
+        if args == '-h':
+            os.system('oat radius_of_gyration -h')
+            return None
+        def run_radius_of_gyration(self,traj, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat radius_of_gyration {traj} {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_radius_of_gyration, args=(self, traj), kwargs={'args':args})
         p.start()
         if join:
             p.join()
@@ -1725,8 +1780,8 @@ class Analysis:
                 df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U', 'P', 'K'])
             dt = float(self.sim.input.input["dt"])
             steps = float(self.sim.input.input["steps"])
-            df = df[df.U <= 10]
-            df = df[df.U >= -10]
+            # df = df[df.U <= 10]
+            # df = df[df.U >= -10]
             # make sure our figure is bigger
             if fig is None:
                 plt.figure(figsize=(15, 3))
@@ -2241,22 +2296,14 @@ class SimFiles:
     Parse the current files present in simulation directory
     """
 
-    def __init__(self, sim_dir):
-        self.sim_dir = sim_dir
-        if os.path.exists(self.sim_dir):
-            self.file_list = os.listdir(self.sim_dir)
+    def __init__(self, sim):
+        self.sim = sim
+        if os.path.exists(self.sim.sim_dir):
+            self.file_list = os.listdir(self.sim.sim_dir)
             self.parse_current_files()
 
-    # def __getattr__(self, name):
-    #     # Parse the files every time an attribute is accessed
-    #     self.parse_current_files()
-    #     # Now try getting the attribute again
-    #     try:
-    #         return super().__getattribute__(name)
-    #     except AttributeError:
-    #         raise AttributeError(f"'SimFiles' object has no attribute '{name}'")
-
     def parse_current_files(self):
+        self.sim_dir = self.sim.sim_dir
         if os.path.exists(self.sim_dir):
             self.file_list = os.listdir(self.sim_dir)
         else:

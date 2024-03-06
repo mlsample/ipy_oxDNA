@@ -7,7 +7,7 @@ This repository contains Python code for running oxDNA umbrella sampling and lar
 
 Sample, Matthew, Michael Matthies, and Petr Šulc. "Hairygami: Analysis of DNA Nanostructure's Conformational Change Driven by Functionalizable Overhangs." arXiv preprint arXiv:2302.09109 (2023).
 
-Within the `examples/notebooks` folder exist Jupyter notebook tutorials and examples. The full documentation can be found [here](https://mlsample.github.io/ipy_oxDNA/index.html).
+Within the `examples/tutorials` folder exist Jupyter notebook tutorials and examples. The full documentation can be found [here](https://mlsample.github.io/ipy_oxDNA/index.html).
 
 ## Contents
 - [Introduction](#introduction)
@@ -37,15 +37,9 @@ nvidia-cuda-mps-control -d
 
 ## Prerequisites
 Before using this code, you will need to have the following installed:
-- A full Docker image is available that will compile oxDNA with Python bindings, as well as all the needed Python packages on [Dockerhub](https://hub.docker.com/repository/docker/mlsample/ipy_oxdna/general). The Docker container is now the recommended way to use. You can run a Jupyter server by:
-`docker pull mlsample/ipy_oxdna:v0.2`
-`docker run -p 8888:8888 mlsample/ipy_oxdna:v0.2 jupyter lab --ip 0.0.0.0 --allow-root -v $(pwd):/workspace --notebook-dir=/workspace`
 
-or
-
-- conda/mamba environment with packages specified in `./oxdna.yml` (`conda env create -f oxdna.yml`)
-- oxDNA installed with Python bindings (https://github.com/lorenzo-rovigatti/oxDNA)
 - Python >= 3.8
+- oxDNA installed with Python bindings (https://github.com/lorenzo-rovigatti/oxDNA)
 
 ## Installation
 To install the `ipy_oxDNA` code, clone the repository to your local machine:
@@ -61,18 +55,13 @@ Install the Weight Histogram Analysis Technique (http://membrane.urmc.rochester.
 
 `./src/install_wham.sh`
 
-## Usage
-The code can be used by importing the necessary modules into your Python script or Jupyter Notebook. Currently the3 tutorial the tutorial code is depreciated and a new version is being worked in, but a multiple of exampels can be found with the  `examples/` Folder.
-
-
 ## Example Notebooks
 This repository includes a number of example notebooks that demonstrate how to use the code to perform oxDNA umbrella sampling simulations. These notebooks can be used as a starting point for your own simulations.
 
-`./src/notebook/double_layer.ipynb`
-- Production umbrella sampling of the anti-parallel double-layer structure
-- Benchmarking the speedup from varying the number of simulations in parallel for umbrella sampling
+`/examples/tutorials/origami_tile_N_nt_overhangs_gpu`
+- Umbrella sampling of the no overhang, 9nt overhangs, and 20nt overhang extension twist-corrected rectangular DNA origami
 
-`./src/notebook/duplex_example.ipynb`
+`./examples/tutorials/8_nt_duplex_melting_cpu`
 - Example of using umbrella sampling for duplex melting
 
 ## Contributing

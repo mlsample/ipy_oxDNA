@@ -113,3 +113,16 @@ class Condition:
 
     def file_name(self) -> str:
         return f"{self.condition_name}.txt"
+
+def order_params(*args: FFSInterface) -> list[OrderParameter]:
+    """
+    lists all order parameters used in the interfaces passed as params
+    """
+
+    ops = []
+    op_names = set() # use name set to avoid pass-by-value bullshit
+    for interface in args:
+        if interface.op.name not in op_names:
+            op_names.add(interface.op.name)
+            ops.append(interface.op)
+    return ops

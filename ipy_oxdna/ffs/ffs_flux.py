@@ -69,6 +69,7 @@ class FFSFluxer(SimulationManager):
             self.input_file_params = get_spec_json("input_files", input_file_params)["input"]
         else:
             self.input_file_params = input_file_params
+
     def run(self, join=False, gpu_mem_block=True, custom_observables=None, run_when_failed=False,
             cpu_run=False):
 

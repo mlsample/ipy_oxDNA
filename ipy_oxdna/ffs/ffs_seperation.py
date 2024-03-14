@@ -30,8 +30,8 @@ desired_success_count = 100
 # precommand = 'mosrun -J 12'
 # executable = '/home/josh/oxDNA/build/bin/oxDNA'
 # input = 'input'
-logfilename = 'ffs.log'
-starting_conf = 'output_no_mismatch.dat'
+# logfilename = 'ffs.log'
+# starting_conf = 'output_no_mismatch.dat'
 success_pattern = './success_'
 
 bonds = [
@@ -54,7 +54,7 @@ mindist = OrderParameter("distance", "mindistance", bonds)
 lambda_f = FFSInterface(
     native,
     7,
-    Comparison.GT
+    Comparison.GEQ
 )
 
 # interface lambda_{0}
@@ -229,6 +229,7 @@ def ffs_process(lidx: int, plogger: logging.Logger):
     # outer while loop
     while success_count.value < desired_success_count:
         # ----- step 1: initial relax ---------
+        plogger.info("equilibration started")
         eq_sim = Simulation(".", f"p{lidx}/sim{simcount}")
         simcount += 1
         eq_sim.input_file({
@@ -244,12 +245,11 @@ def ffs_process(lidx: int, plogger: logging.Logger):
             "no_stdout_energy": 1,
             "restart_step_counter": 0,
         })
-        plogger.info(f"Worker %d: equilibration started " % idx)
         eq_sim.build()
         # do not use OxpyRun multiprocessing, since we're already in an mps thread
         eq_sim.oxpy_run.run_complete()
 
-        plogger.info("Worker %d: equilibrated " % idx)
+        plogger.info("equilibrated")
 
         # we copy the initial configuration here
         # my_conf = 'conf' + str(idx)
@@ -275,7 +275,8 @@ def ffs_process(lidx: int, plogger: logging.Logger):
         #
         # output.seek(0)
 
-        # ---------- run to the beginning of our state ----------
+        # ---------- run for a bit for some reason?
+        plogger.info("Running initial simulation?")
         init_sim = Simulation(eq_sim.sim_dir, f"p{lidx}/sim{simcount}")
         simcount += 1
         init_sim.input_file({
@@ -284,7 +285,7 @@ def ffs_process(lidx: int, plogger: logging.Logger):
             "no_stdout_energy": 1,
             "refresh_vel": 0,
             'log_file': "log.dat",
-            "ffs_file": apart_or_success.file_name(),
+            "ffs_file": apart_or_success.file_name(), # if the strands are fully seperate, stop
             "order_parameters_file": "op.txt",
             "restart_step_counter": 1,
             "seed": myrng.randint(1, 50000)
@@ -317,21 +318,24 @@ def ffs_process(lidx: int, plogger: logging.Logger):
         # op_values = read_output(output)
         # complete_failure = eval ('op_values["%s"] %s %s' % (lambda_f_name, '>', str(lambda_f_value)))
 
+        # grab ffs values
         op_values = read_output(init_sim)
         complete_success = lambda_s.test(op_values[lambda_s.op.name])
 
         # complete_success = eval('op_values["%s"] %s %s' % (lambda_s_name, lambda_s_compar, str(lambda_s_value)))
+        # if the simumation fully dissociated, we need to start over b/c we can't get any confs to shoot with
         if complete_success:
-            plogger.info("Worker %d has reached a complete success: returning with the tail in between my legs")
+            plogger.info("has reached a complete success, restarting")
             continue
 
-        plogger.info("Worker %d: reached Q_{-2}..." % idx)
+        plogger.info("reached Q_{-2}..." % idx)
         # now the system is far apart;
 
         # now run simulations until done or something
         while success_count.value < desired_success_count:
             # ----- cross lambda_{-1} going forward -----------------------
-            sim = Simulation(f"p{lidx}/sim{simcount-1}" f"p{lidx}/sim{simcount}")
+            # construct new simulation from output of previous simulation
+            sim = Simulation(f"p{lidx}/sim{simcount-1}", f"p{lidx}/sim{simcount}")
             simcount += 1
             sim.input_file({
                 # 'conf_file': % (my_conf), 'lastconf_file=%s' % (my_conf)]
@@ -362,7 +366,8 @@ def ffs_process(lidx: int, plogger: logging.Logger):
             plogger.info("Worker %d: reached lambda_{-1} going forwards" % idx)
 
             # ------- literally cannot figure out what we're trying to do here -------------
-            sim = Simulation(f"p{lidx}/sim{simcount - 1}" f"p{lidx}/sim{simcount}")
+            # continue running simulation until we either fail or hit the lambda_{0} interface
+            sim = Simulation(f"p{lidx}/sim{simcount - 1}", f"p{lidx}/sim{simcount}")
             simcount += 1
             sim.input_file({
                 # 'conf_file': % (my_conf), 'lastconf_file=%s' % (my_conf)]
@@ -418,8 +423,8 @@ def ffs_process(lidx: int, plogger: logging.Logger):
                 plogger.info("Worker %d: crossed interface lambda_{0} going forwards: SUCCESS" % idx)
 
                 # ---------------- continue back across lambda_{0} ----------------------
-
                 # now that the simulation is past the lambda_{0} interface, we need to continue running it
+                # run until simulation is fully dissociate or have the @ least starting bond count
                 sim = Simulation(f"p{lidx}/sim{simcount - 1}" f"p{lidx}/sim{simcount}")
                 simcount += 1
                 sim.input_file({
@@ -457,14 +462,15 @@ def ffs_process(lidx: int, plogger: logging.Logger):
                 # complete_failure = eval('op_values["%s"] %s %s' % (lambda_f_name, '>', str(lambda_f_value)))
                 # complete_success = eval('op_values["%s"] %s %s' % (lambda_s_name, lambda_s_compar, str(lambda_s_value)))
 
+                # did we fully dissociate? gotta start over them
                 if complete_success:
                     shutil.copy(f"{sim.sim_dir}/{sim.input.input['lastconf_file']}",
                                 "full_success" + str(success_count.value))
                     plogger.info(f"Worker {idx} has reached a complete success: restarting from equilibration")
-                    break  # this breakes the innermost while cycle
-                else:
+                    break  # this breakes the innermost while cycle, which will also start next iteration of main loop
+                else:  # ok we're back in our begin state, can continue from that
                     plogger.info("Worker %d: crossed interface lambda_{-1} going backwards after success" % idx)
-            elif failure and not success: # idk what this means
+            elif failure and not success:  # idk what this means
                 plogger.info("Worker %d: crossed interface lambda_{-1} going backwards" % idx)
             else:
                 raise Exception("what the hell")
@@ -500,6 +506,7 @@ def read_output(init_sim: Simulation) -> dict[str, float]:
         return op_values
     except Exception as e:
         raise Exception("Missing oxDNA simulation output!")
+
 
 # timer function: it spits out things
 def timer():
@@ -540,6 +547,7 @@ if __name__ == '__main__':
                         type=int,
                         default=0,
                         help='Initial success count')
+    # i don't think we use verbose?
     parser.add_argument('-v',
                         '--verbose',
                         action='store_true',
@@ -547,10 +555,6 @@ if __name__ == '__main__':
 
     # Parse the arguments
     args = parser.parse_args()
-
-    # Use the arguments
-    if args.verbose:
-        print("Verbose mode enabled")
 
     # Here, replace the body of your original try-except block with direct access to args:
     # For example:
@@ -586,11 +590,11 @@ if __name__ == '__main__':
 
     nsuccesses = success_count.value - initial_success_count
     # print >> sys.stderr, "nstarted: %d, nsuccesses: %d success_prob: %g" % (nstarted, nsuccesses, nsuccesses/float(nstarted))
-    print("terminating processes", file=sys.stderr)
+    main_log.error("terminating processes")
 
     main_log.info("Main: nsuccesses: %d in this run" % (success_count.value - initial_success_count))
 
-    # final coputation of the flux
+    # final computation of the flux
     stime = 0
     confs = glob.glob(success_pattern + '*')
     for conf in confs:

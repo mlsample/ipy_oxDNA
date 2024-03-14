@@ -13,7 +13,7 @@ class OxLogHandler:
         self.log_listener = None
 
         # Format for the log messages
-        self.formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+        self.formatter = logging.Formatter('%(asctime)s [%(levelname)s] (%(name)s) %(message)s')
         handlers = [
             logging.FileHandler(f"{name}.log")
         ]

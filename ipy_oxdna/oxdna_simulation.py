@@ -824,7 +824,7 @@ class SimulationManager:
                 f'Simulation exception encountered in {sim.sim_dir}:\n{sim.oxpy_run.error_message}')
         self.process_queue.get()
 
-    def run(self, log=None, join=False, gpu_mem_block=True, custom_observables=None, run_when_failed=False,
+    def run(self, join=False, gpu_mem_block=True, custom_observables=None, run_when_failed=False,
             cpu_run=False):
         """
         Run the worker manager in a subprocess

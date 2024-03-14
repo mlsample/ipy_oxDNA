@@ -42,6 +42,10 @@ class OrderParameter:
             f.write("}")
 
 
+def write_order_params(op_file_name: Path, *args):
+    for op in args:
+        op.write(op_file_name)
+
 @dataclass(frozen=True)
 class FFSInterface:
     """
@@ -74,6 +78,18 @@ class FFSInterface:
 
         return FFSInterface(self.op, self.val, newop)
 
+    def test(self, val: float) -> bool:
+        if self.compare == Comparison.LT:
+            return self.val < val
+        elif self.compare == Comparison.GT:
+            return self.val > val
+        elif self.compare == Comparison.LEQ:
+            return self.val <= val
+        elif self.compare == Comparison.GT:
+            return self.val >= val
+        else:
+            raise Exception(f"unrecognized operator {self.compare}")
+
 
 @dataclass(frozen=True)
 class Condition:
@@ -88,9 +104,12 @@ class Condition:
         assert self.condition_type in ["or", "and"], f"Invalid condition type {self.condition_type}"
 
     def write(self, write_dir: Path):
-        with (write_dir / f"{self.condition_name}.txt").open("w") as f:
+        with (write_dir / self.file_name()).open("w") as f:
             f.write(f"action = stop_{self.condition_type}\n")
             for n, interface in self.interfaces:
                 f.write(f"condition{n+1} = " + "{\n" +
                         f"{interface.name} {interface.compare} {interface.value}" +
                         "\n}\n")
+
+    def file_name(self) -> str:
+        return f"{self.condition_name}.txt"

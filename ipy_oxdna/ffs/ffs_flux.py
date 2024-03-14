@@ -34,8 +34,6 @@ class FFSFluxer(SimulationManager):
     success_pattern = './success_'  # output pattern for success file
     desired_success_count: int  # number of successful crossings of l0 desired
 
-    logger: logging.Logger
-
     # interface in phase-space at which we start
     lambda_neg1: FFSInterface
 
@@ -54,7 +52,6 @@ class FFSFluxer(SimulationManager):
     def __init__(self, workdir: Path,
                  desired_success_count: int,
                  start: FFSInterface, l0: FFSInterface,
-                 verbose=False,
                  success: Union[FFSInterface, None] = None,
                  input_file_params: Union[dict, str] = "ffs"):
         super().__init__(n_processes=ncpus)
@@ -67,27 +64,15 @@ class FFSFluxer(SimulationManager):
         self.lambda_0 = l0
         self.workdir = workdir
 
-        # set up logging
-        self.logger = multiprocessing.get_logger()
-        self.logger.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
-        file_handler = logging.FileHandler(self.logfilename)
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
-        # Stream Handler for logging to console
-        if verbose:
-            stream_handler = logging.StreamHandler()
-            stream_handler.setFormatter(formatter)
-            self.logger.addHandler(stream_handler)
-
-        # Avoid duplicate logging
-        self.logger.propagate = False
-
         # if the user has specified to load input file params from a source
         if isinstance(input_file_params, str):
             self.input_file_params = get_spec_json("input_files", input_file_params)["input"]
         else:
             self.input_file_params = input_file_params
+    def run(self, join=False, gpu_mem_block=True, custom_observables=None, run_when_failed=False,
+            cpu_run=False):
+
+        super(FFSFluxer, self).run()
 
     def write_condition_files(self, targ_dir: Path):
         # TODO: better name
@@ -106,37 +91,17 @@ class FFSFluxer(SimulationManager):
             self.lambda_f
         ]).write(targ_dir)
 
-    def next_simulation(self) -> Generator[Simulation]:
-        """
-        yields simulations until we're done
-        """
-        counter = 0
-        while self.desired_success_count > self.success_count.value:
-            # construct relax simulation
-            sim_eq = Simulation(self.workdir, self.workdir / f"sim{counter}" / "relax", self.input_file_params)
-            # set input file params for equilibriation
-            sim_eq.input_file({
-                "sim"
-                "seed": self.rng.randint(1, 50000),
-                "steps": 1e5,
-                "refresh_vel": 1,
-            })
-            yield sim_eq
-            # construct execution simulation
-            sim = Simulation(self.workdir / f"sim{counter}" / "relax", self.workdir / f"sim{counter}",
-                             self.input_file_params)
-            sim.input_file({
-
-            })
-            yield sim
-            counter += 1
-
 
 class FFSSim(nx.DiGraph):
     """
     set of oxDNA simulations to forward-flux-sample
     this object should NOT be parallelized but rather should queue up simulations to
     be run by the FFSFluxer simulation manager
+
+    post-equiliriation, the ffs simulation should have three stop conditions
+    1. the simulation has passed behind the start condition in phase-space -> stop it and start over?
+    2. the simulation has passed the success interface -> stop it and start over
+    3. the simulation has passed the interface lambda _{0} ->
     """
 
     # context variables
@@ -164,11 +129,10 @@ class FFSSim(nx.DiGraph):
 
         """
         assert len(self) == 0, "Attempting to equilibriate an existing... whatever we're calling this"
-        self.add_node(0, sim=Simulation(parentdir, self.workdir() / "s0"))
+        self.add_node(0, sim=Simulation(self.parentdir, self.workdir() / "equilibriate"))
+        self.sim(0).build()
 
-
-    def build_run(self,
-                        predecessor: int):
+    def build_run(self, predecessor: int):
         # create new simulation using predecessor's simulation dir as file dir
         # and create new simulation dir
         sim = Simulation(self.sim(predecessor).sim_dir,
@@ -195,7 +159,9 @@ class FFSSim(nx.DiGraph):
         })
         # add condition attr to node
         self.nodes[len(self)-1]["ffs_condition"] = ffs_condition
+        # write condition file to simulation directory
         ffs_condition.write(sim.sim_dir)
+        sim.build()
         return sim
 
 

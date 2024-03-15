@@ -12,7 +12,7 @@ setup(
     author_email='matsample1@gmail.com',
     license='MIT',
     install_requires=[
-    'numpy>=1.26',
+    'numpy',
     'scipy',
     'matplotlib',
     'pymbar[jax]',

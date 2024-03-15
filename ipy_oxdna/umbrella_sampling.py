@@ -18,8 +18,6 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 import pickle
 from json import load, dump
 import traceback
-import pymbar
-from pymbar import timeseries
 import warnings
 from scipy.optimize import OptimizeWarning
 import pyarrow
@@ -1060,7 +1058,10 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
     
 class PymbarAnalysis:
     def __init__(self, base_umbrella):
+        import pymbar
+        from pymbar import timeseries
         self.base_umbrella = base_umbrella
+
     
     def run_mbar_fes(self, reread_files=False, sim_type='prod', uncorrelated_samples=False, restraints=False, force_energy_split=False):
         
@@ -1139,9 +1140,9 @@ class PymbarAnalysis:
                            for inner_list in com_kn])
 
         names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
-        u_kn = [np.sum(inner_list[names], axis=1) for inner_list in self.base_umbrella.obs_df]
-        u_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant')
-                           for inner_list in u_kn])
+        # u_kn = [np.sum(inner_list[names], axis=1) for inner_list in self.base_umbrella.obs_df]
+        # u_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant')
+        #                    for inner_list in u_kn]) * self.base_umbrella.n_particles_in_system
 
         if restraints is True:
             u_res_kn = self._setup_restrain_potential(com_kn, N_k, N_max, force_energy_split)
@@ -1354,14 +1355,14 @@ class PymbarAnalysis:
     def hb_contact_fes_hist(self, n_bins=200, uncorrelated_samples=False, temp_range=None):
         # self.base_umbrella.read_hb_contacts(sim_type='prod')
         K = len(self.base_umbrella.obs_df)
-        N_max = max([len(value.squeeze()) for value in self.base_umbrella.hb_contacts_by_window.values()])
-        N_k = np.array([len(value.squeeze()) for value in self.base_umbrella.hb_contacts_by_window.values()])
+        N_max = max([len(value['hb_contact']) for value in self.base_umbrella.obs_df])
+        N_k = np.array([len(value['hb_contact']) for value in self.base_umbrella.obs_df])
         u_kn = np.zeros([K, N_max])
         
-        hb_contacts_kn = [value.squeeze()[:N_max] for value in self.base_umbrella.hb_contacts_by_window.values()]
+        hb_contacts_kn = [value['hb_contact'][:N_max] for value in self.base_umbrella.obs_df]
         hb_contacts_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant') for inner_list in hb_contacts_kn])
         hb_contacts_n = pymbar.utils.kn_to_n(hb_contacts_kn, N_k=N_k)
-        
+
         if uncorrelated_samples is True:
             hb_contacts_kn, N_k = self._subsample_correlated_data(K, N_k, hb_contacts_kn)
             hb_contacts_n = pymbar.utils.kn_to_n(hb_contacts_kn, N_k=N_k)
@@ -1372,7 +1373,7 @@ class PymbarAnalysis:
 
         # compute bin centers
         bin_center_i, bin_edges = self._bin_centers(op_min, op_max, nbins)
-        
+
         if temp_range is not None:
             f_i = np.zeros([len(temp_range), len(bin_center_i)])
             df_i = np.zeros([len(temp_range), len(bin_center_i)])
@@ -1500,7 +1501,7 @@ class UmbrellaBuild:
                                          name=cms_obs_dict['name'],
                                          print_every=cms_obs_dict['print_every'])
             if sequence_dependant:
-                sim.sequence_dependant()
+                sim.make_sequence_dependant()
             sim.sim_files.parse_current_files()
         except Exception as e:
             error_traceback = traceback.format_exc() 
@@ -1900,7 +1901,8 @@ class UmbrellaAnalysis:
             ax[1,3].set_xlabel('Force Energy')
             ax[1,2].set_xlabel('HB Contacts / Total HBs')
 
-        except:
+        except Exception as e:
+            print(e)
             plt.clf()
             fig, ax = plt.subplots(2, 3, figsize=(10, 6), dpi=300)
 

@@ -11,6 +11,7 @@ import multiprocessing as mp
 import py
 from oxDNA_analysis_tools.UTILS.oxview import oxdna_conf, from_path
 from oxDNA_analysis_tools.UTILS.RyeReader import describe, get_confs
+from ipy_oxdna.defaults import DefaultInput
 import ipywidgets as widgets
 from IPython.display import display, IFrame
 import pandas as pd
@@ -63,6 +64,8 @@ class Simulation:
         self.protein = Protein(self)
         self.oxpy_run = OxpyRun(self)
         self.oat = OxdnaAnalysisTools(self)
+        self.sequence_dependant = SequenceDependant(self)
+
 
     def build(self, clean_build=False):
         """
@@ -152,24 +155,10 @@ class Simulation:
         self.sim_files.run_file = os.path.abspath(os.path.join(self.sim_dir, run_file))
         self.slurm_run = SlurmRun(self.sim_dir, run_file, job_name)
 
-    def sequence_dependant(self):
+    def make_sequence_dependant(self):
         """ Add a sequence dependant file to simulation directory and modify input file to use it."""
-        int_type = self.input.input['interaction_type']
+        self.sequence_dependant.make_sim_sequence_dependant()
 
-        if (int_type == 'DNA') or (int_type == 'DNA2'):
-            self.input_file({'use_average_seq': 'no', 'seq_dep_file': 'oxDNA2_sequence_dependent_parameters.txt'})
-
-        if (int_type == 'RNA') or (int_type == 'RNA2'):
-            self.input_file({'use_average_seq': 'no', 'seq_dep_file': 'rna_sequence_dependent_parameters.txt'})
-
-        if int_type == 'NA':
-            self.input_file({'use_average_seq': 'no',
-                             'seq_dep_file_DNA': 'oxDNA2_sequence_dependent_parameters.txt',
-                             'seq_dep_file_RNA': 'rna_sequence_dependent_parameters.txt',
-                             'seq_dep_file_NA': 'NA_sequence_dependent_parameters.txt'
-                             })
-
-        SequenceDependant(self)
 
 
 class GenerateReplicas:
@@ -698,8 +687,12 @@ class SimulationManager:
         sim.oxpy_run.run(subprocess=False, verbose=False, log=False)
         sim.input_file({'lastconf_file': f'{last_conf_file}', 'steps': f'{steps}'})
         err_split = sim.oxpy_run.sim_output[1].split()
-        mem = err_split.index('memory:')
-        sim_mem = err_split[mem + 1]
+        try:
+            mem = err_split.index('memory:')
+            sim_mem = err_split[mem + 1]
+        except:
+            print("Unable to determine CUDA memoery usage")
+            
         return float(sim_mem)
 
     def queue_sim(self, sim, continue_run=False):
@@ -754,12 +747,12 @@ class SimulationManager:
                             wait_for_gpu_memory = False
             else:
                 if cpu_run is False:
-                    sleep(2)
+                    sleep(5)
                 elif cpu_run is True:
                     sleep(0.1)
 
         while not self.process_queue.empty():
-            sleep(1)
+            sleep(10)
         toc = timeit.default_timer()
         print(f'All queued simulations finished in: {toc - tic}')
 
@@ -885,7 +878,7 @@ int main() {
 
 class Input:
     input: dict[str, str]
-
+    
     """ Lower level input file methods"""
 
     def __init__(self, sim: Simulation):
@@ -897,6 +890,7 @@ class Input:
             parameters: depreciated
         """
         self.sim = sim
+        self.default_input = DefaultInput()
         
         if os.path.exists(self.sim.sim_dir):
             self.initalize_input()
@@ -912,43 +906,19 @@ class Input:
         if exsiting_input:
             self.read_input()
         else:
-            # TODO: make default input params specified externally
-            self.input = {
-                "interaction_type": "DNA2",
-                "salt_concentration": "1.0",
-                "sim_type": "MD",
-                "backend": "CUDA",
-                "backend_precision": "mixed",
-                "use_edge": "1",
-                "edge_n_forces": "1",
-                "CUDA_list": "verlet",
-                "CUDA_sort_every": "0",
-                "max_density_multiplier": "3",
-                "steps": "1e9",
-                "ensemble": "nvt",
-                "thermostat": "john",
-                "T": "20C",
-                "dt": "0.003",
-                "verlet_skin": "0.5",
-                "diff_coeff": "2.5",
-                "newtonian_steps": "103",
-                "topology": None,
-                "conf_file": None,
-                "lastconf_file": "last_conf.dat",
-                "trajectory_file": "trajectory.dat",
-                "refresh_vel": "1",
-                "no_stdout_energy": "0",
-                "restart_step_counter": "1",
-                "energy_file": "energy.dat",
-                "print_conf_interval": "5e5",
-                "print_energy_every": "5e5",
-                "time_scale": "linear",
-                "max_io": "5",
-                "external_forces": "0",
-                "external_forces_file": "forces.json",
-                "external_forces_as_JSON": "true"
-            }
+            self.input = self.default_input._input
 
+
+    def swap_default_input(self, default_type: str):
+        """
+        Swap the default input parameters to a different type of simulation.
+        Current Options Include:
+        cuda_prod, cpu_prod, cpu_relax
+        """
+        self.default_input.swap_default_input(default_type)
+        self.input = self.default_input._input
+        self.write_input()
+    
     def get_last_conf_top(self):
         """Set attributes containing the name of the inital conf (dat file) and topology"""
         conf_top = os.listdir(self.sim.sim_dir)
@@ -1093,7 +1063,11 @@ CROSS_T_T = 59.9626
 
 ST_T_DEP = 1.97561"""
 
+
+    def make_sim_sequence_dependant(self):
+        self.sequence_dependant_input()
         self.write_sequence_dependant_file()
+
 
     def write_sequence_dependant_file(self):
         # TODO: externalize interaction-type stuff?
@@ -1109,6 +1083,23 @@ ST_T_DEP = 1.97561"""
         if (int_type == 'NA'):
             with open(os.path.join(self.sim.sim_dir, 'NA_sequence_dependent_parameters.txt'), 'w') as f:
                 f.write(self.na_parameters)
+
+
+    def sequence_dependant_input(self):
+        int_type = self.sim.input.input['interaction_type']
+
+        if (int_type == 'DNA') or (int_type == 'DNA2'):
+            self.sim.input_file({'use_average_seq': 'no', 'seq_dep_file': 'oxDNA2_sequence_dependent_parameters.txt'})
+
+        if (int_type == 'RNA') or (int_type == 'RNA2'):
+            self.sim.input_file({'use_average_seq': 'no', 'seq_dep_file': 'rna_sequence_dependent_parameters.txt'})
+
+        if int_type == 'NA':
+            self.sim.input_file({'use_average_seq': 'no',
+                             'seq_dep_file_DNA': 'oxDNA2_sequence_dependent_parameters.txt',
+                             'seq_dep_file_RNA': 'rna_sequence_dependent_parameters.txt',
+                             'seq_dep_file_NA': 'NA_sequence_dependent_parameters.txt'
+                             })
 
 
 class OxdnaAnalysisTools:

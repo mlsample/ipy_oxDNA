@@ -294,7 +294,7 @@ class BuildSimulation:
     def build_sim_dir(self):
         """Make the simulation directory"""
         if not os.path.exists(self.sim.sim_dir):
-            os.mkdir(self.sim.sim_dir)
+            os.makedirs(self.sim.sim_dir)
 
     def build_dat_top(self):
         """Write intial conf and toplogy to simulation directory"""

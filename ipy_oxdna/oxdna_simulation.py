@@ -1748,12 +1748,19 @@ class Analysis:
                     ax.plot(df.time / dt, df.U, label=label)
                 ax.set_ylabel("Energy")
                 ax.set_xlabel("Steps")
+
+            if np.any(df.U > 10):
+                print(self.sim.sim_dir)
+                print('Energy is greater than 10, check for errors in the simulation')
+            if np.any(df.U < -10):
+                print(self.sim.sim_dir)
+                print('Energy is less than -10, check for errors in the simulation')
+                
+            
         except Exception as e:
             # TODO: custom exception handling and exception raising
-            raise Exception('No energy file avalible')
-            # and the line indicating the complete run
-            # plt.ylim([-2,0])
-            # plt.plot([steps,steps],[0,-2], color="r")
+            print(f'{self.sim.sim_dir}: No energy file avalible')
+
 
     def plot_observable(self, observable: dict,
                         sliding_window: Union[False, Any] =False, fig=True):

@@ -5,7 +5,7 @@ from logging.handlers import QueueHandler, QueueListener
 
 class OxLogHandler:
     formatter: logging.Formatter
-    def __init__(self, name: str):
+    def __init__(self, name: str, verbose: bool = True):
         # Create a multiprocessing queue for log messages
         self.log_queue = multiprocessing.Queue()
 
@@ -18,7 +18,17 @@ class OxLogHandler:
             logging.FileHandler(f"{name}.log")
         ]
         self.log_listener = QueueListener(self.log_queue, *handlers, respect_handler_level=True)
+
+        self.verbose = verbose
+
+        # If verbose, add a StreamHandler to print to console
+        if self.verbose:
+            stream_handler = logging.StreamHandler()
+            stream_handler.setFormatter(self.formatter)
+            handlers.append(stream_handler)
+
         self.log_listener.start()
+        
 
     def __del__(self):
         """

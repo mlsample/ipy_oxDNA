@@ -29,17 +29,17 @@ class OrderParameter:
     pairs: list[tuple[int, int]] = field()  # list of pairs of residue indices
 
     def __post_init__(self):
-        if self.order_parameter not in [ALLOWED_ORDER_PARAMETERS]:
+        if self.order_parameter not in ALLOWED_ORDER_PARAMETERS:
             raise Exception(f"Invalid order parameter {self.order_parameter}")
 
     def write(self, fp: Path):
-        with fp.open("r+") as f:
+        with fp.open("a+") as f:
             f.write("{\n")
             f.write(f"\torder_parameter = {self.order_parameter}\n")
             f.write(f"\tname = {self.name}\n")
             for (n, (base1, base2)) in enumerate(self.pairs):
-                f.write(f"\tpair{n+1} = {base1}, {base2}")
-            f.write("}")
+                f.write(f"\tpair{n+1} = {base1}, {base2}\n")
+            f.write("}\n")
 
 
 def write_order_params(op_file_name: Path, *args):
@@ -71,7 +71,7 @@ class FFSInterface:
             newop = Comparison.LEQ
         elif self.compare == Comparison.LEQ:
             newop = Comparison.GT
-        elif self.compare == Comparison.GT:
+        elif self.compare == Comparison.GEQ:
             newop = Comparison.LT
         else:
             raise Exception(f"unrecognized operator {self.compare}")
@@ -85,7 +85,7 @@ class FFSInterface:
             return self.val > val
         elif self.compare == Comparison.LEQ:
             return self.val <= val
-        elif self.compare == Comparison.GT:
+        elif self.compare == Comparison.GEQ:
             return self.val >= val
         else:
             raise Exception(f"unrecognized operator {self.compare}")
@@ -106,9 +106,9 @@ class Condition:
     def write(self, write_dir: Path):
         with (write_dir / self.file_name()).open("w") as f:
             f.write(f"action = stop_{self.condition_type}\n")
-            for n, interface in self.interfaces:
+            for n, interface in enumerate(self.interfaces):
                 f.write(f"condition{n+1} = " + "{\n" +
-                        f"{interface.name} {interface.compare} {interface.value}" +
+                        f"{interface.op.name} {interface.compare.value} {interface.val}" +
                         "\n}\n")
 
     def file_name(self) -> str:

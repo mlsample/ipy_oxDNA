@@ -64,8 +64,6 @@ class Simulation:
             self.file_dir = Path(file_dir)
         else:
             raise ValueError(f"Invalid type {type(file_dir)} for parameter file_dir")
-        if not file_dir.exists():
-            raise Exception(f"No such directory {str(file_dir)}")
         # handle alternate param types for sim_dir
         if sim_dir is None:   # if no sim dir is provided, use file dir
             self.sim_dir = self.file_dir

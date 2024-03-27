@@ -64,6 +64,7 @@ class Simulation:
             self.file_dir = Path(file_dir)
         else:
             raise ValueError(f"Invalid type {type(file_dir)} for parameter file_dir")
+
         # handle alternate param types for sim_dir
         if sim_dir is None:   # if no sim dir is provided, use file dir
             self.sim_dir = self.file_dir
@@ -93,6 +94,7 @@ class Simulation:
         if os.path.exists(self.sim_dir):
             # print(f'Exisisting simulation files in {self.sim_dir.split("/")[-1]}')
             if clean_build == True:
+                # TODO: support for non-cli contexts
                 answer = input('Are you sure you want to delete all simulation files? '
                                'Type y/yes to continue or anything else to return (use clean_build=str(force) to skip this message)')
                 if (answer == 'y') or (answer == 'yes'):
@@ -324,15 +326,15 @@ class BuildSimulation:
     def build_sim_dir(self):
         """Make the simulation directory"""
         if not os.path.exists(self.sim.sim_dir):
-            os.mkdir(self.sim.sim_dir)
+            self.sim.sim_dir.mkdir(parents=True)
 
     def build_dat_top(self):
         """Write intial conf and toplogy to simulation directory"""
         self.get_last_conf_top()
         # copy dat file to sim directory
-        shutil.copy(os.path.join(self.file_dir, self.dat), self.sim_dir)
+        shutil.copy(os.path.join(self.sim.file_dir, self.dat), self.sim.sim_dir)
         # copy top file to sim directory
-        shutil.copy(os.path.join(self.file_dir, self.top), self.sim_dir)
+        shutil.copy(os.path.join(self.sim.file_dir, self.top), self.sim.sim_dir)
 
 
     def build_input(self, production=False):
@@ -523,7 +525,7 @@ class OxpyRun:
         self.subprocess = subprocess
         self.verbose = verbose
         self.continue_run = continue_run
-        if self.log is True:
+        if log is True:
             self.log = "log.log"
         else:
             self.log = log
@@ -531,7 +533,7 @@ class OxpyRun:
         self.custom_observables = custom_observables
 
         if self.verbose:
-            print(f'Running: {self.sim_dir.split("/")[-1]}')
+            print(f'Running: {self.sim.sim_dir}')
 
         if self.subprocess:
             self.spawn(self.run_complete)
@@ -555,8 +557,9 @@ class OxpyRun:
         if self.continue_run is not False:
             self.sim.input_file({"conf_file": self.sim.sim_files.last_conf, "refresh_vel": "0",
                                  "restart_step_counter": "0", "steps": f'{self.continue_run}'})
+        start_dir = os.getcwd()
         os.chdir(self.sim.sim_dir)
-        with open(os.path.join(self.sim.sim_dir, 'input.json'), 'r') as f:
+        with open('input.json', 'r') as f:
             my_input = loads(f.read())
         with oxpy.Context():
             ox_input = oxpy.InputFile()
@@ -584,10 +587,10 @@ class OxpyRun:
                 print(
                     f'Exception encountered in {self.sim.sim_dir}:\n{type(self.error_message).__name__}: {self.error_message}')
             else:
-                print(f'Finished: {self.sim_dir.split("/")[-1]}')
+                print(f'Finished: {self.sim.sim_dir.parent}')
 
         # if log is set
-                print(f'y: {self.sim.sim_dir.split("/")[-1]}')
+                print(f'y: {self.sim.sim_dir.parent}')
         if self.log:
             with open('log.log', 'w') as f:
                 f.write(self.sim_output) # write output log
@@ -596,6 +599,8 @@ class OxpyRun:
                 if self.error_message is not None:
                     f.write(f'Exception: {self.error_message}')
         self.sim.sim_files.parse_current_files()
+        os.chdir(start_dir)
+
 
     def cms_obs(self, *args, name=None, print_every=None):
         self.my_obs[name] = {'print_every': print_every, 'observables': []}
@@ -950,6 +955,13 @@ class Input:
         
         if os.path.exists(self.sim.sim_dir):
             self.initalize_input()
+
+    def clear(self):
+        """
+        deletes existing input file data
+        """
+        self.input = {}
+        self.write_input()
                 
     def initalize_input(self, read_exsisting_input=True):
         
@@ -1024,7 +1036,7 @@ class Input:
     def write_input(self, production=False):
         """ Write an oxDNA input file as a json file to sim_dir"""
         if production is False:
-            if self.input["conf_file"] == None:
+            if "conf_file" not in self.input or self.input["conf_file"] == None:
                 self.get_last_conf_top()
                 self.input["conf_file"] = self.dat
                 self.input["topology"] = self.top

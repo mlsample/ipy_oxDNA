@@ -1,10 +1,15 @@
 """
 Interface for forward flux sampling
 """
+from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
+from oxDNA_analysis_tools.distance import distance
+from oxDNA_analysis_tools.bond_analysis import bond_analysis
+
+from ..oxdna_simulation import Simulation
 
 
 class Comparison(Enum):
@@ -61,7 +66,7 @@ class FFSInterface:
     val: Any = field()
     compare: Comparison = field()
 
-    def __invert__(self):
+    def __invert__(self) -> FFSInterface:
         """
         Returns a copy of this interface, but with an inverted comparison operator
         """
@@ -77,19 +82,40 @@ class FFSInterface:
             raise Exception(f"unrecognized operator {self.compare}")
 
         return FFSInterface(self.op, self.val, newop)
+    
+    def flip(self) -> FFSInterface:
+        """
+        similar to __invert__ but instead of the logical opposite it reverses
+        the direction of the boundry in phase-space. if that makes any sense
+        """
 
-    def test(self, val: float) -> bool:
         if self.compare == Comparison.LT:
-            return self.val < val
+            newop = Comparison.GT
         elif self.compare == Comparison.GT:
-            return self.val > val
+            newop = Comparison.LT
         elif self.compare == Comparison.LEQ:
-            return self.val <= val
+            newop = Comparison.GEQ
         elif self.compare == Comparison.GEQ:
-            return self.val >= val
+            newop = Comparison.LEQ
         else:
             raise Exception(f"unrecognized operator {self.compare}")
 
+        return FFSInterface(self.op, self.val, newop)
+
+    def test(self, val: Union[float, Simulation]) -> bool:
+        if isinstance(val, float):
+            if self.compare == Comparison.LT:
+                return val < self.val
+            elif self.compare == Comparison.GT:
+                return val > self.val
+            elif self.compare == Comparison.LEQ:
+                return val <= self.val
+            elif self.compare == Comparison.GEQ:
+                return val >= self.val
+            else:
+                raise Exception(f"unrecognized operator {self.compare}")
+        else:
+            return self.test(self.op.compute_value(val))
 
 @dataclass(frozen=True)
 class Condition:
@@ -113,6 +139,9 @@ class Condition:
 
     def file_name(self) -> str:
         return f"{self.condition_name}.txt"
+    
+    def get_order_params(self) -> list[OrderParameter]:
+        return order_params(*self.interfaces)
 
 def order_params(*args: FFSInterface) -> list[OrderParameter]:
     """

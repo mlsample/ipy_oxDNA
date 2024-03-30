@@ -1,14 +1,20 @@
+from typing import Any, Union
+
 import argparse
 import logging
 import time, random as rnd
 import shutil, glob
 from multiprocessing import Process, Lock, JoinableQueue, Value, Array
+from pathlib import Path
 
-from ..oxdna_simulation import Simulation
+import oxpy
+
+from ..oxdna_simulation import Simulation, Observable
 from ..oxlog import OxLogHandler
 from .ffs_interface import FFSInterface, OrderParameter, Comparison, Condition, write_order_params, order_params
 
 #!/usr/bin/env python
+import os
 
 '''
 Forward Flux sampling: Flux generator a-la-Tom
@@ -29,21 +35,27 @@ class SeperationFluxer:
     success_count: Value
 
     # interfaces
+    lambda_fail: FFSInterface
     lambda_0: FFSInterface
-    lambda_f: FFSInterface
+    lambda_neg1: FFSInterface
     lambda_s: FFSInterface
 
     initial_seed: int
     ncpus: int
     initial_success_count: int
 
-    # conditions
-    both: Condition
+    # ---- conditions------
+    # condition where system either crosses the lambda_-1 interface going backwards or crosses the lambda_{0} interface
+    # previously called "both" but renamed bc that's not what "both" means
+    pass_or_fail: Condition
+    # apart-forward. condition where the system crosses the lambda_{-1} interface going forward
     apart_fw: Condition
-    apart_or_success: Condition
+    # condition where the system either fails (crosses lambda_-1 going backwards) or succeds (all bonds totally dissociated)
+    fail_or_success: Condition
 
     loghandler: logging
     T: int
+    working_directory: Path
 
     def __init__(self,
                  num_successes: int,
@@ -61,33 +73,45 @@ class SeperationFluxer:
         self.success_lock = Lock()
         self.success_count = Value('i', self.initial_success_count)
         self.T = T
+        self.working_directory = Path.cwd()
+
+    def tld(self) -> Path:
+        return self.working_directory
+    
+    def set_tld(self, new_path: Path):
+        self.working_directory = new_path
 
     def set_interfaces(self,
                        lambda_0: FFSInterface,
-                       lambda_f: FFSInterface,
-                       lambda_s: FFSInterface):
+                       lambda_neg1: FFSInterface,
+                       lambda_s: FFSInterface,
+                       lambda_fail: Union[None, FFSInterface] = None):
+        if lambda_fail is None:
+            lambda_fail = ~lambda_neg1
 
+        self.lambda_fail = lambda_fail
         self.lambda_0 = lambda_0
-        self.lambda_f = lambda_f
+        self.lambda_neg1 = lambda_neg1
         self.lambda_s = lambda_s
 
-        # conditions
-        self.both = Condition(
+        # condition where the system has either crossed the lambda_0 interface or gone back across the lambda_-1 interface
+        self.pass_or_fail = Condition(
             "both",
-            [lambda_0, lambda_f],
+            [lambda_0, lambda_fail],
             "or"
         )
 
+        # strands seperate going forward
         self.apart_fw = Condition(
-            "apart_fw",  # "fw"?
-            [~lambda_f]
+            "apart_fw",
+            [lambda_neg1]
         )
 
-        self.apart_or_success = Condition("apart-or-success",
-                                     [lambda_f, lambda_s],
+        self.fail_or_success = Condition("apart-or-success",
+                                     [lambda_neg1, lambda_s],
                                      "or")
 
-        self.order_params = order_params(lambda_0, lambda_f, lambda_s)
+        self.order_params = order_params(lambda_0, lambda_neg1, lambda_s, lambda_fail)
 
     def run(self):
         processes = []
@@ -133,9 +157,6 @@ class SeperationFluxer:
         else:
             main_log.info("No confs generated!!!")
 
-    ####################################
-    # edit here
-    ####################################
     # number of successes, can be changed via command line
 
     # executable set-up
@@ -165,24 +186,7 @@ class SeperationFluxer:
     #     for o in opts:
     #         k, v = o
     #         if k == '-n':
-    #             desired_success_count = int(v)
-    #         elif k == '-s':
-    #             initial_seed = int(v)
-    #         elif k == '-c':
-    #             ncpus = int(v)
-    #         elif k == '-v':
-    #             Verbose = True
-    #         elif k == '-k':
-    #             initial_success_count = int(v) - 1
-    #         else:
-    #             print("Warning: option %s not recognized" % (k), file=sys.stderr)
-    # except:
-    #     print("Error parsing options", file=sys.stderr)
-    #     sys.exit(3)
-    #
-    # log_lock = Lock()
-    # log_file = open(logfilename, 'w', 1)
-    #
+    #             desired_success_count = int(v)lambda_neg1
     # #
     # # def log(text):
     # #     log_lock.acquire()
@@ -268,10 +272,59 @@ class SeperationFluxer:
 
     # rnd.seed (initial_seed)
 
+    # TODO: add param to write a message to the directory explaining what we're trying to do
+    def make_ffs_simulation(self,
+                    other_inputs: dict[str, Any], 
+                    origin: Union[Simulation, Path], 
+                    sim_dir: Path,
+                    seed: int,
+                    ffs_coindition: Union[Condition, None] = None
+                    ) -> Simulation:
+        # todo: employ matt's defaults system when he writes it
+        sim = Simulation(origin if isinstance(origin, Path) else origin.sim_dir, sim_dir)
+        assert sim.file_dir.exists()
+        input_dict = {
+            "interaction_type": "DNA2",
+            "backend": "CPU",
+            "sim_type": "FFS_MD",
+            'log_file': "log.dat",
+            "print_energy_every": 1e5,
+            "print_conf_interval": 1e6,
+            "no_stdout_energy": 1,
+            "dt": 0.003,
+            "verlet_skin": 0.05,
+            "rcut": 2.0,
+            "thermostat": "john",
+            "newtonian_steps": 51,
+            "diff_coeff": 1.25,
+            "T": f"{self.T}C",
+            "seed": seed,
+
+            "salt_concentration": "1.0",
+            "trajectory_file": "trajectory.dat",
+            "energy_file": "energy.dat",
+            "time_scale": "linear"
+        }
+        sim.build()
+
+        if ffs_coindition is not None:
+            # write order parameters file
+            write_order_params(sim.sim_dir / "op.txt", *ffs_coindition.get_order_params())
+            # write ffs condition file
+            ffs_coindition.write(sim.sim_dir)
+            input_dict["ffs_file"] = ffs_coindition.file_name()
+            input_dict["order_parameters_file"] = "op.txt"
+
+        input_dict.update(other_inputs)
+        sim.input.clear()
+        sim.input_file(input_dict)
+        sim.sequence_dependant()
+
+        return sim
+
     # this function does the work of running the simulation, identifying a
     # success or a failure, and taking appropriate actions
-    def ffs_process(self, lidx: int, plogger: logging.Logger):
-        idx = lidx
+    def ffs_process(self, idx: int, plogger: logging.Logger):
 
         # the seed is the index + initial seed, and the last_conf has an index as well
         seed = self.initial_seed + idx
@@ -281,50 +334,24 @@ class SeperationFluxer:
         # above line meant to replace `jumpahead` which was removed in Python 3. frankly i'm unsure what Flavio was even trying to do here
         # myrng.jumpahead(1)
 
-        op_file_name = "op.txt"
-
-        input_constants = {
-                "interaction_type": "DNA2",
-                "backend": "CPU",
-                "sim_type": "FFS_MD",
-                'log_file': "log.dat",
-                "print_energy_every": 1e5,
-                "print_conf_interval": 1e6,
-                # "no_stdout_energy": 1,
-                "dt": 0.003,
-                "verlet_skin": 0.05,
-                "rcut": 2.0,
-                "thermostat": "john",
-                "newtonian_steps": 51,
-                "diff_coeff": 1.25,
-                "T": f"{self.T}C",
-
-                "salt_concentration": "1.0",
-                "trajectory_file": "trajectory.dat",
-                "energy_file": "energy.dat",
-                "time_scale": "linear"
-        }
-
         simcount = 0  # process-specific sim counter
         # outer while loop
         while self.success_count.value < self.desired_success_count:
             # ----- step 1: initial relax ---------
+            # do this every time w/ a random seed to make sure we have different starting points for our simulation
             plogger.info("equilibration started")
-            eq_sim = Simulation(".", f"p{lidx}/sim{simcount}")
+            eq_sim = self.make_ffs_simulation({
+                    "sim_type": "MD",
+                    "steps": 1e5,
+                    "refresh_vel": 1,
+                    "print_energy_every": 1e2,
+                    "restart_step_counter": 0
+                },
+                self.tld(),
+                self.tld() / f"p{idx}/sim{simcount}",
+                myrng.randint(1, int(5e6))
+            )
             simcount += 1
-            eq_sim.build()
-            # eq_sim.input.clear()
-            eq_sim.input_file({ ** input_constants,
-                # "conf_file": starting_conf,
-                # "lastconf_file": "equilibriated.dat",
-                "sim_type": "MD",
-                "seed": myrng.randint(1, int(5e6)),
-                "steps": 1e5,
-                "refresh_vel": 1,
-                "print_energy_every": 1e2,
-                "restart_step_counter": 0
-            })
-            eq_sim.sequence_dependant()
             # do not use OxpyRun multiprocessing, since we're already in an mps thread
             eq_sim.oxpy_run.run(subprocess=False)
 
@@ -354,28 +381,26 @@ class SeperationFluxer:
             #
             # output.seek(0)
 
-            # ---------- run for a bit for some reason?
+            # ---------- run for a bit for some reason? ---------
+            # i'm like 70% sure this is to make sure we don't start out past lambda_{-1}
+            # being a bit specific
             plogger.info("Running initial simulation?")
-            init_sim = Simulation(eq_sim.sim_dir, f"p{lidx}/sim{simcount}")
+            init_sim = self.make_ffs_simulation({
+                    "refresh_vel": 0,
+                    "restart_step_counter": 1,
+                    "steps": 1e10
+                },
+                eq_sim, 
+                self.tld() / f"p{idx}/sim{simcount}",
+                myrng.randint(1, 50000),
+                self.fail_or_success
+            )
             simcount += 1
-            # build simulation
-            init_sim.build()
-            init_sim.input.clear()
-            init_sim.input_file({** input_constants,
-                "refresh_vel": 0,
-                "ffs_file": self.apart_or_success.file_name(), # if the strands are fully seperate, stop
-                "order_parameters_file": "op.txt",
-                "restart_step_counter": 1,
-                "seed": myrng.randint(1, 50000),
-                "steps": 2e10
-            })
-            init_sim.sequence_dependant()
 
-            # write order parameters file
-            write_order_params(init_sim.sim_dir / op_file_name, *self.order_params)
-            # write ffs condition file
-            self.apart_or_success.write(init_sim.sim_dir)
-            # run
+            # # run
+
+            # tried adding observable but this didn't work
+            # init_sim.add_observable(Observable.hb_list(f"{1e5}", "bonds", True))
             init_sim.oxpy_run.run(subprocess=False)
             if init_sim.oxpy_run.error_message:
                 raise Exception(init_sim.oxpy_run.error_message)
@@ -402,6 +427,7 @@ class SeperationFluxer:
             # grab ffs values
             op_values = read_output(init_sim)
             complete_success = self.lambda_s.test(op_values[self.lambda_s.op.name])
+            # complete_success = self.lambda_s.test(init_sim)
 
             # complete_success = eval('op_values["%s"] %s %s' % (lambda_s_name, lambda_s_compar, str(lambda_s_value)))
             # if the simumation fully dissociated, we need to start over b/c we can't get any confs to shoot with
@@ -409,36 +435,28 @@ class SeperationFluxer:
                 plogger.info("has reached a complete success, restarting")
                 continue
 
-            plogger.info("reached Q_{-2}..." % idx)
+            plogger.info("reached Q_{-2}...")
             # now the system is far apart;
 
             # now run simulations until done or something
             while self.success_count.value < self.desired_success_count:
                 # ----- cross lambda_{-1} going forward -----------------------
                 # construct new simulation from output of previous simulation
-                # literally cannot figure out what we're trying to do here
-                sim = Simulation(f"p{lidx}/sim{simcount-1}", f"p{lidx}/sim{simcount}")
+                sim = self.make_ffs_simulation(
+                    {
+                        'refresh_vel': 0,
+                        'restart_step_counter': 0,
+                        "steps": 2e10
+                    },
+                    # origin is either previous loop iteration or initial equilibriation
+                    self.tld() / f"p{idx}/sim{simcount-1}",
+                    self.tld() / f"p{idx}/sim{simcount}",
+                    myrng.randint(1, 50000),
+                    self.apart_fw
+                )
                 simcount += 1
-                # build simulation files
-                sim.build()
-                eq_sim.input.clear()
-                sim.input_file({** input_constants,
-                    # 'conf_file': % (my_conf), 'lastconf_file=%s' % (my_conf)]
-                    'refresh_vel': 0,
-                    'restart_step_counter': 0,
-                    'ffs_file': self.apart_fw.file_name(),
-                    "order_parameters_file": "op.txt",
-                    'seed': myrng.randint(1, 50000),
-                    "steps": 2e10
-                })
-                init_sim.sequence_dependant()
-
-                # build order params file
-                write_order_params(sim.sim_dir / op_file_name, *self.order_params)
-                # write ffs file
-                self.apart_fw.write(sim.sim_dir)
                 # run
-                eq_sim.oxpy_run.run(subprocess=False)
+                sim.oxpy_run.run(subprocess=False)
 
                 # cross lamnda_{-1} going forwards
                 # output.seek(0)
@@ -449,29 +467,22 @@ class SeperationFluxer:
 
                 # ------- flux sample -------------
                 # continue running simulation until we either fail or hit the lambda_{0} interface
-                sim = Simulation(f"p{lidx}/sim{simcount - 1}", f"p{lidx}/sim{simcount}")
+                sim = self.make_ffs_simulation(
+                    {
+                        'refresh_vel': 0,
+                        'restart_step_counter': 0,
+                        "steps": 2e10
+                    }
+                    ,
+                    sim, 
+                    self.tld() / f"p{idx}/sim{simcount}",
+                    myrng.randint(1, 50000),
+                    self.pass_or_fail
+                )
                 simcount += 1
-                # build simulation files
-                sim.build()
-                eq_sim.input.clear()
-                sim.input_file({** input_constants,
-                    # 'conf_file': % (my_conf), 'lastconf_file=%s' % (my_conf)]
-                    'refresh_vel': 0,
-                    'restart_step_counter': 0,
-                    'ffs_file': self.both.file_name(),
-                    "order_parameters_file": "op.txt",
-                    'seed': myrng.randint(1, 50000),
-                    "steps": 2e10
-                })
-                sim.sequence_dependant()
-                
-
-                # build order params file
-                write_order_params(sim.sim_dir / op_file_name, *self.order_params)
-                # write ffs file
-                self.both.write(sim.sim_dir)
                 # run
-                eq_sim.oxpy_run.run(subprocess=False)
+
+                sim.oxpy_run.run(subprocess=False)
 
                 # we hope to get to success
                 # output.seek(0)
@@ -479,9 +490,9 @@ class SeperationFluxer:
                 # r = sp.call(command, stdout=output, stderr=sp.STDOUT)
                 # assert (r == 0)
 
-                op_values = read_output(init_sim)
+                op_values = read_output(sim)
                 success = self.lambda_0.test(op_values[self.lambda_0.op.name])
-                failure = self.lambda_f.test(op_values[self.lambda_f.op.name])
+                failure = self.lambda_neg1.test(op_values[self.lambda_neg1.op.name])
 
                 # op_values = read_output(output)
 
@@ -508,26 +519,18 @@ class SeperationFluxer:
                     # ---------------- continue back across lambda_{0} ----------------------
                     # now that the simulation is past the lambda_{0} interface, we need to continue running it
                     # run until simulation is fully dissociate or have the @ least starting bond count
-                    sim = Simulation(f"p{lidx}/sim{simcount - 1}" f"p{lidx}/sim{simcount}")
+                    sim = self.make_ffs_simulation(
+                        {
+                            'refresh_vel': 0,
+                            'restart_step_counter': 1,                            
+                            "steps": 2e10
+                        },
+                        sim,
+                        self.tld() / f"p{idx}/sim{simcount}",
+                        myrng.randint(1, 50000),
+                        self.fail_or_success
+                    )
                     simcount += 1
-                    # build simulation files
-                    sim.build()
-                    eq_sim.input.clear()
-                    sim.input_file({ ** input_constants,
-                        # 'conf_file': % (my_conf), 'lastconf_file=%s' % (my_conf)]
-                        'refresh_vel': 0,
-                        'restart_step_counter': 1,
-                        'ffs_file': self.apart_or_success.file_name(),
-                        "order_parameters_file": "op.txt",
-                        'seed': myrng.randint(1, 50000),
-                        "steps": 2e10
-                    })
-                    sim.sequence_dependant()
-                    
-                    # build order params file
-                    write_order_params(sim.sim_dir / op_file_name, *self.order_params)
-                    # write ffs file
-                    self.apart_or_success.write(sim.sim_dir)
                     # run
                     eq_sim.oxpy_run.run(subprocess=False)
 
@@ -588,14 +591,16 @@ def read_output(init_sim: Simulation) -> dict[str, float]:
     terrible code, but i'm making it its own terrible code method
     """
     data = False
-    if not init_sim.oxpy_run.sim_output:
+    sim_log_file = init_sim.sim_dir / init_sim.input.input["log_file"]
+    if not sim_log_file.exists():
         raise Exception("No simulation run output!")
-    for line in init_sim.oxpy_run.sim_output.split("\n"):
-        words = line.split()
-        if len(words) > 1:
-            # jesus fucking christ
-            if words[1] == 'FFS' and words[2] == 'final':
-                data = [w for w in words[4:]]
+    with sim_log_file.open("r") as f:
+        for line in f:
+            words = line.split()
+            if len(words) > 1:
+                # jesus fucking christ
+                if words[1] == 'FFS' and words[2] == 'final':
+                    data = [w for w in words[4:]]
     if data is False:
         raise Exception("oxDNA output does not include requisite FFS information")
     op_names = data[::2]

@@ -575,6 +575,7 @@ class OxpyRun:
                         my_obs = [eval(observable_string, {"self": self}) for observable_string in value['observables']]
                         manager.add_output(key, print_every=value['print_every'], observables=my_obs)
                 manager.run_complete()
+                del manager
             except Exception as e:
                 self.error_message = traceback.format_exc()
 

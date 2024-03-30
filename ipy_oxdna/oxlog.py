@@ -1,3 +1,4 @@
+import sys
 import logging
 import multiprocessing
 from logging.handlers import QueueHandler, QueueListener
@@ -23,7 +24,7 @@ class OxLogHandler:
 
         # If verbose, add a StreamHandler to print to console
         if self.verbose:
-            stream_handler = logging.StreamHandler()
+            stream_handler = logging.StreamHandler(sys.stdout)
             stream_handler.setFormatter(self.formatter)
             handlers.append(stream_handler)
 

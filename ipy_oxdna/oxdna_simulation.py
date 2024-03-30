@@ -1168,7 +1168,7 @@ ST_T_DEP = 1.97561"""
             with open(os.path.join(self.sim.sim_dir, 'rna_sequence_dependent_parameters.txt'), 'w') as f:
                 f.write(self.rna_parameters)
 
-        if (int_type == 'NA'):
+        if int_type == 'NA':
             with open(os.path.join(self.sim.sim_dir, 'NA_sequence_dependent_parameters.txt'), 'w') as f:
                 f.write(self.na_parameters)
 

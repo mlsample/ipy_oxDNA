@@ -21,6 +21,7 @@ import traceback
 import warnings
 from scipy.optimize import OptimizeWarning
 import pyarrow
+import pymbar
 
 class BaseUmbrellaSampling:
     def __init__(self, file_dir, system, clean_build=False):
@@ -1014,12 +1015,12 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
         t5_1 = 1 / (2 * (Nbp - 1))
         t5_2 = e + f * log_mg + g * (log_mg)**2
         
-        print(f'{t1=}')
-        print(f'{t2=}')
-        print(f'{t3=}')
-        print(f'{t4=}')
-        print(f'{t5_1=}')
-        print(f'{t5_2=}')
+        # print(f'{t1=}')
+        # print(f'{t2=}')
+        # print(f'{t3=}')
+        # print(f'{t4=}')
+        # print(f'{t5_1=}')
+        # print(f'{t5_2=}')
         
         one_over_mg_tm = t1 + t2 + t3 + t4 + t5_1 * t5_2
         mg_tm = (1 / one_over_mg_tm) - 273.15
@@ -1058,8 +1059,6 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
     
 class PymbarAnalysis:
     def __init__(self, base_umbrella):
-        import pymbar
-        from pymbar import timeseries
         self.base_umbrella = base_umbrella
 
     
@@ -1069,7 +1068,6 @@ class PymbarAnalysis:
             u_kln, N_k = self.setup_input_data(reread_files=reread_files, sim_type=sim_type, restraints=restraints, force_energy_split=force_energy_split)
         elif uncorrelated_samples is True:
             u_kln, N_k = self.setup_input_data_with_uncorrelated_samples(reread_files=reread_files, sim_type=sim_type, restraints=restraints, force_energy_split=force_energy_split)
-        
         
         
         mbar_options = {'solver_protocol':'jax'}
@@ -1176,7 +1174,7 @@ class PymbarAnalysis:
         # u_kn = np.array([np.pad(inner_list, ((0, N_max - len(inner_list)), (0,0)), 'constant') for inner_list in u_kn])
         kinetic_energy = [inner_list['kinetic_energy'] for inner_list in self.base_umbrella.obs_df]
         force_energy = [inner_list['force_energy_0'] for inner_list in self.base_umbrella.obs_df]
-        non_pot_energy = [kin for kin,force in zip(kinetic_energy, force_energy)]
+        non_pot_energy = [0 for kin,force in zip(kinetic_energy, force_energy)]
         
         # non_pot_energy = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant') for inner_list in non_pot_energy])
         new_energy_per_window = self.base_umbrella._new_calcualte_bias_energy(non_pot_energy, temp_range, truncated_potential_energy=u_kn)
@@ -1229,8 +1227,8 @@ class PymbarAnalysis:
         com_kn = [inner_list['com_distance'] for inner_list in self.base_umbrella.obs_df]
         com_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant') for inner_list in com_kn])
         for k in range(K):
-            t0, g, Neff_max = timeseries.detect_equilibration_binary_search(com_kn[k, :])
-            indices = timeseries.subsample_correlated_data(com_kn[k, t0:], g=g)
+            t0, g, Neff_max = pymbar.timeseries.detect_equilibration_binary_search(com_kn[k, :])
+            indices = pymbar.timeseries.subsample_correlated_data(com_kn[k, t0:], g=g)
             N_k[k] = len(indices)
             op_kn[k, 0 : N_k[k]] = op_kn[k, t0:][indices]
         return op_kn, N_k
@@ -1394,7 +1392,212 @@ class PymbarAnalysis:
         center_f_i = center_f_i - center_f_i.min()
         bin_center_i = bin_center_i
         
-        return center_f_i, bin_center_i, center_df_i      
+        return center_f_i, bin_center_i, center_df_i   
+    
+    
+    
+def compute_free_energy_curves_pymbar(
+    us,
+    obs_df_subset=None,
+    max_hb=8,
+    n_bins=50,
+    temp_range=np.arange(30, 70, 2),
+    restraints=True,
+    force_energy_split=True
+    ):
+    """Given a umbrella sampling object, compute the free energy curves for number of hydrogen bonds, center-of-mass distance, and hb contacts order parameters.
+
+    Args:
+        us (MeltingUmbrellaSampling): _description_
+        obs_df_subset (_type_, optional): _description_. Defaults to None.
+        max_hb (int, optional): _description_. Defaults to 32.
+        temp_range (_type_, optional): _description_. Defaults to np.arange(30, 70, 2).
+    """
+    
+    if obs_df_subset is not None:
+        obs_df_whole = deepcopy(us.obs_df)
+        us.obs_df = obs_df_subset
+        print(f'curves {len(obs_df_subset[0])}')
+
+    try:
+        us.pymbar.run_mbar_fes(
+            reread_files=False,
+            sim_type='prod',
+            uncorrelated_samples=False,
+            restraints=restraints,
+            force_energy_split=force_energy_split)
+
+        free_n_hb, bin_n_hb, df_n_hb = us.pymbar.n_hb_fes_hist(max_hb, temp_range=temp_range)
+        free_com, bin_com, df_com = us.pymbar.com_fes_hist(n_bins=n_bins, temp_range=temp_range)
+        free_contact, bin_contact, df_contact = us.pymbar.hb_contact_fes_hist(n_bins=n_bins, temp_range=temp_range)
+    except Exception as e:
+        if obs_df_subset is not None:
+            us.obs_df = obs_df_whole
+        raise e
+
+    hb = [free_n_hb, bin_n_hb, df_n_hb]
+    com = [free_com, bin_com, df_com]
+    contact = [free_contact, bin_contact, df_contact]
+    
+    if obs_df_subset is not None:
+        us.obs_df = obs_df_whole
+
+    return hb, com, contact
+
+
+def create_us_splits(us, n_splits, subsample):
+    """
+    Splits each window in the observation dataframe of the us object into n_splits,
+    each subsampled by the specified subsample rate.
+
+    Parameters:
+    - us: An object with an 'obs_df' attribute containing a list of dataframes (windows).
+    - n_splits: Number of splits to create for each window.
+    - subsample: Subsampling rate.
+
+    Returns:
+    - A list of lists of dataframes, where each inner list corresponds to the splits of one window.
+    """
+    # Deep copy the observation dataframe windows
+    windows = deepcopy(us.obs_df)
+
+    # Initialize a list to store the splits for all windows
+    splits = [[] for _ in range(n_splits)]
+
+    # Iterate over each window and create the splits
+    for window in windows:
+        # Create the remaining splits
+        for i in range(n_splits):
+            n_data = len(window)
+            start_index = (n_data // n_splits) * i
+            end_index = (n_data // n_splits) * (i + 1)
+            split = window[start_index:end_index:subsample].reset_index(drop=True)
+            splits[i].append(split)
+        
+    # all_data_subsampled = [window[::subsample] for window in windows]
+    # splits.insert(0, all_data_subsampled)
+
+    print('Data per window:')
+    for split in splits:
+        print(f'{len(split[0])}')
+    
+    return splits
+
+
+def pymbar_convergence_free_energy_curves(
+    us: MeltingUmbrellaSampling,
+    convergence_splits: int,
+    subsampling=1,
+    max_hb=8,
+    n_bins=50,
+    temp_range=np.arange(30, 70, 2),
+    restraints=True,
+    force_energy_split=True
+    ):
+    """Given a umbrella sampling object, compute the free energy curves for number of hydrogen bonds, center-of-mass distance, and hb contacts order parameters.
+
+    Args:
+        us (MeltingUmbrellaSampling): _description_
+        obs_df_subset (_type_, optional): _description_. Defaults to None.
+        max_hb (int, optional): _description_. Defaults to 32.
+        temp_range (_type_, optional): _description_. Defaults to np.arange(30, 70, 2).
+    """
+    
+    hbs = []
+    coms = []
+    contacts = []
+    
+    
+    us_splits = create_us_splits(us, convergence_splits, subsample)
+        
+    for split in us_splits:
+        hb, com, contact = compute_free_energy_curves_pymbar(
+            us,
+            obs_df_subset=split,
+            max_hb=max_hb,
+            n_bins=n_bins,
+            temp_range=temp_range,
+            restraints=restraints,
+            force_energy_split=force_energy_split
+        )
+
+        hbs.append(hb)
+        coms.append(com)
+        contacts.append(contact)
+    
+    # hbs: n_splits x 3 x n_temps x n_bins
+    
+    return hbs, coms, contacts
+
+
+def use_splits_for_error_bars(hbs, coms, contacts, p_value):
+    
+    all_metrics = [hbs, contacts, coms]
+    
+    free_metrics = [np.array([metric[0] for metric in metrics]) for metrics in all_metrics]
+    
+    free_metrics = [metric - metric[:, :, 0][:, :, np.newaxis] for metric in free_metrics]
+    
+    mean_metrics = [np.mean(free_metric, axis=0) for free_metric in free_metrics]
+    std_metrics = [np.std(free_metric, axis=0) for free_metric in free_metrics]
+    sem_metrics = [std_metric / np.sqrt(len(free_metric)) for free_metric, std_metric in zip(free_metrics, std_metrics)]
+
+    df = len(all_metrics[0]) - 1
+    t_score = stats.norm.ppf(1 - p_value/2)
+    ci_metrics = [t_score * sem_metric for sem_metric in sem_metrics]
+    
+    bin_metrics = [metric[0][1] for metric in all_metrics]
+
+    for i in range(len(mean_metrics)):
+        plt.figure(dpi=200, figsize=(10, 7.5))
+        for j in range(len(mean_metrics[i])):
+            plt.errorbar(bin_metrics[i], mean_metrics[i][j], yerr=sem_metrics[i][j], label=f'{j}', fmt='.-', capsize=2.5, capthick=1, errorevery=1)
+
+    return  mean_metrics, bin_metrics
+
+
+def plot_melting_curve(us, metric, max_hbs, monomer_conc=None, magnesium_conc=None, ax=None, plot=True):
+    
+    if monomer_conc is not None:
+        box_size = us.molar_concentration_to_box_size(monomer_conc)
+        xmax = max([max(innerlist['com_distance']) for innerlist in us.obs_df])
+        # print(xmax)
+        dg_v = us_list[0].volume_correction(box_size, xmax)
+        # dg_v = np.log((box_size**3) / ((4/3) * np.pi * xmax**3))
+        print(dg_v)
+
+        f_i_temp = np.zeros_like(metric)
+        f_i_temp[:,0] = metric[:,0] - dg_v
+        f_i_temp[:,1:] = metric[:,1:]
+        f_i_temp[:,:] = f_i_temp[:,:] + dg_v
+    
+        unnormed_prob = np.exp(-f_i_temp)
+    else:
+        unnormed_prob = np.exp(-metric)
+        
+    normed_prob = unnormed_prob / np.sum(unnormed_prob, axis=1)[: , np.newaxis]
+    Tm, x_fit, y_fit, inverted_finfs = us.pymbar.calculate_melting_temperature(temp_range, normed_prob)
+    
+    if plot is True:
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        ax.scatter(temp_range, inverted_finfs, marker='o')
+        ax.plot(x_fit, y_fit, linestyle='--', linewidth=2)
+        ax.axvline(x=Tm, color='r', linestyle='--', linewidth=2, label=f'Tm = {Tm:.2f} C')
+        ax.legend()   
+
+    if magnesium_conc is not None:
+        na_tm = Tm
+        fGC = 0.5
+        Nbp = max_hbs
+        mg_concentration = magnesium_conc
+
+        mg_tm = us.na_tm_to_mg_tm(na_tm, mg_concentration, fGC, Nbp)
+        print(f'{mg_tm=}')
+    
+    return Tm, inverted_finfs, mg_tm
+       
     
     def setup_input_data_with_uncorrelated_samples(self, reread_files=False, sim_type='prod', restraints=False, force_energy_split=False):
         if reread_files is False:
@@ -1432,8 +1635,8 @@ class PymbarAnalysis:
             u_kn = (restraints_kn) * beta_k[:, np.newaxis]
         
         for k in range(K):
-            t0, g, Neff_max = timeseries.detect_equilibration_binary_search(com_kn[k, :N_k[k]])
-            indices = timeseries.subsample_correlated_data(com_kn[k, t0:N_k[k]], g=g)
+            t0, g, Neff_max = pymbar.timeseries.detect_equilibration_binary_search(com_kn[k, :N_k[k]])
+            indices = pymbar.timeseries.subsample_correlated_data(com_kn[k, t0:N_k[k]], g=g)
             print(f'Sim {k}: t0: {t0}, g: {g}, Neff_max: {Neff_max}')
             N_k[k] = len(indices)
             com_kn[k, 0 : N_k[k]] = com_kn[k, t0:][indices]

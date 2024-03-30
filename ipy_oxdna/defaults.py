@@ -1,7 +1,9 @@
 class DefaultInput:
+    _input: dict[str, str]
+
     def __init__(self):
         self.cuda_MD()
-        
+
     def swap_default_input(self, default_type: str):
         if default_type == "cuda_MD":
             self.cuda_MD()
@@ -11,7 +13,7 @@ class DefaultInput:
             self.cpu_MC_relax()
         else:
             raise ValueError("Invalid default_type")
-    
+
     def cuda_MD(self):
         self._input = {
             "interaction_type": "DNA2",
@@ -48,7 +50,7 @@ class DefaultInput:
             "external_forces_file": "forces.json",
             "external_forces_as_JSON": "true"
         }
-    
+
     def cpu_MD(self):
         self._input = {
             "interaction_type": "DNA2",
@@ -80,7 +82,7 @@ class DefaultInput:
             "external_forces_file": "forces.json",
             "external_forces_as_JSON": "true"
         }
-    
+
     def cpu_MC_relax(self):
         self._input = {
             "sim_type": "MC",
@@ -114,3 +116,85 @@ class DefaultInput:
             "external_forces_file": "forces.json",
             "external_forces_as_JSON": "true"
         }
+
+    def get_dict(self) -> dict[str, str]:
+        """
+        Returns: the values
+        """
+        return {
+            key: str(self._input[key]) for key in self._input
+        }
+
+    def __getitem__(self, item: str) -> str:
+        return str(self._input[item])
+
+
+# todo: better
+SEQ_DEP_PARAMS: dict[str, float] = {
+    "STCK_G_C": 1.69339,
+    "STCK_C_G": 1.74669,
+    "STCK_G_G": 1.61295,
+    "STCK_C_C": 1.61295,
+    "STCK_G_A": 1.59887,
+    "STCK_T_C": 1.59887,
+    "STCK_A_G": 1.61898,
+    "STCK_C_T": 1.61898,
+    "STCK_T_G": 1.66322,
+    "STCK_C_A": 1.66322,
+    "STCK_G_T": 1.68032,
+    "STCK_A_C": 1.68032,
+    "STCK_A_T": 1.56166,
+    "STCK_T_A": 1.64311,
+    "STCK_A_A": 1.84642,
+    "STCK_T_T": 1.58952,
+    "HYDR_A_T": 0.88537,
+    "HYDR_T_A": 0.88537,
+    "HYDR_C_G": 1.23238,
+    "HYDR_G_C": 1.23238
+}
+
+NA_PARAMETERS = {
+    "HYDR_A_U": 1.21,
+    "HYDR_A_T": 1.37,
+    "HYDR_rC_dG": 1.61,
+    "HYDR_rG_dC": 1.77
+}
+
+RNA_PARAMETERS = {
+    "HYDR_A_T": 0.820419,
+    "HYDR_C_G": 1.06444,
+    "HYDR_G_T": 0.510558,
+    "STCK_G_C": 1.27562,
+    "STCK_C_G": 1.60302,
+    "STCK_G_G": 1.49422,
+    "STCK_C_C": 1.47301,
+    "STCK_G_A": 1.62114,
+    "STCK_T_C": 1.16724,
+    "STCK_A_G": 1.39374,
+    "STCK_C_T": 1.47145,
+    "STCK_T_G": 1.28576,
+    "STCK_C_A": 1.58294,
+    "STCK_G_T": 1.57119,
+    "STCK_A_C": 1.21041,
+    "STCK_A_T": 1.38529,
+    "STCK_T_A": 1.24573,
+    "STCK_A_A": 1.31585,
+    "STCK_T_T": 1.17518,
+    "CROSS_A_A": 59.9626,
+    "CROSS_A_T": 59.9626,
+    "CROSS_T_A": 59.9626,
+    "CROSS_A_C": 59.9626,
+    "CROSS_C_A": 59.9626,
+    "CROSS_A_G": 59.9626,
+    "CROSS_G_A": 59.9626,
+    "CROSS_G_G": 59.9626,
+    "CROSS_G_C": 59.9626,
+    "CROSS_C_G": 59.9626,
+    "CROSS_G_T": 59.9626,
+    "CROSS_T_G": 59.9626,
+    "CROSS_C_C": 59.9626,
+    "CROSS_C_T": 59.9626,
+    "CROSS_T_C": 59.9626,
+    "CROSS_T_T": 59.9626,
+    "ST_T_DEP": 1.97561
+}

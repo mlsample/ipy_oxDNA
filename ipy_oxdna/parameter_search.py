@@ -1,16 +1,10 @@
-from skopt.space import Real, Integer, Categorical
-from ipy_oxdna.umbrella_sampling import ComUmbrellaSampling, MeltingUmbrellaSampling
-from ipy_oxdna.oxdna_simulation import SimulationManager, Simulation, Observable
-from ipy_oxdna.wham_analysis import collect_coms
-import os
-import matplotlib.pyplot as plt
+from ipy_oxdna.umbrella.umbrella_sampling import ComUmbrellaSampling, MeltingUmbrellaSampling
 from ipy_oxdna.vmmc import *
 from collections import Counter
 import logging
 import joblib
 import multiprocessing as mp
 from skopt import Optimizer
-from skopt.space import Categorical, Space
 from copy import deepcopy
 
 

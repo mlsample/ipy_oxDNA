@@ -1,7 +1,9 @@
 """
 Virtual-move monte carlo simulation
 """
-from ipy_oxdna.oxdna_simulation import Simulation, Force, Observable, SimulationManager, OxpyRun, GenerateReplicas, Analysis
+from ipy_oxdna.oxdna_simulation import Simulation, Observable, SimulationManager, OxpyRun, Analysis
+from ipy_oxdna.force import Force
+from ipy_oxdna.generate_replicas import GenerateReplicas
 import os
 import shutil
 import queue

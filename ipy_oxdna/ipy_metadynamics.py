@@ -44,11 +44,11 @@ class MetadynamicsBuild:
         if not exists(join(self.meta.sim.sim_dir, 'base')):
             os.mkdir(join(self.meta.sim.sim_dir, 'base'))
         try:
-            shutil.copyfile(self.meta.sim.sim_files.dat, join(self.meta.sim.sim_dir, 'base', self.meta.sim.sim_files.dat.split('/')[-1]))
+            shutil.copyfile(self.meta.sim.sim_files.last_conf_filename, join(self.meta.sim.sim_dir, 'base', self.meta.sim.sim_files.last_conf_filename.split('/')[-1]))
         except:
             shutil.copyfile(self.meta.sim.sim_files.last_conf, join(self.meta.sim.sim_dir, 'base', self.meta.sim.sim_files.last_conf.split('/')[-1]))
         
-        shutil.copyfile(self.meta.sim.sim_files.top, join(self.meta.sim.sim_dir, 'base', self.meta.sim.sim_files.top.split('/')[-1]))
+        shutil.copyfile(self.meta.sim.sim_files.top_filename, join(self.meta.sim.sim_dir, 'base', self.meta.sim.sim_files.top_filename.split('/')[-1]))
         shutil.copyfile(self.meta.sim.sim_files.input, join(self.meta.sim.sim_dir, 'base', self.meta.sim.sim_files.input.split('/')[-1]))
         
 

@@ -13,7 +13,7 @@ from ..oxdna_simulation import Simulation, Observable
 from ..oxlog import OxLogHandler
 from .ffs_interface import FFSInterface, OrderParameter, Comparison, Condition, write_order_params, order_params
 
-#!/usr/bin/env python
+# !/usr/bin/env python
 import os
 
 '''
@@ -77,7 +77,7 @@ class SeperationFluxer:
 
     def tld(self) -> Path:
         return self.working_directory
-    
+
     def set_tld(self, new_path: Path):
         self.working_directory = new_path
 
@@ -108,8 +108,8 @@ class SeperationFluxer:
         )
 
         self.fail_or_success = Condition("apart-or-success",
-                                     [lambda_neg1, lambda_s],
-                                     "or")
+                                         [lambda_neg1, lambda_s],
+                                         "or")
 
         self.order_params = order_params(lambda_0, lambda_neg1, lambda_s, lambda_fail)
 
@@ -168,7 +168,6 @@ class SeperationFluxer:
 
     # interfaces
 
-
     ####################################
     # def usage():
     #     print('usage: %s %s' % (sys.argv[0], '[-n <num_sucesses>] [-s <seed>] [-c <ncpus>] [-k <success_count>]'),
@@ -180,7 +179,6 @@ class SeperationFluxer:
     # except getopt.GetoptError as err:
     #     usage()
     #     sys.exit(2)
-
 
     # try:
     #     for o in opts:
@@ -205,7 +203,6 @@ class SeperationFluxer:
     #     print("could not write to success_pattern", success_pattern, file=sys.stderr)
     #     sys.exit(3)
 
-
     # write the condition file
     # condition_file = open('close.txt', 'w')
     # condition_file.write("condition1 = {\n%s %s %s\n}\n" % (lambda_0_name, lambda_0_compar, str(lambda_0_value)))
@@ -222,13 +219,9 @@ class SeperationFluxer:
     #     # lambda_{f} interface, reaction completion reached (whatever that means)
     #     condition_file.write("condition2 = {\n%s %s %s\n}\n" % (lambda_s_name, lambda_s_compar, str(lambda_s_value)))
 
-
-
     # with open('apart-fw.txt', 'w') as condition_file:
     #     # lambda_{-1} interface - more bonds than original
     #     condition_file.write("condition1 = {\n%s <= %s\n}\n" % (lambda_f_name, str(lambda_f_value)))
-
-
 
     # with open('both.txt', 'w') as condition_file:
     #     condition_file.write("action = stop_or\n")
@@ -274,50 +267,30 @@ class SeperationFluxer:
 
     # TODO: add param to write a message to the directory explaining what we're trying to do
     def make_ffs_simulation(self,
-                    other_inputs: dict[str, Any], 
-                    origin: Union[Simulation, Path], 
-                    sim_dir: Path,
-                    seed: int,
-                    ffs_coindition: Union[Condition, None] = None
-                    ) -> Simulation:
+                            other_inputs: dict[str, Any],
+                            origin: Union[Simulation, Path],
+                            sim_dir: Path,
+                            seed: int,
+                            ffs_coindition: Union[Condition, None] = None
+                            ) -> Simulation:
         # todo: employ matt's defaults system when he writes it
         sim = Simulation(origin if isinstance(origin, Path) else origin.sim_dir, sim_dir)
+        sim.input.swap_default_input("ffs")
+        sim.input["T"] = self.T
+        sim.input["seed"] = seed
         assert sim.file_dir.exists()
-        input_dict = {
-            "interaction_type": "DNA2",
-            "backend": "CPU",
-            "sim_type": "FFS_MD",
-            'log_file': "log.dat",
-            "print_energy_every": 1e5,
-            "print_conf_interval": 1e6,
-            "no_stdout_energy": 1,
-            "dt": 0.003,
-            "verlet_skin": 0.05,
-            "rcut": 2.0,
-            "thermostat": "john",
-            "newtonian_steps": 51,
-            "diff_coeff": 1.25,
-            "T": f"{self.T}C",
-            "seed": seed,
-
-            "salt_concentration": "1.0",
-            "trajectory_file": "trajectory.dat",
-            "energy_file": "energy.dat",
-            "time_scale": "linear"
-        }
-        sim.build()
 
         if ffs_coindition is not None:
             # write order parameters file
             write_order_params(sim.sim_dir / "op.txt", *ffs_coindition.get_order_params())
             # write ffs condition file
             ffs_coindition.write(sim.sim_dir)
-            input_dict["ffs_file"] = ffs_coindition.file_name()
-            input_dict["order_parameters_file"] = "op.txt"
+            sim.input["ffs_file"] = ffs_coindition.file_name()
+            sim.input["order_parameters_file"] = "op.txt"
+        sim.build()
 
-        input_dict.update(other_inputs)
-        sim.input_file(input_dict)
-        sim.make_sim_sequence_dependant()
+        sim.input.modify_input(other_inputs)
+        sim.make_sequence_dependant()
 
         return sim
 
@@ -340,12 +313,12 @@ class SeperationFluxer:
             # do this every time w/ a random seed to make sure we have different starting points for our simulation
             plogger.info("equilibration started")
             eq_sim = self.make_ffs_simulation({
-                    "sim_type": "MD",
-                    "steps": 1e5,
-                    "refresh_vel": 1,
-                    "print_energy_every": 1e2,
-                    "restart_step_counter": 0
-                },
+                "sim_type": "MD",
+                "steps": 1e5,
+                "refresh_vel": 1,
+                "print_energy_every": 1e2,
+                "restart_step_counter": 0
+            },
                 self.tld(),
                 self.tld() / f"p{idx}/sim{simcount}",
                 myrng.randint(1, int(5e6))
@@ -385,11 +358,11 @@ class SeperationFluxer:
             # being a bit specific
             plogger.info("Running initial simulation?")
             init_sim = self.make_ffs_simulation({
-                    "refresh_vel": 0,
-                    "restart_step_counter": 1,
-                    "steps": 1e10
-                },
-                eq_sim, 
+                "refresh_vel": 0,
+                "restart_step_counter": 1,
+                "steps": 1e10
+            },
+                eq_sim,
                 self.tld() / f"p{idx}/sim{simcount}",
                 myrng.randint(1, 50000),
                 self.fail_or_success
@@ -448,7 +421,7 @@ class SeperationFluxer:
                         "steps": 2e10
                     },
                     # origin is either previous loop iteration or initial equilibriation
-                    self.tld() / f"p{idx}/sim{simcount-1}",
+                    self.tld() / f"p{idx}/sim{simcount - 1}",
                     self.tld() / f"p{idx}/sim{simcount}",
                     myrng.randint(1, 50000),
                     self.apart_fw
@@ -473,7 +446,7 @@ class SeperationFluxer:
                         "steps": 2e10
                     }
                     ,
-                    sim, 
+                    sim,
                     self.tld() / f"p{idx}/sim{simcount}",
                     myrng.randint(1, 50000),
                     self.pass_or_fail
@@ -509,7 +482,7 @@ class SeperationFluxer:
                         self.success_count.value += 1
                         # copy last conf to working directory
                         shutil.copy(
-                            f"{sim.sim_dir}/{sim.input.input['lastconf_file']}",
+                            f"{sim.sim_dir}/{sim.input.input_dict['lastconf_file']}",
                             f"{success_pattern + str(self.success_count.value)}.dat"
                         )
 
@@ -521,7 +494,7 @@ class SeperationFluxer:
                     sim = self.make_ffs_simulation(
                         {
                             'refresh_vel': 0,
-                            'restart_step_counter': 1,                            
+                            'restart_step_counter': 1,
                             "steps": 2e10
                         },
                         sim,
@@ -549,7 +522,7 @@ class SeperationFluxer:
 
                     # did we fully dissociate? gotta start over them
                     if complete_success:
-                        shutil.copy(f"{sim.sim_dir}/{sim.input.input['lastconf_file']}",
+                        shutil.copy(f"{sim.sim_dir}/{sim.input.input_dict['lastconf_file']}",
                                     "full_success" + str(self.success_count.value))
                         plogger.info(f"Worker {idx} has reached a complete success: restarting from equilibration")
                         break  # this breakes the innermost while cycle, which will also start next iteration of main loop
@@ -574,15 +547,17 @@ class SeperationFluxer:
         logger = self.loghandler.spinoff("timer")
         logger.info(f"Timer started at {(time.asctime(time.localtime()))}")
         itime = time.time()
-        while True: # arbrgfgfgwse
+        while True:  # arbrgfgfgwse
             time.sleep(10)
             now = time.time()
             with self.success_lock:
                 ns = self.success_count.value - self.initial_success_count
                 if ns > 1:
-                    logger.info(f"Timer: at { time.asctime(time.localtime())}: successes: {ns}, time per success: {(now - itime) / float(ns)} ({now - itime} sec)")
+                    logger.info(
+                        f"Timer: at {time.asctime(time.localtime())}: successes: {ns}, time per success: {(now - itime) / float(ns)} ({now - itime} sec)")
                 else:
-                    logger.info(f"Timer: at {time.asctime(time.localtime())}: no successes yet (at {self.success_count.value})")
+                    logger.info(
+                        f"Timer: at {time.asctime(time.localtime())}: no successes yet (at {self.success_count.value})")
 
 
 def read_output(init_sim: Simulation) -> dict[str, float]:
@@ -590,7 +565,7 @@ def read_output(init_sim: Simulation) -> dict[str, float]:
     terrible code, but i'm making it its own terrible code method
     """
     data = False
-    sim_log_file = init_sim.sim_dir / init_sim.input.input["log_file"]
+    sim_log_file = init_sim.sim_dir / init_sim.input.input_dict["log_file"]
     if not sim_log_file.exists():
         raise Exception("No simulation run output!")
     with sim_log_file.open("r") as f:
@@ -608,4 +583,3 @@ def read_output(init_sim: Simulation) -> dict[str, float]:
     for ii, name in enumerate(op_names):
         op_values[name[:-1]] = float(op_value[ii][:-1])
     return op_values
-

@@ -140,7 +140,7 @@ class FFSSim(nx.DiGraph):
                          self.workdir() / f"s{len(self)}")
         # specify
         sim.input_file({
-            **self.sim(predecessor).input.input,
+            **self.sim(predecessor).input.input_dict,
             "seed": self.rng.randint(1, int(5e4))
         })
         # write condition fil

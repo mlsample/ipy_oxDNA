@@ -127,7 +127,7 @@ class VmmcOxpyRun(OxpyRun):
         self.custom_observables = custom_observables
         
         if continue_run is not False:
-            self.sim.input_file({'init_hist_file':self.sim.input.input['last_hist_file']})
+            self.sim.input_file({'init_hist_file':self.sim.input.input_dict['last_hist_file']})
         if self.verbose == True:
             print(f'Running: {self.sim_dir.split("/")[-1]}')
         if self.subprocess:

@@ -1880,7 +1880,7 @@ class UmbrellaInfoUtils:
         self.base.stiff = float(force_js[forces[-1]]['stiff'])
 
     def get_temperature(self):
-        pre_temp = self.base.equlibration_sims[0].input.input['T']
+        pre_temp = self.base.equlibration_sims[0].input_dict.input_dict['T']
         if ('C'.upper() in pre_temp) or ('C'.lower() in pre_temp):
             self.base.temperature = (float(pre_temp[:-1]) + 273.15) / 3000
         elif ('K'.upper() in pre_temp) or ('K'.lower() in pre_temp):
@@ -2398,7 +2398,7 @@ class WhamAnalysis:
         """
 
         self.base_umbrella.com_dir = join(self.base_umbrella.production_sim_dir, 'com_dir')
-        pre_temp = self.base_umbrella.production_sims[0].input.input['T']
+        pre_temp = self.base_umbrella.production_sims[0].input_dict.input_dict['T']
         if ('C'.upper() in pre_temp) or ('C'.lower() in pre_temp):
             self.base_umbrella.temperature = (float(pre_temp[:-1]) + 273.15) / 3000
         elif ('K'.upper() in pre_temp) or ('K'.lower() in pre_temp):
@@ -2577,7 +2577,7 @@ class WhamAnalysis:
         return None
 
     def to_si(self, n_bins, com_dir):
-        pre_temp = self.base_umbrella.production_sims[0].input.input['T']
+        pre_temp = self.base_umbrella.production_sims[0].input_dict.input_dict['T']
         if ('C'.upper() in pre_temp) or ('C'.lower() in pre_temp):
             self.base_umbrella.temperature = (float(pre_temp[:-1]) + 273.15) / 3000
         elif ('K'.upper() in pre_temp) or ('K'.lower() in pre_temp):

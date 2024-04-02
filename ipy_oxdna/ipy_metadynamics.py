@@ -49,7 +49,7 @@ class MetadynamicsBuild:
             shutil.copyfile(self.meta.sim.sim_files.last_conf, join(self.meta.sim.sim_dir, 'base', self.meta.sim.sim_files.last_conf.split('/')[-1]))
         
         shutil.copyfile(self.meta.sim.sim_files.top_filename, join(self.meta.sim.sim_dir, 'base', self.meta.sim.sim_files.top_filename.split('/')[-1]))
-        shutil.copyfile(self.meta.sim.sim_files.input, join(self.meta.sim.sim_dir, 'base', self.meta.sim.sim_files.input.split('/')[-1]))
+        shutil.copyfile(self.meta.sim.sim_files.input_dict, join(self.meta.sim.sim_dir, 'base', self.meta.sim.sim_files.input_dict.split('/')[-1]))
         
 
 class MetadynamicsRun:

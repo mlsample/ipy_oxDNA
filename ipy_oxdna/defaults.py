@@ -1,132 +1,74 @@
+# I'm not sure this class needs to exist
+import json
+import re
+from typing import Union
+
+import importlib_resources
+
+
 class DefaultInput:
+    _name: str
     _input: dict[str, str]
 
-    def __init__(self):
-        self.cuda_MD()
+    def __init__(self, name: str):
+        self._name = name
+        self.reset()
 
-    def swap_default_input(self, default_type: str):
-        if default_type == "cuda_MD":
-            self.cuda_MD()
-        elif default_type == "cpu_MD":
-            self.cpu_MD()
-        elif default_type == "cpu_MC_relax":
-            self.cpu_MC_relax()
-        else:
-            raise ValueError("Invalid default_type")
+    def reset(self):
+        """
+        reloads input dict from file, clearing evaluated info
+        """
+        data_path = importlib_resources.files('ipy_oxdna') / "defaults" / "inputs" / f"{name}.json"
+        with data_path.open("r") as f:
+            data = json.load(f)
+        self._input = data
 
-    def cuda_MD(self):
-        self._input = {
-            "interaction_type": "DNA2",
-            "salt_concentration": "1.0",
-            "sim_type": "MD",
-            "backend": "CUDA",
-            "backend_precision": "mixed",
-            "use_edge": "1",
-            "edge_n_forces": "1",
-            "CUDA_list": "verlet",
-            "CUDA_sort_every": "0",
-            "max_density_multiplier": "3",
-            "steps": "1e9",
-            "ensemble": "nvt",
-            "thermostat": "john",
-            "T": "20C",
-            "dt": "0.003",
-            "verlet_skin": "0.5",
-            "diff_coeff": "2.5",
-            "newtonian_steps": "103",
-            "topology": None,
-            "conf_file": None,
-            "lastconf_file": "last_conf.dat",
-            "trajectory_file": "trajectory.dat",
-            "refresh_vel": "1",
-            "no_stdout_energy": "0",
-            "restart_step_counter": "1",
-            "energy_file": "energy.dat",
-            "print_conf_interval": "5e5",
-            "print_energy_every": "5e5",
-            "time_scale": "linear",
-            "max_io": "5",
-            "external_forces": "0",
-            "external_forces_file": "forces.json",
-            "external_forces_as_JSON": "true"
-        }
-
-    def cpu_MD(self):
-        self._input = {
-            "interaction_type": "DNA2",
-            "salt_concentration": "1.0",
-            "sim_type": "MD",
-            "backend": "CPU",
-            "backend_precision": "double",
-            "steps": "1e8",
-            "ensemble": "nvt",
-            "thermostat": "john",
-            "T": "20C",
-            "dt": "0.003",
-            "verlet_skin": "0.5",
-            "diff_coeff": "2.5",
-            "newtonian_steps": "103",
-            "topology": None,
-            "conf_file": None,
-            "lastconf_file": "last_conf.dat",
-            "trajectory_file": "trajectory.dat",
-            "refresh_vel": "1",
-            "no_stdout_energy": "0",
-            "restart_step_counter": "1",
-            "energy_file": "energy.dat",
-            "print_conf_interval": "5e5",
-            "print_energy_every": "5e5",
-            "time_scale": "linear",
-            "max_io": "5",
-            "external_forces": "0",
-            "external_forces_file": "forces.json",
-            "external_forces_as_JSON": "true"
-        }
-
-    def cpu_MC_relax(self):
-        self._input = {
-            "sim_type": "MC",
-            "backend": "CPU",
-            "backend_precision": "double",
-            "verlet_skin": "0.5",
-            "interaction_type": "DNA2",
-            "steps": "5e3",
-            "dt": "0.05",
-            "T": "30C",
-            "salt_concentration": "1.0",
-            "ensemble": "nvt",
-            "delta_translation": "0.22",
-            "delta_rotation": "0.22",
-            "diff_coeff": "2.5",
-            "max_backbone_force": "5",
-            "max_backhone_force_far": "10",
-            "topology": None,
-            "conf_file": None,
-            "lastconf_file": "last_conf.dat",
-            "trajectory_file": "trajectory.dat",
-            "energy_file": "energy.dat",
-            "print_conf_interval": "${$(steps) / 10}",
-            "print_energy_every": "${$(steps) / 50}",
-            "time_scale": "linear",
-            "refresh_vel": "1",
-            "restart_step_counter": "1",
-            "no_stdout_energy": "0",
-            "max_io": "5",
-            "external_forces": "0",
-            "external_forces_file": "forces.json",
-            "external_forces_as_JSON": "true"
-        }
+    def evaluate(self, **kwargs: dict[str, Union[float, int, str, bool]]):
+        """
+        evaluates dynamic values in the default dict, using the info provided
+        in keyword arguements
+        """
+        r = r'f\(([^)]+)\) = (.+)'
+        for key in self._input:
+            # if the value is an expression that needs evaluation
+            match = re.match(r, self._input[key])
+            if match:
+                values_str, expression = match.groups()
+                # Split the values by comma and strip whitespace
+                argnames = [value.strip() for value in values_str.split(',')]
+                if not all([argname in kwargs for argname in argnames]):
+                    missing_arg = [argname for argname in argnames if argname not in kwargs][0]
+                    raise MissingParamError(key, missing_arg, list(kwargs.keys()))
+                expression_eval = expression
+                for argname in argnames:
+                    expression_eval = expression_eval.replace(argname, f"{kwargs[argname]}")
+                try:
+                    self._input[key] = eval(expression)
+                except SyntaxError as e:
+                    raise ValueError(f"Cannot parse expression {expression}")
+            # if it's not an expression we can just skip
 
     def get_dict(self) -> dict[str, str]:
         """
         Returns: the values
         """
+        # verify that all params are valid
+        r = r'f\(([^)]+)\) = (.+)'
+        for key in self._input:
+            # if the value is an expression that needs evaluation
+            match = re.match(r, self._input[key])
+            if match:
+                raise IncompleteInputError(key)
         return {
             key: str(self._input[key]) for key in self._input
         }
 
     def __getitem__(self, item: str) -> str:
         return str(self._input[item])
+
+
+def get_default_input(name: str) -> DefaultInput:
+    return DefaultInput(name)
 
 
 # todo: better
@@ -198,3 +140,28 @@ RNA_PARAMETERS = {
     "CROSS_T_T": 59.9626,
     "ST_T_DEP": 1.97561
 }
+
+
+class IncompleteInputError(Exception):
+    objectionable_input_key: str
+
+    def __init__(self, k: str):
+        self.objectionable_input_key = k
+
+    def __str__(self) -> str:
+        return f"Input file hasn't been evaluated for input key {self.objectionable_input_key}"
+
+
+class MissingParamError(Exception):
+    key: str
+    missing: str
+    provided_params: list[str]
+
+    def __init__(self, key: str, missing: str, provided_params: list[str]):
+        self.key = key
+        self.missing = missing
+        self.provided_params = provided_params
+
+    def __str__(self) -> str:
+        return f"Cannot evaluate dynamic expression for `{self.key}`, missing parameter `{self.missing}`. " \
+               f"Provided vals for {', '.join(self.provided_params)}"

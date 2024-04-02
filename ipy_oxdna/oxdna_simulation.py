@@ -16,7 +16,7 @@ from oxDNA_analysis_tools.UTILS.oxview import oxdna_conf
 from oxDNA_analysis_tools.UTILS.RyeReader import describe, get_confs
 
 from ipy_oxdna import observable
-from ipy_oxdna.defaults import DefaultInput, SEQ_DEP_PARAMS, NA_PARAMETERS, RNA_PARAMETERS
+from ipy_oxdna.defaults import DefaultInput, SEQ_DEP_PARAMS, NA_PARAMETERS, RNA_PARAMETERS, get_default_input
 import ipywidgets as widgets
 from IPython.display import display
 import pandas as pd
@@ -235,40 +235,14 @@ class BuildSimulation(SimulationComponent):
         self.top_file_name = None
         self.conf_file_name = None
 
-    def get_file_dir(self): return self.sim.file_dir
-    def get_sim_dir(self): return self.sim.sim_dir
+    def get_file_dir(self):
+        return self.sim.file_dir
+
+    def get_sim_dir(self):
+        return self.sim.sim_dir
+
     file_dir = property(get_file_dir)
     sim_dir = property(get_sim_dir)
-    
-    # def get_last_conf_top(self):
-    #     """
-    #     TODO: MAKE THIS NOT JUST LITERALLY THE METHOD FROM Input AGAIN
-    #     Set attributes containing the name of the inital conf (dat file) and topology
-        # """
-        # self.sim.input.get_last_conf_top()
-        # # list files in file directory
-        # conf_top: list[str] = os.listdir(self.sim.file_dir)
-        # if self.top_filename is None:
-        #     try:
-        #         self.top_filename = [file for file in conf_top if file.endswith('.top')][0]
-        #     except IndexError:
-        #         raise SimBuildException()
-        # if self.last_conf_filename is None:
-        #     try:
-        #         last_conf = [file for file in conf_top
-        #                      if (file.startswith("last_conf")) and (not (file.endswith('pyidx')))][0]
-        #     except IndexError:
-        #         # if there's no file that starts with last_conf, search files that end with .dat
-        #         try:
-        #             last_conf = [file for file in conf_top if
-        #                          file.endswith('.dat') and not any([file.endswith("energy.dat"),
-        #                                                             file.endswith("trajectory.dat"),
-        #                                                             file.endswith("error_conf.dat")])
-        #                          ][0]
-        #         except IndexError:  # still nothing?
-        #             raise SimBuildMissingFileException(self.sim, "Last conf file")
-
-        #     self.init_conf_filename = last_conf
 
     def build_sim_dir(self):
         """Make the simulation directory"""
@@ -726,8 +700,8 @@ class SimulationManager:
             sim (Simulation): Simulation object to probe the required memory of.
             gpu_idx: depreciated
         """
-        steps = sim.input.input['steps']
-        last_conf_file = sim.input.input['lastconf_file']
+        steps = sim.input.input_dict['steps']
+        last_conf_file = sim.input.input_dict['lastconf_file']
         sim.input_file({'lastconf_file': os.devnull, 'steps': '0'})
         sim.oxpy_run.run(subprocess=False, verbose=False, log=False)
         sim.input_file({'lastconf_file': f'{last_conf_file}', 'steps': f'{steps}'})
@@ -927,11 +901,10 @@ int main() {
         os.system('nvcc -o test_script test_script.cu')
         os.system('./test_script')
 
-class Input(SimulationComponent):
-    # terrible practice to use a reserved word as a variable name. todo: change
-    input: dict[str, str]
-    default_input: DefaultInput
 
+class Input(SimulationComponent):
+    input_dict: dict[str, str]
+    default_input: DefaultInput
     """ Lower level input file methods"""
 
     def __init__(self, sim: Simulation):
@@ -943,32 +916,33 @@ class Input(SimulationComponent):
             parameters: depreciated
         """
         SimulationComponent.__init__(self, sim)
-        self.default_input = DefaultInput()
+        self.default_input = get_default_input("cuda_MD")
 
         if os.path.exists(self.sim.sim_dir):
             self.initalize_input()
-        self.input = {}
+        self.input_dict = {}
 
     def clear(self):
         """
         deletes existing input file data
         """
-        self.input = {}
+        self.input_dict = {}
         self.write_input()
 
-    def initalize_input(self, read_exsisting_input=True):
+    def initalize_input(self, read_existing_input: Union[bool, None] = None):
         """
         Initializes the input file
+        If read_existing_
         """
-        if read_exsisting_input:
-            exsiting_input = (self.sim.sim_dir / 'input.json').exists() or (self.sim.sim_dir / 'input').exists()
+        if read_existing_input or read_existing_input is None:
+            existing_input = (self.sim.sim_dir / 'input.json').exists() or (self.sim.sim_dir / 'input').exists()
         else:
-            exsiting_input = False
+            existing_input = False
 
-        if exsiting_input:
+        if existing_input:
             self.read_input()
-        else:
-            self.input = self.default_input.get_dict()
+        elif read_existing_input:
+            raise SimBuildMissingFileException(self.sim, "input.json")
 
     def swap_default_input(self, default_type: str):
         """
@@ -976,8 +950,8 @@ class Input(SimulationComponent):
         Current Options Include:
         cuda_prod, cpu_prod, cpu_relax
         """
-        self.default_input.swap_default_input(default_type)
-        self.input = self.default_input.get_dict()
+        self.default_input = get_default_input(default_type)
+        self.input_dict = self.default_input.get_dict()
         self.write_input()
 
     def get_last_conf_top(self) -> tuple[str, str]:
@@ -988,7 +962,6 @@ class Input(SimulationComponent):
         self.initial_conf = conf.name
         self.top = top.name
         return self.initial_conf, self.top
-        
 
     def write_input_standard(self):
         """ Write a oxDNA input file to sim_dir"""
@@ -996,7 +969,7 @@ class Input(SimulationComponent):
             raise MissingTopConfException(self.sim)
         with oxpy.Context():
             ox_input = oxpy.InputFile()
-            for k, v in self.input.items():
+            for k, v in self.input_dict.items():
                 ox_input[k] = v
             with open(os.path.join(self.sim.sim_dir, f'input'), 'w') as f:
                 print(ox_input, file=f)
@@ -1010,13 +983,20 @@ class Input(SimulationComponent):
                 self.set_conf_file(conf.name)
 
         # Write input file
+        self.default_input.evaluate(**self.input_dict)
+        # local input dict w/ defaults and manually-specified values
+        inputdict = {
+            **self.default_input.get_dict(),
+            **self.input_dict
+        }
+
         with open(os.path.join(self.sim.sim_dir, f'input.json'), 'w') as f:
-            input_json = dumps(self.input, indent=4)
+            input_json = dumps(inputdict, indent=4)
             f.write(input_json)
         with open(os.path.join(self.sim.sim_dir, f'input'), 'w') as f:
             with oxpy.Context(print_coda=False):
                 ox_input = oxpy.InputFile()
-                for k, v in self.input.items():
+                for k, v in inputdict.items():
                     ox_input[k] = str(v)
                 print(ox_input, file=f)
 
@@ -1025,19 +1005,20 @@ class Input(SimulationComponent):
         if os.path.exists(os.path.join(self.sim.sim_dir, 'input.json')):
             self.read_input()
         for k, v in parameters.items():
-            self.input[k] = v
+            self.input_dict[k] = v
         self.write_input()
 
     def read_input(self):
         """ Read parameters of exsisting input file in sim_dir"""
         if (self.sim.sim_dir / "input.json").exists():
-            try:
-                with (self.sim.sim_dir / "input.json").open("r") as f:
-                    content = f.read()
-                    my_input = loads(content)
-                self.input = my_input
-            except json.JSONDecodeError:
-                self.initalize_input(read_exsisting_input=False)
+            with (self.sim.sim_dir / "input.json").open("r") as f:
+                content = f.read()
+                my_input = loads(content)
+                self.input_dict = my_input
+            # I don't know why you did this
+            # it SHOULD throw an error if it finds a mangled JSON file!
+            # except json.JSONDecodeError:
+            #     self.initalize_input(read_exsisting_input=False)
 
         else:
             with open(os.path.join(self.sim.sim_dir, 'input'), 'r') as f:
@@ -1047,55 +1028,58 @@ class Input(SimulationComponent):
                 my_input = {line[0].strip(): line[1].strip() for line in lines}
                 # TODO: objects?
 
-            self.input = my_input
+            self.input_dict = my_input
 
     def get_conf_file(self) -> Union[None, str]:
         """
         Returns: the conf file that the simulation will initialize from
         """
-        if "conf_file" not in self.input:
+        if "conf_file" not in self.input_dict:
             return None
         else:
-            return self.input["conf_file"]
-        
+            return self.input_dict["conf_file"]
+
     def set_conf_file(self, conf_file_name: str):
         """
         Sets the conf file
         """
-        self.input["conf_file"] = conf_file_name
+        self.input_dict["conf_file"] = conf_file_name
 
     def get_top_file(self) -> Union[None, str]:
         """
         Returns: the topology file that the simulation will use
         """
-        if "topology" not in self.input:
+        if "topology" not in self.input_dict:
             return None
         else:
-            return self.input["topology"]
+            return self.input_dict["topology"]
 
     def set_top_file(self, top_file_name: str):
         """
         Sets the topology file
         """
-        self.input["topology"] = top_file_name
-        
+        self.input_dict["topology"] = top_file_name
+
     def has_top_conf(self) -> bool:
         return self.get_conf_file() is not None and self.get_top_file() is not None
 
     def get_last_conf(self) -> Union[None, str]:
-        if "lastconf_file" not in self.input:
+        if "lastconf_file" not in self.input_dict:
             return None
         else:
-            return self.input["lastconf_file"]
-    
-    def set_last_conf(self, conf_file_name: str): 
-        self.input["lastconf_file"] = conf_file_name
+            return self.input_dict["lastconf_file"]
+
+    def set_last_conf(self, conf_file_name: str):
+        self.input_dict["lastconf_file"] = conf_file_name
 
     initial_conf = property(get_conf_file, set_conf_file)
     top = property(get_top_file, set_conf_file)
 
     def __getitem__(self, item: str):
-        return self.input[item]
+        return self.input_dict[item]
+
+    def __setitem__(self, key: str, value: Union[str, float, bool]):
+        self.input_dict[key] = value
 
 
 class SequenceDependant(SimulationComponent):
@@ -1119,7 +1103,7 @@ class SequenceDependant(SimulationComponent):
 
     def write_sequence_dependant_file(self):
         # TODO: externalize interaction-type stuff?
-        int_type = self.sim.input.input['interaction_type']
+        int_type = self.sim.input.input_dict['interaction_type']
         if (int_type == 'DNA') or (int_type == 'DNA2') or (int_type == 'NA'):
             with open(os.path.join(self.sim.sim_dir, 'oxDNA2_sequence_dependent_parameters.txt'), 'w') as f:
                 f.write(self.parameters)
@@ -1133,7 +1117,7 @@ class SequenceDependant(SimulationComponent):
                 f.write(self.na_parameters)
 
     def sequence_dependant_input(self):
-        int_type = self.sim.input.input['interaction_type']
+        int_type = self.sim.input.input_dict['interaction_type']
 
         if (int_type == 'DNA') or (int_type == 'DNA2'):
             self.sim.input_file({'use_average_seq': 'no', 'seq_dep_file': 'oxDNA2_sequence_dependent_parameters.txt'})
@@ -1483,7 +1467,8 @@ class OxdnaAnalysisTools(SimulationComponent):
         def run_output_bonds(self, args=''):
             start_dir = os.getcwd()
             os.chdir(self.sim.sim_dir)
-            os.system(f'oat output_bonds {self.sim.sim_files.input} {self.sim.sim_files.traj} {args} -v bonds.json')
+            os.system(
+                f'oat output_bonds {self.sim.sim_files.input_dict} {self.sim.sim_files.traj} {args} -v bonds.json')
             os.chdir(start_dir)
 
         p = mp.Process(target=run_output_bonds, args=(self,), kwargs={'args': args})
@@ -1732,7 +1717,7 @@ class Analysis(SimulationComponent):
     def current_step(self) -> float:
         """ Returns the time-step of the most recently save oxDNA conf."""
         n_confs = float(self.get_conf_count())
-        steps_per_conf = float(self.sim.input.input["print_conf_interval"])
+        steps_per_conf = float(self.sim.input.input_dict["print_conf_interval"])
         return n_confs * steps_per_conf
 
     def view_conf(self, conf_id: int):
@@ -1745,7 +1730,7 @@ class Analysis(SimulationComponent):
         """ Plot energy of oxDNA simulation."""
         try:
             self.sim_files.parse_current_files()
-            sim_type = self.sim.input.input['sim_type']
+            sim_type = self.sim.input.input_dict['sim_type']
             if (sim_type == 'MC') or (sim_type == 'VMMC'):
                 df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U', 'P', 'K', 'empty'])
             else:
@@ -1761,13 +1746,13 @@ class Analysis(SimulationComponent):
         """ Plot energy of oxDNA simulation."""
         try:
             self.sim_files.parse_current_files()
-            sim_type = self.sim.input.input['sim_type']
+            sim_type = self.sim.input.input_dict['sim_type']
             if (sim_type == 'MC') or (sim_type == 'VMMC'):
                 df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U', 'P', 'K', 'empty'])
             else:
                 df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U', 'P', 'K'])
-            dt = float(self.sim.input.input["dt"])
-            steps = float(self.sim.input.input["steps"])
+            dt = float(self.sim.input.input_dict["dt"])
+            steps = float(self.sim.input.input_dict["steps"])
             # df = df[df.U <= 10]
             # df = df[df.U >= -10]
             # make sure our figure is bigger
@@ -2099,9 +2084,11 @@ class SimFiles(SimulationComponent):
 class SimBuildException(Exception, SimulationComponent):
     pass
 
+
 class MissingTopConfException(SimBuildException):
     def __str__(self) -> str:
         return f"No specified topology and initial configuration files specified in the input file for simulation at {str(self.sim.sim_dir)}"
+
 
 class SimBuildMissingFileException(SimBuildException):
     missing_file_descriptor: str
@@ -2113,6 +2100,7 @@ class SimBuildMissingFileException(SimBuildException):
     def __str__(self) -> str:
         return f"No {self.missing_file_descriptor} in directory {str(self.sim.file_dir)}"
 
+
 def find_top_dat(directory: Path, sim: Simulation) -> tuple[Path, Path]:
     # list files in simulation directory
 
@@ -2121,24 +2109,26 @@ def find_top_dat(directory: Path, sim: Simulation) -> tuple[Path, Path]:
     # skip inputs where we've already set top and
     return find_top_file(directory, sim), find_conf_file(directory, sim)
 
+
 def find_top_file(directory: Path, sim: Simulation) -> Path:
     try:
         return [file for file in directory.iterdir() if file.name.endswith('.top')][0]
     except IndexError:
         raise SimBuildException(sim, "topology file")
 
+
 def find_conf_file(directory: Path, sim: Simulation) -> Path:
     try:
         last_conf = [file for file in directory.iterdir()
-                        if file.name.startswith('last_conf') 
-                        and not file.name.endswith('pyidx')][0]
+                     if file.name.startswith('last_conf')
+                     and not file.name.endswith('pyidx')][0]
     except IndexError:
         try:
             last_conf = [file for file in directory.iterdir() if file.name.endswith(".dat") and not any([
                 file.name.endswith("energy.dat"),
                 file.name.endswith("trajectory.dat"),
                 file.name.endswith("error_conf.dat")])
-                            ][0]
+                         ][0]
         except IndexError:
             raise SimBuildException(sim, "initial conf file")
     return last_conf

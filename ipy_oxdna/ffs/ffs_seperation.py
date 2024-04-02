@@ -316,9 +316,8 @@ class SeperationFluxer:
             input_dict["order_parameters_file"] = "op.txt"
 
         input_dict.update(other_inputs)
-        sim.input.clear()
         sim.input_file(input_dict)
-        sim.sequence_dependant()
+        sim.make_sim_sequence_dependant()
 
         return sim
 

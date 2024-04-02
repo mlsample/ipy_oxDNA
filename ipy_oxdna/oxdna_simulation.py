@@ -7,7 +7,6 @@ import os
 import numpy as np
 import shutil
 from json import dumps, loads, dump, load
-
 import oxpy
 import multiprocessing as mp
 import py
@@ -209,17 +208,15 @@ class Protein(SimulationComponent):
 
 
 class BuildSimulation(SimulationComponent):
-    file_dir: Path  # source directory for simulation files
-    sim_dir: Path  # simulation working directory
     force: Force
     force_cache: Any
-    # TODO: MAKE THESE NOT REDUNDANT WITH INPUT CLASS
-    top_filename: str  # topology file name
-    init_conf_filename: str
-    last_conf_filename: str
     par: Any
     force_file: Path
     is_file: bool
+
+    # names of top and conf file in file directory
+    top_file_name: str
+    conf_file_name: str
 
     # dict which maps names of file in file directory to sim directory
     name_mapper: dict[str, str]
@@ -235,35 +232,43 @@ class BuildSimulation(SimulationComponent):
         self.name_mapper = {
             "last_conf": "init"  # default-case: rename last_conf to init
         }
+        self.top_file_name = None
+        self.conf_file_name = None
 
-    def get_last_conf_top(self):
-        """
-        TODO: MAKE THIS NOT JUST LITERALLY THE METHOD FROM Input AGAIN
-        Set attributes containing the name of the inital conf (dat file) and topology
-        """
-        # list files in file directory
-        conf_top: list[str] = os.listdir(self.sim.file_dir)
-        if self.top_filename is None:
-            try:
-                self.top_filename = [file for file in conf_top if file.endswith('.top')][0]
-            except IndexError:
-                raise SimBuildException()
-        if self.last_conf_filename is None:
-            try:
-                last_conf = [file for file in conf_top
-                             if (file.startswith("last_conf")) and (not (file.endswith('pyidx')))][0]
-            except IndexError:
-                # if there's no file that starts with last_conf, search files that end with .dat
-                try:
-                    last_conf = [file for file in conf_top if
-                                 file.endswith('.dat') and not any([file.endswith("energy.dat"),
-                                                                    file.endswith("trajectory.dat"),
-                                                                    file.endswith("error_conf.dat")])
-                                 ][0]
-                except IndexError:  # still nothing?
-                    raise SimBuildMissingFileException(self.sim, "Last conf file")
+    def get_file_dir(self): return self.sim.file_dir
+    def get_sim_dir(self): return self.sim.sim_dir
+    file_dir = property(get_file_dir)
+    sim_dir = property(get_sim_dir)
+    
+    # def get_last_conf_top(self):
+    #     """
+    #     TODO: MAKE THIS NOT JUST LITERALLY THE METHOD FROM Input AGAIN
+    #     Set attributes containing the name of the inital conf (dat file) and topology
+        # """
+        # self.sim.input.get_last_conf_top()
+        # # list files in file directory
+        # conf_top: list[str] = os.listdir(self.sim.file_dir)
+        # if self.top_filename is None:
+        #     try:
+        #         self.top_filename = [file for file in conf_top if file.endswith('.top')][0]
+        #     except IndexError:
+        #         raise SimBuildException()
+        # if self.last_conf_filename is None:
+        #     try:
+        #         last_conf = [file for file in conf_top
+        #                      if (file.startswith("last_conf")) and (not (file.endswith('pyidx')))][0]
+        #     except IndexError:
+        #         # if there's no file that starts with last_conf, search files that end with .dat
+        #         try:
+        #             last_conf = [file for file in conf_top if
+        #                          file.endswith('.dat') and not any([file.endswith("energy.dat"),
+        #                                                             file.endswith("trajectory.dat"),
+        #                                                             file.endswith("error_conf.dat")])
+        #                          ][0]
+        #         except IndexError:  # still nothing?
+        #             raise SimBuildMissingFileException(self.sim, "Last conf file")
 
-            self.last_conf_filename = last_conf
+        #     self.init_conf_filename = last_conf
 
     def build_sim_dir(self):
         """Make the simulation directory"""
@@ -271,12 +276,27 @@ class BuildSimulation(SimulationComponent):
             os.makedirs(self.sim.sim_dir)
 
     def build_dat_top(self):
-        """Write intial conf and toplogy to simulation directory"""
-        self.get_last_conf_top()
+        """
+        Write intial conf and toplogy to simulation directory
+        """
+        # find file-directory top and dat
+        if self.top_file_name is None:
+            self.top_file_name = find_top_file(self.file_dir, self.sim).name
+        if self.conf_file_name is None:
+            self.conf_file_name = find_conf_file(self.file_dir, self.sim).name
+
+        if "conf_file" in self.name_mapper:
+            self.sim.input.set_conf_file(self.name_mapper["conf_file"])
+        if "topology" in self.name_mapper:
+            self.sim.input.set_top_file(self.name_mapper["topology"])
+
         # copy dat file to sim directory
-        shutil.copy(self.file_dir / self.init_conf_filename, self.sim.sim_dir)
+        shutil.copy(self.file_dir / self.conf_file_name, self.sim.sim_dir)
+        shutil.move(self.sim.sim_dir / self.conf_file_name, self.sim.sim_dir / self.sim.input.get_conf_file())
+
         # copy top file to sim directory
-        shutil.copy(self.file_dir / self.top_filename, self.sim.sim_dir)
+        shutil.copy(self.file_dir / self.top_file_name, self.sim.sim_dir)
+        shutil.move(self.sim.sim_dir / self.top_file_name, self.sim.sim_dir / self.sim.input.get_top_file())
 
     def list_file_dir(self) -> list[str]:
         """
@@ -432,7 +452,6 @@ class BuildSimulation(SimulationComponent):
             return None
 
         except:
-
             with open(self.sim.sim_files.force, 'r') as f:
                 lines = f.readlines()
                 lines = [int(line.strip().split()[1].replace('"', '')[:-1]) for line in lines if 'particle' in line]
@@ -908,13 +927,10 @@ int main() {
         os.system('nvcc -o test_script test_script.cu')
         os.system('./test_script')
 
-
 class Input(SimulationComponent):
     # terrible practice to use a reserved word as a variable name. todo: change
     input: dict[str, str]
     default_input: DefaultInput
-    initial_conf: Union[str, None]
-    top: Union[str, None]
 
     """ Lower level input file methods"""
 
@@ -928,23 +944,22 @@ class Input(SimulationComponent):
         """
         SimulationComponent.__init__(self, sim)
         self.default_input = DefaultInput()
-        self.initial_conf = None
-        self.top = None
 
         if os.path.exists(self.sim.sim_dir):
             self.initalize_input()
+        self.input = {}
 
     def clear(self):
         """
         deletes existing input file data
         """
         self.input = {}
-        self.initial_conf = None
-        self.top = None
         self.write_input()
 
     def initalize_input(self, read_exsisting_input=True):
-
+        """
+        Initializes the input file
+        """
         if read_exsisting_input:
             exsiting_input = (self.sim.sim_dir / 'input.json').exists() or (self.sim.sim_dir / 'input').exists()
         else:
@@ -965,37 +980,20 @@ class Input(SimulationComponent):
         self.input = self.default_input.get_dict()
         self.write_input()
 
-    def get_last_conf_top(self):
+    def get_last_conf_top(self) -> tuple[str, str]:
         """
         Set attributes containing the name of the inital conf (dat file) and topology
         """
-        # list files in simulation directory
-        conf_top: list[str] = os.listdir(self.sim.sim_dir)
-
-        # skip inputs where we've already set top
-        if self.top is None:
-            try:
-                self.top = [file for file in conf_top if file.endswith('.top')][0]
-            except IndexError:
-                raise SimBuildException(self.sim, "topology file")
-        # skip inputs where we've already set top and
-        if self.initial_conf is None:
-            try:
-                last_conf = [file for file in conf_top
-                             if file.startswith('last_conf') and not file.endswith('pyidx')][0]
-            except IndexError:
-                try:
-                    last_conf = [file for file in conf_top if file.endswith(".dat") and not any([
-                        file.endswith("energy.dat"),
-                        file.endswith("trajectory.dat"),
-                        file.endswith("error_conf.dat")])
-                                 ][0]
-                except IndexError:
-                    raise SimBuildException(self.sim, "initial conf file")
-            self.initial_conf = last_conf
+        top, conf = find_top_dat(self.sim.sim_dir, self.sim)
+        self.initial_conf = conf.name
+        self.top = top.name
+        return self.initial_conf, self.top
+        
 
     def write_input_standard(self):
         """ Write a oxDNA input file to sim_dir"""
+        if not self.has_top_conf():
+            raise MissingTopConfException(self.sim)
         with oxpy.Context():
             ox_input = oxpy.InputFile()
             for k, v in self.input.items():
@@ -1006,13 +1004,11 @@ class Input(SimulationComponent):
     def write_input(self, production=False):
         """ Write an oxDNA input file as a json file to sim_dir"""
         if production is False:
-            if "conf_file" not in self.input or self.input["conf_file"] is None:
-                self.get_last_conf_top()
-                self.input["conf_file"] = self.initial_conf
-                self.input["topology"] = self.top
-            else:
-                self.initial_conf = self.input["conf_file"]
-                self.top = self.input["topology"]
+            if not self.has_top_conf():
+                top, conf = find_top_dat(self.sim.sim_dir, self.sim)
+                self.set_top_file(top.name)
+                self.set_conf_file(conf.name)
+
         # Write input file
         with open(os.path.join(self.sim.sim_dir, f'input.json'), 'w') as f:
             input_json = dumps(self.input, indent=4)
@@ -1024,7 +1020,7 @@ class Input(SimulationComponent):
                     ox_input[k] = str(v)
                 print(ox_input, file=f)
 
-    def modify_input(self, parameters):
+    def modify_input(self, parameters: dict):
         """ Modify the parameters of the oxDNA input file."""
         if os.path.exists(os.path.join(self.sim.sim_dir, 'input.json')):
             self.read_input()
@@ -1034,9 +1030,9 @@ class Input(SimulationComponent):
 
     def read_input(self):
         """ Read parameters of exsisting input file in sim_dir"""
-        if os.path.exists(os.path.join(self.sim.sim_dir, 'input.json')):
+        if (self.sim.sim_dir / "input.json").exists():
             try:
-                with open(os.path.join(self.sim.sim_dir, 'input.json'), 'r') as f:
+                with (self.sim.sim_dir / "input.json").open("r") as f:
                     content = f.read()
                     my_input = loads(content)
                 self.input = my_input
@@ -1052,6 +1048,51 @@ class Input(SimulationComponent):
                 # TODO: objects?
 
             self.input = my_input
+
+    def get_conf_file(self) -> Union[None, str]:
+        """
+        Returns: the conf file that the simulation will initialize from
+        """
+        if "conf_file" not in self.input:
+            return None
+        else:
+            return self.input["conf_file"]
+        
+    def set_conf_file(self, conf_file_name: str):
+        """
+        Sets the conf file
+        """
+        self.input["conf_file"] = conf_file_name
+
+    def get_top_file(self) -> Union[None, str]:
+        """
+        Returns: the topology file that the simulation will use
+        """
+        if "topology" not in self.input:
+            return None
+        else:
+            return self.input["topology"]
+
+    def set_top_file(self, top_file_name: str):
+        """
+        Sets the topology file
+        """
+        self.input["topology"] = top_file_name
+        
+    def has_top_conf(self) -> bool:
+        return self.get_conf_file() is not None and self.get_top_file() is not None
+
+    def get_last_conf(self) -> Union[None, str]:
+        if "lastconf_file" not in self.input:
+            return None
+        else:
+            return self.input["lastconf_file"]
+    
+    def set_last_conf(self, conf_file_name: str): 
+        self.input["lastconf_file"] = conf_file_name
+
+    initial_conf = property(get_conf_file, set_conf_file)
+    top = property(get_top_file, set_conf_file)
 
     def __getitem__(self, item: str):
         return self.input[item]
@@ -2058,6 +2099,9 @@ class SimFiles(SimulationComponent):
 class SimBuildException(Exception, SimulationComponent):
     pass
 
+class MissingTopConfException(SimBuildException):
+    def __str__(self) -> str:
+        return f"No specified topology and initial configuration files specified in the input file for simulation at {str(self.sim.sim_dir)}"
 
 class SimBuildMissingFileException(SimBuildException):
     missing_file_descriptor: str
@@ -2066,5 +2110,35 @@ class SimBuildMissingFileException(SimBuildException):
         SimulationComponent.__init__(self, sim)
         self.missing_file_descriptor = missing_file
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"No {self.missing_file_descriptor} in directory {str(self.sim.file_dir)}"
+
+def find_top_dat(directory: Path, sim: Simulation) -> tuple[Path, Path]:
+    # list files in simulation directory
+
+    # skip inputs where we've already set top
+
+    # skip inputs where we've already set top and
+    return find_top_file(directory, sim), find_conf_file(directory, sim)
+
+def find_top_file(directory: Path, sim: Simulation) -> Path:
+    try:
+        return [file for file in directory.iterdir() if file.name.endswith('.top')][0]
+    except IndexError:
+        raise SimBuildException(sim, "topology file")
+
+def find_conf_file(directory: Path, sim: Simulation) -> Path:
+    try:
+        last_conf = [file for file in directory.iterdir()
+                        if file.name.startswith('last_conf') 
+                        and not file.name.endswith('pyidx')][0]
+    except IndexError:
+        try:
+            last_conf = [file for file in directory.iterdir() if file.name.endswith(".dat") and not any([
+                file.name.endswith("energy.dat"),
+                file.name.endswith("trajectory.dat"),
+                file.name.endswith("error_conf.dat")])
+                            ][0]
+        except IndexError:
+            raise SimBuildException(sim, "initial conf file")
+    return last_conf

@@ -275,8 +275,10 @@ class SeperationFluxer:
                             ) -> Simulation:
         # todo: employ matt's defaults system when he writes it
         sim = Simulation(origin if isinstance(origin, Path) else origin.sim_dir, sim_dir)
+        sim.build()
+
         sim.input.swap_default_input("ffs")
-        sim.input["T"] = self.T
+        sim.input["T"] = f"{self.T}C"
         sim.input["seed"] = seed
         assert sim.file_dir.exists()
 
@@ -287,7 +289,6 @@ class SeperationFluxer:
             ffs_coindition.write(sim.sim_dir)
             sim.input["ffs_file"] = ffs_coindition.file_name()
             sim.input["order_parameters_file"] = "op.txt"
-        sim.build()
 
         sim.input.modify_input(other_inputs)
         sim.make_sequence_dependant()
@@ -326,6 +327,8 @@ class SeperationFluxer:
             simcount += 1
             # do not use OxpyRun multiprocessing, since we're already in an mps thread
             eq_sim.oxpy_run.run(subprocess=False)
+            if eq_sim.oxpy_run.error_message:
+                raise Exception(eq_sim.oxpy_run.error_message)
 
             plogger.info("equilibrated")
 

@@ -2,9 +2,7 @@
 import json
 import re
 from typing import Union
-
-import importlib_resources
-
+from importlib import resources
 
 class DefaultInput:
     _name: str
@@ -18,7 +16,7 @@ class DefaultInput:
         """
         reloads input dict from file, clearing evaluated info
         """
-        data_path = importlib_resources.files('ipy_oxdna') / "defaults" / "inputs" / f"{name}.json"
+        data_path = resources.files('ipy_oxdna') / "defaults" / "inputs" / f"{self._name}.json"
         with data_path.open("r") as f:
             data = json.load(f)
         self._input = data
@@ -31,21 +29,22 @@ class DefaultInput:
         r = r'f\(([^)]+)\) = (.+)'
         for key in self._input:
             # if the value is an expression that needs evaluation
-            match = re.match(r, self._input[key])
-            if match:
-                values_str, expression = match.groups()
-                # Split the values by comma and strip whitespace
-                argnames = [value.strip() for value in values_str.split(',')]
-                if not all([argname in kwargs for argname in argnames]):
-                    missing_arg = [argname for argname in argnames if argname not in kwargs][0]
-                    raise MissingParamError(key, missing_arg, list(kwargs.keys()))
-                expression_eval = expression
-                for argname in argnames:
-                    expression_eval = expression_eval.replace(argname, f"{kwargs[argname]}")
-                try:
-                    self._input[key] = eval(expression)
-                except SyntaxError as e:
-                    raise ValueError(f"Cannot parse expression {expression}")
+            if isinstance(self._input[key], str):
+                match = re.match(r, self._input[key])
+                if match:
+                    values_str, expression = match.groups()
+                    # Split the values by comma and strip whitespace
+                    argnames = [value.strip() for value in values_str.split(',')]
+                    if not all([argname in kwargs for argname in argnames]):
+                        missing_arg = [argname for argname in argnames if argname not in kwargs][0]
+                        raise MissingParamError(key, missing_arg, list(kwargs.keys()))
+                    expression_eval = expression
+                    for argname in argnames:
+                        expression_eval = expression_eval.replace(argname, f"{kwargs[argname]}")
+                    try:
+                        self._input[key] = eval(expression)
+                    except SyntaxError as e:
+                        raise ValueError(f"Cannot parse expression {expression}")
             # if it's not an expression we can just skip
 
     def get_dict(self) -> dict[str, str]:
@@ -55,10 +54,11 @@ class DefaultInput:
         # verify that all params are valid
         r = r'f\(([^)]+)\) = (.+)'
         for key in self._input:
-            # if the value is an expression that needs evaluation
-            match = re.match(r, self._input[key])
-            if match:
-                raise IncompleteInputError(key)
+            if isinstance(self._input[key], str):
+                # if the value is an expression that needs evaluation
+                match = re.match(r, self._input[key])
+                if match:
+                    raise IncompleteInputError(key)
         return {
             key: str(self._input[key]) for key in self._input
         }
@@ -73,6 +73,7 @@ def get_default_input(name: str) -> DefaultInput:
 
 # todo: better
 SEQ_DEP_PARAMS: dict[str, float] = {
+    "STCK_FACT_EPS": 0.18,
     "STCK_G_C": 1.69339,
     "STCK_C_G": 1.74669,
     "STCK_G_G": 1.61295,

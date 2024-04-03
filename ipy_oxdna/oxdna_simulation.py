@@ -15,8 +15,6 @@ from oxDNA_analysis_tools.UTILS.get_confs import Configuration
 from oxDNA_analysis_tools.UTILS.oxview import oxdna_conf
 from oxDNA_analysis_tools.UTILS.RyeReader import describe, get_confs
 
-from ipy_oxdna import observable
-from ipy_oxdna.defaults import DefaultInput, SEQ_DEP_PARAMS, NA_PARAMETERS, RNA_PARAMETERS, get_default_input
 import ipywidgets as widgets
 from IPython.display import display
 import pandas as pd
@@ -30,6 +28,9 @@ import queue
 import json
 import signal
 
+
+from . import observable
+from .defaults import DefaultInput, SEQ_DEP_PARAMS, NA_PARAMETERS, RNA_PARAMETERS, get_default_input
 from .force import Force
 
 
@@ -98,7 +99,7 @@ class Simulation:
         Parameters:
             clean_build (bool): If sim_dir already exsists, remove it and then rebuild sim_dir
         """
-        if os.path.exists(self.sim_dir):
+        if self.sim_dir.exists():
             # print(f'Exisisting simulation files in {self.sim_dir.split("/")[-1]}')
             if clean_build == True:
                 # TODO: support for non-cli contexts
@@ -230,7 +231,7 @@ class BuildSimulation(SimulationComponent):
         self.force_cache = None
 
         self.name_mapper = {
-            "last_conf": "init"  # default-case: rename last_conf to init
+            "conf_file": "init.dat"  # default-case: rename last_conf to init
         }
         self.top_file_name = None
         self.conf_file_name = None
@@ -246,7 +247,7 @@ class BuildSimulation(SimulationComponent):
 
     def build_sim_dir(self):
         """Make the simulation directory"""
-        if not os.path.exists(self.sim.sim_dir):
+        if not self.sim.sim_dir.exists():
             os.makedirs(self.sim.sim_dir)
 
     def build_dat_top(self):
@@ -261,8 +262,12 @@ class BuildSimulation(SimulationComponent):
 
         if "conf_file" in self.name_mapper:
             self.sim.input.set_conf_file(self.name_mapper["conf_file"])
+        else:
+            self.sim.input.set_conf_file(self.conf_file_name)
         if "topology" in self.name_mapper:
             self.sim.input.set_top_file(self.name_mapper["topology"])
+        else:
+            self.sim.input.set_top_file(self.top_file_name)
 
         # copy dat file to sim directory
         shutil.copy(self.file_dir / self.conf_file_name, self.sim.sim_dir)
@@ -1080,6 +1085,7 @@ class Input(SimulationComponent):
 
     def __setitem__(self, key: str, value: Union[str, float, bool]):
         self.input_dict[key] = value
+        self.write_input()
 
 
 class SequenceDependant(SimulationComponent):
@@ -1091,11 +1097,11 @@ class SequenceDependant(SimulationComponent):
     def __init__(self, sim: Simulation):
         SimulationComponent.__init__(self, sim)
         # TODO: hardcode sequence-dependant parameters externally
-        self.parameters = "\n".join([f"{name}: {value}" for name, value in SEQ_DEP_PARAMS.items()])
+        self.parameters = "\n".join([f"{name} = {value}" for name, value in SEQ_DEP_PARAMS.items()])
 
-        self.na_parameters = "\n".join([f"{name}: {value}" for name, value in NA_PARAMETERS.items()])
+        self.na_parameters = "\n".join([f"{name} = {value}" for name, value in NA_PARAMETERS.items()])
 
-        self.rna_parameters = "\n".join([f"{name}: {value}" for name, value in RNA_PARAMETERS.items()])
+        self.rna_parameters = "\n".join([f"{name} = {value}" for name, value in RNA_PARAMETERS.items()])
 
     def make_sim_sequence_dependant(self):
         self.sequence_dependant_input()

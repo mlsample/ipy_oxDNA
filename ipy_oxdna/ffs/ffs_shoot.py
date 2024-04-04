@@ -1,289 +1,193 @@
-#!/usr/bin/env python
+import glob
+import logging
+import random
+import shutil
+from multiprocessing import Array, Process, Value, Lock
+from pathlib import Path
+from typing import Union, Any
 
-'''
-Forward flux sampling shooting script
-Forward Flux sampling: shoot from one interface to the next
+from base_flux_sampler import BaseFluxSampler, success_pattern, read_output
+from ipy_oxdna.ffs.ffs_interface import FFSInterface, write_order_params, Condition
+from ipy_oxdna.oxdna_simulation import Simulation, find_top_file
+from ipy_oxdna.oxlog import OxLogHandler
 
-Flavio
-'''
-
-####################################
-# edit here
-####################################
-# number of successes, can be changed via command line
-desired_success_count = 100
-
-# executable set-up
-executable = '../../../build/bin/oxDNA'
-input = 'input'
-logfilename = 'ffs.log'
-starting_conf_pattern = '../FLUX/success*'
-success_pattern = './success_'
-keep_undetermined = True            # if True, the program saves undetermined confs
 undetermined_pattern = './undefin_'
 
-# interfaces 
-# interface lambda_{-1}
-lambda_f_name = 'dist1'
-lambda_f_value = 4.
-lambda_f_compar = '>'
 
-# interface lambda_{n}
-lambda_n_name = 'dist1'
-lambda_n_value = 1.
+class FFSShooter(BaseFluxSampler):
+    keep_undetermined: bool
 
-# interface lambda_{n+1}
-lambda_m_name = 'bond1'
-lambda_m_value = 1
-lambda_m_compar = '>='
-####################################
+    # list of starting conf files
+    starting_confs: list[str]
 
-import os, sys, getopt
-import subprocess as sp
-import time, random as rnd, tempfile as tf
-import shutil, glob
-from multiprocessing import Process, Lock, JoinableQueue, Value, Array
+    # interface lambda_{-1} - fail interface
+    lambda_f: FFSInterface
 
-def usage():
-	print('usage: %s %s' % (sys.argv[0], '[-n <num_sucesses>] [-s <seed>] [-c <ncpus>] [-k <success_count>]'), file=sys.stderr) 
+    # interface lambda_{n} - present interface?
+    lambda_n: FFSInterface
 
-try:
-	opts, files = getopt.gnu_getopt(sys.argv[1:], "n:s:c:k:v")
-except getopt.GetoptError as err:
-	usage()
-	sys.exit(2)
+    # interface lambda_{n+1} - next interface?
+    lambda_m: FFSInterface
 
-initial_seed = time.time()
-Verbose = False
-ncpus = 1
-initial_success_count = 0
+    # success count is in superclass
+    undetermined_count: Value
+    undetermined_lock: Lock
 
-try:
-	for o in opts:
-		k, v = o
-		if k == '-n':
-			desired_success_count = int(v)
-		elif k == '-s':
-			initial_seed = int(v)
-		elif k == '-c':
-			ncpus = int(v)
-		elif k == '-v':
-			Verbose = True
-		elif k == '-k':
-			initial_success_count = int(v)
-		else:
-			print("Warning: option %s not recognized" % (k), file=sys.stderr)
-except:
-	print("Error parsing options", file=sys.stderr)
-	sys.exit(3)
+    # array of successes from each start conf
+    success_from: Array
+    # array of attempts from each start conf
+    attempt_from: Array
 
-log_lock = Lock()
-log_file = open (logfilename, 'w', 1)
-def log(text):
-	log_lock.acquire()
-	log_file.write(text + '\n')
-	if Verbose:
-		print(text, file=sys.stdout)
-	log_lock.release()
+    def __init__(self,
+                 num_successes: int,
+                 desired_success_count: int,
+                 T: float,
+                 num_cpus: int = 1,
+                 seed: int = 0):
+        super().__init__(num_successes, desired_success_count, T, num_cpus, seed)
+        self.keep_undetermined = False
+        self.starting_confs = glob.glob(success_pattern + "*")
+        assert len(self.starting_confs) > 0
+        self.loghandler = OxLogHandler("ffs_shoot")
+        main_log = self.loghandler.spinoff("main")
+        main_log.info(f"Found {len(self.starting_confs)} starting confs")
 
-# starting configurations
-starting_confs = glob.glob(starting_conf_pattern)
-log ("Main: Found %d configurations with pattern: %s" % (len(starting_confs), starting_conf_pattern))
-if len(starting_confs) < 1:
-	print("0 starting configurations! aborting", file=sys.stderr)
-	sys.exit(2)
+        self.undetermined_count = Value("i", 0)
+        self.undetermined_lock = Lock()
 
-# check that we can write to the success pattern
-try:
-	checkfile = open (success_pattern + '0', 'w')
-	checkfile.close()
-	os.remove (success_pattern + '0')
-except:
-	print("could not write to success_pattern", success_pattern, file=sys.stderr)
-	sys.exit(3)
-	
-success_lock = Lock()
-success_count = Value ('i', initial_success_count)
-attempt_count = Value ('i', 0)
-success_from = Array ('i', len(starting_confs)) # zeroed by default
-attempt_from = Array ('i', len(starting_confs)) # zeroed by default
-undetermined_lock = Lock()
-undetermined_count = Value ('i', 0)
+        self.success_from = Array('i', len(self.starting_confs))  # zeroed by default
+        self.attempt_from = Array('i', len(self.starting_confs))  # zeroed by default
 
-# write the condition file
-if os.path.exists('conditions.txt'):
-	log ("Main: Warning: overwriting conditions file")
-condition_file = open('conditions.txt', "w")
-condition_file.write("action = stop_or\n")
-condition_file.write("condition1 = {\n%s %s %s\n}\n" % (lambda_f_name, lambda_f_compar, str(lambda_f_value)))
-condition_file.write("condition2 = {\n%s %s %s\n}\n" % (lambda_m_name, lambda_m_compar, str(lambda_m_value)))
-condition_file.close()
+    def set_interfaces(self,
+                       lambda_f: FFSInterface,
+                       lambda_n: FFSInterface,
+                       lambda_m: FFSInterface
+                       ):
+        self.lambda_f = lambda_f
+        self.lambda_n = lambda_n
+        self.lambda_m = lambda_m
 
-# base command line; all features that need to be in the input file
-# must be specified here
-base_command = [executable, input, 'ffs_file=conditions.txt', 'print_energy_every=1e5', 'print_conf_every=1e6','no_stdout_energy=1','refresh_velocity=0','restart_step_counter=1']
-base_command_string = ''.join (str(w) + ' ' for w in base_command)
-log("Main: COMMAND: " + base_command_string)
+        # only one condition, can init it at runtime
 
-if not os.path.exists(input):
-	log ("the input file provided (%s) does not exist. Aborting" % (input))
-	sys.exit(-3)
-# check of the input file. If it contains an entry for the log file, spit out an error
-inf = open (input, 'r')
-log_found = False
-for line in inf.readlines():
-	words = line.split ("=")
-	if len(words) >= 1:
-		if words[0].lstrip().startswith("log_file"):
-			log_found = True
-if (log_found):
-	print("\nERROR: This script does not work if \"log_file\" is set in the input file. Remove it! :)\n", file=sys.stderr)
-	sys.exit (-2)
-inf.close()
+    def run(self):
+        (self.tld() / "shoot").mkdir()
+        top_file_name = find_top_file(self.tld()).name
+        shutil.copy(self.tld() / top_file_name, self.tld() / "shoot" / top_file_name)
+        for conf in self.starting_confs:
+            shutil.copy(self.tld() / conf, self.tld() / "shoot" / conf)
+        self.set_tld(self.tld() / "shoot")
+        processes = []
+        main_logger = logging.getLogger("main")
+        for i in range(self.ncpus):
+            p = Process(target=self.ffs_process, args=(i, self.loghandler.spinoff(f"Worker{i}")))
+            processes.append(p)
 
-if not os.path.exists(executable):
-	log ("the executable file provided (%s) does not exist. Aborting" % (executable))
-	sys.exit(-3)
+        tp = Process(target=self.timer)
+        tp.start()
+        main_logger.info("starting processes...")
+        for p in processes:
+            p.start()
 
-rnd.seed (initial_seed)
+        main_logger.info("waiting for processes to finish")
+        for p in processes:
+            p.join()
 
-log ("Main: STARTING new shooting for %d" % desired_success_count)
-log ("Main: number of initial confs: %d" % len(starting_confs))
-desired_success_count += initial_success_count
+        main_logger.info("Terminating timer")
+        tp.terminate()  # terminate timer
 
-# this function does the work of running the simulation, identifying a
-# success or a failure, and taking appropriate actions
-def f(idx):
-	log ("Worker %d started" % idx)
-	global success_count
-	while success_count.value < desired_success_count:
-		# choose a starting configuration
-		#log ("Worker %d started" % idx)
-		conf_index = rnd.choice (list(range(1, len(starting_confs)))) # maybe we should start from 0
-		conf_file = starting_confs[conf_index]
-		global attempt_from, attempt_count
-		attempt_count.value += 1
-		attempt_from[conf_index] += 1
-		
-		seed = initial_seed + attempt_count.value 
-		last_conf = 'last_conf' + str(idx)
-		
-		# edit the command to be launched
-		command = base_command + ['conf_file=%s' % (conf_file), 'lastconf_file=%s' % (last_conf), 'seed=%d' % (seed)]
-		
-		# open a file to handle the output
-		output = tf.TemporaryFile ('r+')
-		
-		# here we run the command
-		# print command
-		r = sp.call (command, stdout=output, stderr=sp.STDOUT)
-		if r != 0:
-			print("Error running program", file=sys.stderr)
-			print("command line:", file=sys.stderr)
-			txt = ''
-			for c in command:
-				txt += c + ' '
-			print(txt, file=sys.stderr)
-			print('output:', file=sys.stderr)
-			output.seek(0)
-			for l in output.readlines():
-				print(l, end=' ', file=sys.stderr)
-			output.close()
-			sys.exit(-2)
-		
-		# now we process the output to find out wether the run was a success
-		# (interface lambda_m reached) or a failure (interface lamda_f reached)
-		output.seek(0)
-		for line in output.readlines():
-			words = line.split()
-			if len(words) > 1:
-				if words[1] == 'FFS' and words[2] == 'final':
-					data = [w for w in words[4:]]
-		op_names = data[::2]
-		op_value = data[1::2]
-		op_values = {}
-		for ii, name in enumerate(op_names):
-			op_values[name[:-1]] = float(op_value[ii][:-1])
-		
-		# now op_values is a dictionary representing the status of the final
-		# configuration. We now need to find out wether it is a success or
-		# a failure.
-		# print op_values, 'op_values["%s"] %s %s' % (lambda_m_name, lambda_m_compar, str(lambda_m_value)), 'op_values["%s"] %s %s' % (lambda_f_name, lambda_f_compar, str(lambda_f_value))
-		success = eval ('op_values["%s"] %s %s' % (lambda_m_name, lambda_m_compar, str(lambda_m_value)))
-		failure = eval ('op_values["%s"] %s %s' % (lambda_f_name, lambda_f_compar, str(lambda_f_value)))
-		
-		if success and not failure:
-			with success_lock:
-				global success_from 
-				success_count.value += 1
-				success_from[conf_index] += 1
-				shutil.copy (last_conf, success_pattern + str(success_count.value))
-			os.remove(last_conf)
-			log ("SUCCESS: worker %d: starting from conf_index %d and seed %d" % (idx, conf_index, seed))
-		elif not success and failure:
-			# do else
-			log ("FAILURE: worker %d: starting from conf_index %d and seed %d" % (idx, conf_index, seed))
-			os.remove (last_conf)
-		else:
-			# do undetermined
-			txt = ''	
-			output.seek(0)
-			for l in output.readlines():
-				txt += l
-			log ("UNDETERMINED: worker %d: starting from conf_index %d and seed %d\n%s" % (idx, conf_index, seed, txt))
-			with undetermined_lock:
-				undetermined_count.value += 1
-				if (keep_undetermined):
-					shutil.copy (last_conf, undetermined_pattern + str (undetermined_count.value))
-				else:
-					os.remove (last_conf)
-	log ("Enough processes are started. Worker %d returning" % idx)
+        nsuccesses = self.success_count.value - self.initial_success_count
+        # print >> sys.stderr, "nstarted: %d, nsuccesses: %d success_prob: %g" % (nstarted, nsuccesses, nsuccesses/float(nstarted))
+        main_logger.info("## log of successes probabilities from each starting conf")
+        main_logger.info("conf_index nsuccesses nattempts prob")
+        for k, v in enumerate(self.success_from):
+            txt = f"{k}    {v}    {self.attempt_from[k]}   "
+            if self.attempt_from[k] > 0:
+                txt += f"{(float(v) / float(self.attempt_from[k]))}"
+            else:
+                txt += 'NA'
+            main_logger.info(txt)
+        main_logger.info("# SUMMARY")
+        success_prob = nsuccesses / float(sum(self.attempt_from))
+        main_logger.info(f"# nsuccesses: {nsuccesses} nattempts: {sum(self.attempt_from)} success_prob: {success_prob}"
+                         f" undetermined: {self.undetermined_count.value}")
 
-# timer function: it spits out things
-def timer ():
-	log ("Timer started at %s" % (time.asctime(time.localtime())))
-	itime = time.time()
-	while True:
-		time.sleep (10)
-		now = time.time()
-		with success_lock:
-			ns = success_count.value - initial_success_count
-			na = attempt_count.value 
-			if (ns > 0):
-				log ("Timer: at %s: successes: %d, attemps: %d: prob: %g time per success: %g (%g sec)" % (time.asctime(time.localtime()), ns, na, float(ns)/na, (now-itime)/float(ns), now - itime))
-			else:
-				log ("Timer: at %s, no successes yet over %d attempts" % (time.asctime(time.localtime()), na))
+    def ffs_process(self, idx: int, plogger: logging.Logger):
+        plogger.info(f"Worker {idx} started")
+        sim_counter = 0
+        while self.success_count.value < self.desired_success_count:
+            # choose a starting configuration index
+            conf_index: int = random.choice(list(range(0, len(self.starting_confs))))
+            conf_file = self.starting_confs[conf_index]
 
-if __name__ == '__main__':
-	processes = []
-	for i in range (ncpus):
-		p = Process(target=f, args=(i,))
-		processes.append(p)
-	
-	tp = Process(target=timer)
-	tp.start()
-	log ("starting processes...")
-	for p in processes:
-		p.start()
-	
-	log ("waiting for processes to finish")
-	for p in processes:
-		p.join()
-	
-	log ("Terminating timer")
-	tp.terminate() # terminate timer
+            plogger.info(f"Chose starting configuration {conf_file}")
 
-	nsuccesses = success_count.value - initial_success_count
-	# print >> sys.stderr, "nstarted: %d, nsuccesses: %d success_prob: %g" % (nstarted, nsuccesses, nsuccesses/float(nstarted))
-	log ("## log of successes probabilities from each starting conf")
-	log ("conf_index nsuccesses nattempts prob")
-	for k, v in enumerate(success_from):
-		txt = "%3d    %3d    %3d   " % (k, v, attempt_from[k])
-		if attempt_from[k] > 0:
-			txt += '%g' % (float(v)/float(attempt_from[k]))
-		else:
-			txt += 'NA'
-		log(txt)
-	log ("# SUMMARY")
-	log ("# nsuccesses: %d nattempts: %d success_prob: %g undetermined: %d" % (nsuccesses, attempt_count.value, nsuccesses/float(attempt_count.value), undetermined_count.value))
+            # iter attempt count
+            self.attempt_from[conf_index] += 1
+            sim_dir = self.tld() / f"p{idx}" / f"sim{sim_counter}"
+            seed = self.initial_seed + sum(self.attempt_from)
 
+            sim = self.make_ffs_simulation(conf_file,
+                                           sim_dir,
+                                           seed
+                                           )
+
+            sim.oxpy_run.run(subprocess=False)
+            sim_counter += 1
+
+            op_values = read_output(sim)
+            success = self.lambda_m.test(op_values[self.lambda_m.op.name])
+            failure = self.lambda_f.test(op_values[self.lambda_f.op.name])
+
+            if success and not failure:
+                with self.success_lock:
+                    self.success_count.value += 1
+                    self.success_from[conf_index] += 1
+                    shutil.copy(
+                        f"{sim.sim_dir}/{sim.input.input_dict['lastconf_file']}",
+                        f"{success_pattern + str(self.success_count.value)}.dat"
+                    )
+                    plogger.info(f"SUCCESS: worker {idx}: starting from conf_index {conf_index} and seed {seed}")
+            elif not success and failure:
+                # do else
+                plogger.info(f"FAILURE: worker {idx}: starting from conf_index {idx} and seed {seed}")
+            else:
+                # do undetermined
+                sim_log_file = sim.sim_dir / sim.input.input_dict["log_file"]
+                with sim_log_file.open("r") as f:
+                    txt = f.read()
+                plogger.info(f"UNDETERMINED: worker {idx}: starting from conf_index {conf_index} and seed {seed}"
+                             f"\n{txt}")
+                with self.undetermined_lock:
+                    self.undetermined_count.value += 1
+                    if self.keep_undetermined:
+                        shutil.copy(
+                            f"{sim.sim_dir}/{sim.input.input_dict['lastconf_file']}",
+                            f"{undetermined_pattern + str(self.undetermined_count.value)}.dat"
+                        )
+        plogger.info(f"Enough processes are started. Worker {idx} returning")
+
+    def make_ffs_simulation(self,
+                            start_conf: str,
+                            sim_dir: Path,
+                            seed: int,
+                            ) -> Simulation:
+        # todo: employ matt's defaults system when he writes it
+        sim = Simulation(self.tld(), sim_dir)
+        sim.input.swap_default_input("ffs")
+        sim.input["T"] = self.T
+        sim.input["seed"] = seed
+        assert (self.tld() / start_conf).exists()
+        sim.input.set_conf_file(start_conf)
+
+        # write order parameters file
+        ffs_condition = Condition("shoot_condition", [self.lambda_f, self.lambda_m])
+        write_order_params(sim.sim_dir / "op.txt", *ffs_condition.get_order_params())
+        # write ffs condition file
+        ffs_condition.write(sim.sim_dir)
+        sim.input["ffs_file"] = ffs_condition.file_name()
+        sim.input["order_parameters_file"] = "op.txt"
+        sim.build()
+
+        sim.make_sequence_dependant()
+
+        return sim

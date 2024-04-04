@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 from abc import ABC
 from pathlib import Path
 from typing import Any, Union
@@ -2107,7 +2108,11 @@ class SimBuildMissingFileException(SimBuildException):
         return f"No {self.missing_file_descriptor} in directory {str(self.sim.file_dir)}"
 
 
-def find_top_dat(directory: Path, sim: Simulation) -> tuple[Path, Path]:
+def find_top_dat(directory: Path, sim: Union[Simulation, None] = None) -> tuple[Path, Path]:
+    """
+    Tries to find a top and dat file in the provided directory. simulation object is provided
+    for err-messaging purposes only
+    """
     # list files in simulation directory
 
     # skip inputs where we've already set top
@@ -2116,14 +2121,27 @@ def find_top_dat(directory: Path, sim: Simulation) -> tuple[Path, Path]:
     return find_top_file(directory, sim), find_conf_file(directory, sim)
 
 
-def find_top_file(directory: Path, sim: Simulation) -> Path:
+def find_top_file(directory: Path, sim: Union[Simulation, None] = None) -> Path:
+    """
+    Tries to find a top file in the provided directory. simulation object is provided
+    for err-messaging purposes only
+    """
     try:
         return [file for file in directory.iterdir() if file.name.endswith('.top')][0]
     except IndexError:
-        raise SimBuildException(sim, "topology file")
+        if sim is not None:
+            raise SimBuildException(sim, "topology file")
+        else:
+            raise FileNotFoundError(errno.ENOENT,
+                                    os.strerror(errno.ENOENT),
+                                    f"No valid .top file found in directory {str(directory)}")
 
 
-def find_conf_file(directory: Path, sim: Simulation) -> Path:
+def find_conf_file(directory: Path, sim: Union[Simulation, None] = None) -> Path:
+    """
+    Tries to find a dat file in the provided directory. simulation object is provided
+    for err-messaging purposes only
+    """
     try:
         last_conf = [file for file in directory.iterdir()
                      if file.name.startswith('last_conf')
@@ -2136,5 +2154,10 @@ def find_conf_file(directory: Path, sim: Simulation) -> Path:
                 file.name.endswith("error_conf.dat")])
                          ][0]
         except IndexError:
-            raise SimBuildException(sim, "initial conf file")
+            if sim is not None:
+                raise SimBuildException(sim, "initial conf file")
+            else:
+                raise FileNotFoundError(errno.ENOENT,
+                                        os.strerror(errno.ENOENT),
+                                        f"No valid .dat file found in directory {str(directory)}")
     return last_conf

@@ -19,10 +19,8 @@ from .ffs_interface import FFSInterface, Condition
 import time, random as rnd
 from multiprocessing import Value
 
-from pypatchy.util import get_spec_json
-
-
-class FFSFluxer(SimulationManager):
+from .base_flux_sampler import  BaseFluxSampler
+class FFSFluxer(BaseFluxSampler):
     """
     I'm writing this specifically for a strand seperation
     TODO: generalize

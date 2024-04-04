@@ -43,13 +43,14 @@ class OrderParameter:
             f.write(f"\torder_parameter = {self.order_parameter}\n")
             f.write(f"\tname = {self.name}\n")
             for (n, (base1, base2)) in enumerate(self.pairs):
-                f.write(f"\tpair{n+1} = {base1}, {base2}\n")
+                f.write(f"\tpair{n + 1} = {base1}, {base2}\n")
             f.write("}\n")
 
 
 def write_order_params(op_file_name: Path, *args):
     for op in args:
         op.write(op_file_name)
+
 
 @dataclass(frozen=True)
 class FFSInterface:
@@ -82,7 +83,7 @@ class FFSInterface:
             raise Exception(f"unrecognized operator {self.compare}")
 
         return FFSInterface(self.op, self.val, newop)
-    
+
     def flip(self) -> FFSInterface:
         """
         similar to __invert__ but instead of the logical opposite it reverses
@@ -117,6 +118,7 @@ class FFSInterface:
         else:
             return self.test(self.op.compute_value(val))
 
+
 @dataclass(frozen=True)
 class Condition:
     # condition name, for writing a file
@@ -133,15 +135,16 @@ class Condition:
         with (write_dir / self.file_name()).open("w") as f:
             f.write(f"action = stop_{self.condition_type}\n")
             for n, interface in enumerate(self.interfaces):
-                f.write(f"condition{n+1} = " + "{\n" +
+                f.write(f"condition{n + 1} = " + "{\n" +
                         f"{interface.op.name} {interface.compare.value} {interface.val}" +
                         "\n}\n")
 
     def file_name(self) -> str:
         return f"{self.condition_name}.txt"
-    
+
     def get_order_params(self) -> list[OrderParameter]:
         return order_params(*self.interfaces)
+
 
 def order_params(*args: FFSInterface) -> list[OrderParameter]:
     """
@@ -149,7 +152,7 @@ def order_params(*args: FFSInterface) -> list[OrderParameter]:
     """
 
     ops = []
-    op_names = set() # use name set to avoid pass-by-value bullshit
+    op_names = set()  # use name set to avoid pass-by-value bullshit
     for interface in args:
         if interface.op.name not in op_names:
             op_names.add(interface.op.name)

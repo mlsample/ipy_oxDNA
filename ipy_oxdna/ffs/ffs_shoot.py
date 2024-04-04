@@ -6,10 +6,10 @@ from multiprocessing import Array, Process, Value, Lock
 from pathlib import Path
 from typing import Union, Any
 
-from base_flux_sampler import BaseFluxSampler, success_pattern, read_output
-from ipy_oxdna.ffs.ffs_interface import FFSInterface, write_order_params, Condition
-from ipy_oxdna.oxdna_simulation import Simulation, find_top_file
-from ipy_oxdna.oxlog import OxLogHandler
+from .base_flux_sampler import BaseFluxSampler, success_pattern, read_output
+from .ffs_interface import FFSInterface, write_order_params, Condition
+from ..oxdna_simulation import Simulation, find_top_file
+from ..oxlog import OxLogHandler
 
 undetermined_pattern = './undefin_'
 
@@ -24,7 +24,7 @@ class FFSShooter(BaseFluxSampler):
     lambda_f: FFSInterface
 
     # interface lambda_{n} - present interface?
-    lambda_n: FFSInterface
+    # lambda_n: FFSInterface
 
     # interface lambda_{n+1} - next interface?
     lambda_m: FFSInterface
@@ -60,11 +60,11 @@ class FFSShooter(BaseFluxSampler):
 
     def set_interfaces(self,
                        lambda_f: FFSInterface,
-                       lambda_n: FFSInterface,
+                    #    lambda_n: FFSInterface,
                        lambda_m: FFSInterface
                        ):
         self.lambda_f = lambda_f
-        self.lambda_n = lambda_n
+        # self.lambda_n = lambda_n
         self.lambda_m = lambda_m
 
         # only one condition, can init it at runtime
@@ -117,7 +117,7 @@ class FFSShooter(BaseFluxSampler):
         while self.success_count.value < self.desired_success_count:
             # choose a starting configuration index
             conf_index: int = random.choice(list(range(0, len(self.starting_confs))))
-            conf_file = self.starting_confs[conf_index]
+            conf_file = Path(self.starting_confs[conf_index]).name
 
             plogger.info(f"Chose starting configuration {conf_file}")
 
@@ -128,10 +128,11 @@ class FFSShooter(BaseFluxSampler):
 
             sim = self.make_ffs_simulation(conf_file,
                                            sim_dir,
-                                           seed
-                                           )
+                                           seed)
 
             sim.oxpy_run.run(subprocess=False)
+            if sim.oxpy_run.error_message:
+                raise Exception(sim.oxpy_run.error_message)
             sim_counter += 1
 
             op_values = read_output(sim)
@@ -144,7 +145,7 @@ class FFSShooter(BaseFluxSampler):
                     self.success_from[conf_index] += 1
                     shutil.copy(
                         f"{sim.sim_dir}/{sim.input.input_dict['lastconf_file']}",
-                        f"{success_pattern + str(self.success_count.value)}.dat"
+                        f"{sim.file_dir}/shoot_success_{str(self.success_count.value)}.dat"
                     )
                     plogger.info(f"SUCCESS: worker {idx}: starting from conf_index {conf_index} and seed {seed}")
             elif not success and failure:
@@ -173,11 +174,15 @@ class FFSShooter(BaseFluxSampler):
                             ) -> Simulation:
         # todo: employ matt's defaults system when he writes it
         sim = Simulation(self.tld(), sim_dir)
+        sim.build_sim.conf_file_name = start_conf
+        sim.build()
+
         sim.input.swap_default_input("ffs")
-        sim.input["T"] = self.T
+        sim.input["T"] = f"{self.T}C"
         sim.input["seed"] = seed
+        sim.input["restart_step_counter"] = 0
+        sim.input["steps"] = 2e10 # as good as forever
         assert (self.tld() / start_conf).exists()
-        sim.input.set_conf_file(start_conf)
 
         # write order parameters file
         ffs_condition = Condition("shoot_condition", [self.lambda_f, self.lambda_m])
@@ -186,7 +191,6 @@ class FFSShooter(BaseFluxSampler):
         ffs_condition.write(sim.sim_dir)
         sim.input["ffs_file"] = ffs_condition.file_name()
         sim.input["order_parameters_file"] = "op.txt"
-        sim.build()
 
         sim.make_sequence_dependant()
 

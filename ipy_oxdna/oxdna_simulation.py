@@ -271,12 +271,18 @@ class BuildSimulation(SimulationComponent):
             self.sim.input.set_top_file(self.top_file_name)
 
         # copy dat file to sim directory
-        shutil.copy(self.file_dir / self.conf_file_name, self.sim.sim_dir)
-        shutil.move(self.sim.sim_dir / self.conf_file_name, self.sim.sim_dir / self.sim.input.get_conf_file())
+        assert (self.file_dir / self.conf_file_name).exists()
+        shutil.copy(self.file_dir / self.conf_file_name, 
+                    self.sim.sim_dir)
+        shutil.move(self.sim.sim_dir / self.conf_file_name,
+                    self.sim.sim_dir / self.sim.input.get_conf_file())
 
         # copy top file to sim directory
-        shutil.copy(self.file_dir / self.top_file_name, self.sim.sim_dir)
-        shutil.move(self.sim.sim_dir / self.top_file_name, self.sim.sim_dir / self.sim.input.get_top_file())
+        assert(self.file_dir / self.top_file_name).exists()
+        shutil.copy(self.file_dir / self.top_file_name,
+                    self.sim.sim_dir)
+        shutil.move(self.sim.sim_dir / self.top_file_name,
+                    self.sim.sim_dir / self.sim.input.get_top_file())
 
     def list_file_dir(self) -> list[str]:
         """

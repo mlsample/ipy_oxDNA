@@ -5,8 +5,9 @@ from pathlib import Path
 import logging
 from typing import Union
 
-from ipy_oxdna.ffs.ffs_interface import FFSInterface
-from ipy_oxdna.oxdna_simulation import Simulation
+from .ffs_interface import FFSInterface
+from ..oxdna_simulation import Simulation
+from ..oxlog import OxLogHandler
 
 success_pattern = './success_'
 
@@ -21,7 +22,7 @@ class BaseFluxSampler(ABC):
     success_lock: Lock
     success_count: Value
 
-    loghandler: logging
+    loghandler: OxLogHandler
     working_directory: Path
 
     def __init__(self,
@@ -70,12 +71,11 @@ class BaseFluxSampler(ABC):
             now = time.time()
             with self.success_lock:
                 ns = self.success_count.value - self.initial_success_count
+                logstr = f"Timer: at {time.asctime(time.localtime())} (runtime {now - itime}s):"
                 if ns > 1:
-                    logger.info(
-                        f"Timer: at {time.asctime(time.localtime())}: successes: {ns}, time per success: {(now - itime) / float(ns)} ({now - itime} sec)")
+                    logger.info(logstr +  f" successes: {ns}, time per success: {(now - itime) / float(ns)}s")
                 else:
-                    logger.info(
-                        f"Timer: at {time.asctime(time.localtime())}: no successes yet (at {self.success_count.value})")
+                    logger.info(logstr + f" no successes yet (at {self.success_count.value})")
 
 
 def read_output(init_sim: Simulation) -> dict[str, float]:

@@ -11,8 +11,10 @@ from .ffs_interface import FFSInterface, write_order_params, Condition
 from ..oxdna_simulation import Simulation, find_top_file
 from ..oxlog import OxLogHandler
 
-undetermined_pattern = './undefin_'
+import pandas as pd
+import numpy as np
 
+undetermined_pattern = './undefin_'
 
 class FFSShooter(BaseFluxSampler):
     keep_undetermined: bool
@@ -49,8 +51,6 @@ class FFSShooter(BaseFluxSampler):
         self.starting_confs = glob.glob(success_pattern + "*")
         assert len(self.starting_confs) > 0
         self.loghandler = OxLogHandler("ffs_shoot")
-        main_log = self.loghandler.spinoff("main")
-        main_log.info(f"Found {len(self.starting_confs)} starting confs")
 
         self.undetermined_count = Value("i", 0)
         self.undetermined_lock = Lock()
@@ -77,7 +77,9 @@ class FFSShooter(BaseFluxSampler):
             shutil.copy(self.tld() / conf, self.tld() / "shoot" / conf)
         self.set_tld(self.tld() / "shoot")
         processes = []
-        main_logger = logging.getLogger("main")
+        main_logger = self.loghandler.spinoff("main")
+        main_logger.info(f"Found {len(self.starting_confs)} starting confs")
+
         for i in range(self.ncpus):
             p = Process(target=self.ffs_process, args=(i, self.loghandler.spinoff(f"Worker{i}")))
             processes.append(p)
@@ -99,13 +101,19 @@ class FFSShooter(BaseFluxSampler):
         # print >> sys.stderr, "nstarted: %d, nsuccesses: %d success_prob: %g" % (nstarted, nsuccesses, nsuccesses/float(nstarted))
         main_logger.info("## log of successes probabilities from each starting conf")
         main_logger.info("conf_index nsuccesses nattempts prob")
-        for k, v in enumerate(self.success_from):
-            txt = f"{k}    {v}    {self.attempt_from[k]}   "
-            if self.attempt_from[k] > 0:
-                txt += f"{(float(v) / float(self.attempt_from[k]))}"
-            else:
-                txt += 'NA'
-            main_logger.info(txt)
+        successes_data = pd.DataFrame([{
+            "File": self.starting_confs[i],
+            "Attempts": self.attempt_from[i],
+            "Successes": success_count if self.attempt_from[i] > 0 else np.nan
+        } for i,success_count in enumerate(self.success_from)])
+        # for k, v in enumerate(self.success_from):
+        #     txt = f"{k}    {v}    {self.attempt_from[k]}   "
+        #     if self.attempt_from[k] > 0:
+        #         txt += f"{(float(v) / float(self.attempt_from[k]))}"
+        #     else:
+        #         txt += 'NA'
+        #     main_logger.info(txt)
+        successes_data.to_csv(self.tld() / "success_log.csv")
         main_logger.info("# SUMMARY")
         success_prob = nsuccesses / float(sum(self.attempt_from))
         main_logger.info(f"# nsuccesses: {nsuccesses} nattempts: {sum(self.attempt_from)} success_prob: {success_prob}"

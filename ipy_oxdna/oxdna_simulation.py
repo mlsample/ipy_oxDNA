@@ -21,14 +21,11 @@ import nvidia_smi
 import timeit
 import subprocess as sp
 import traceback
-import re
-import time
 import queue
 import json
 import signal
+import pickle
 
-
-# import cupy
 
 class Simulation:
     file_dir: str
@@ -158,6 +155,19 @@ class Simulation:
     def make_sequence_dependant(self):
         """ Add a sequence dependant file to simulation directory and modify input file to use it."""
         self.sequence_dependant.make_sim_sequence_dependant()
+
+
+    def pickle_sim(self):
+        """ Pickle the simulation object to a file."""
+        with open(f'{self.sim_dir}/sim.pkl', 'wb') as f:
+            pickle.dump(self, f)
+
+    @classmethod        
+    def from_pickle(cls, filename):
+        """ Read a pickled simulation object from a file."""
+        with open(filename, 'rb') as f:
+            sim = pickle.load(f)
+        return sim
 
 
 
@@ -747,7 +757,7 @@ class SimulationManager:
                             wait_for_gpu_memory = False
             else:
                 if cpu_run is False:
-                    sleep(5)
+                    sleep(0.5)
                 elif cpu_run is True:
                     sleep(0.1)
 

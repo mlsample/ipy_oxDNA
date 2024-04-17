@@ -2132,6 +2132,8 @@ def find_top_file(directory: Path, sim: Union[Simulation, None] = None) -> Path:
     Tries to find a top file in the provided directory. simulation object is provided
     for err-messaging purposes only
     """
+    if not directory.exists():
+        raise FileNotFoundError(f"{str(directory)} does not exist")
     try:
         return [file for file in directory.iterdir() if file.name.endswith('.top')][0]
     except IndexError:

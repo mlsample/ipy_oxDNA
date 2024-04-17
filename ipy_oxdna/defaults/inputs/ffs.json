@@ -15,6 +15,10 @@
 	"salt_concentration": 1.0,
 	"trajectory_file": "trajectory.dat",
 	"energy_file": "energy.dat",
+<<<<<<< Updated upstream
 	"time_scale": "linear",
 	"lastconf_file": "last_conf.dat"
+=======
+	"time_scale": "linear"
+>>>>>>> Stashed changes
 }

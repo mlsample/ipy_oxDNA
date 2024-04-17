@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import itertools
 import json
 from collections import namedtuple
 from datetime import datetime
@@ -10,6 +11,8 @@ from typing import Union, Generator
 import numpy as np
 from oxDNA_analysis_tools.UTILS.RyeReader import get_traj_info, linear_read
 from oxDNA_analysis_tools.UTILS.data_structures import TopInfo, Configuration
+
+from .defaults import SEQ_DEP_PARAMS
 from .util import rotation_matrix
 
 # universal indexer for residues
@@ -248,6 +251,8 @@ class DNAStructureStrand:
         else:
             return "".join(self.bases)
 
+    def __str__(self):
+        return "".join(self.bases)
 
 # this shit was originally in a file called helix.py
 # i cannot be held resposible for this
@@ -619,6 +624,24 @@ class DNAStructure:
 
     def validate(self) -> bool:
         return all([s.validate() for s in self.strands])
+
+    def possible_bonds(self,
+                       idxs1: list[int],
+                       idxs2: list[int],
+                       min_hybrid_length: int = 1) -> list[tuple[int, int]]:
+        """
+        Parameters:
+            idxs1: indexes of nucleotides in first sequence
+            idxs2: indexes of nucleotides in second sequence
+            min_hybrid_length: minimum length of hybridized sequences to check for. TODO: implement
+        """
+
+        possible_bonds: list[tuple[int, int]] = []
+
+        for idx1, idx2 in itertools.product(idxs1, idxs2):
+            if f"HYDR_{self.get_base(idx1).base}_{self.get_base(idx2).base}" in SEQ_DEP_PARAMS:
+                possible_bonds.append((idx1, idx2))
+        return possible_bonds
 
 
 def load_dna_structure(top: Union[str, Path], conf_file: Union[str, Path]) -> DNAStructure:

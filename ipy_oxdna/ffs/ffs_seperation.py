@@ -76,7 +76,6 @@ class SeperationFluxer(BaseFluxSampler):
         (self.tld() / "ffs_flux").mkdir()
 
         self.set_tld(self.tld() / "ffs_flux")
-        self.set_tld()
         processes = []
         self.loghandler = OxLogHandler("ffs")
         main_log = self.loghandler.spinoff("main")

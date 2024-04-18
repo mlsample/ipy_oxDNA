@@ -25,7 +25,7 @@ import queue
 import json
 import signal
 import pickle
-
+import warnings
 
 class Simulation:
     file_dir: str
@@ -637,15 +637,22 @@ class SlurmRun:
 
 
 class SimulationManager:
+
     manager: mp.Manager
     sim_queue: queue.Queue
     process_queue: queue.Queue
     gpu_memory_queue: queue.Queue
     terminate_queue: queue.Queue
     worker_process_list: list
+    
+    warnings.filterwarnings(
+    "ignore",
+    "os.fork\\(\\) was called\\. os\\.fork\\(\\) is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock\\.",
+    RuntimeWarning
+    )
     """ In conjunction with nvidia-cuda-mps-control, allocate simulations to avalible cpus and gpus."""
 
-    def __init__(self, n_processes=len(os.sched_getaffinity(0)) - 1):
+    def __init__(self, n_processes=len(os.sched_getaffinity(0))):
         """
         Initalize the multiprocessing queues used to manage simulation allocation.
         
@@ -656,6 +663,7 @@ class SimulationManager:
         Parameters:
             n_processes (int): number of processes/cpus avalible to run oxDNA simulations in parallel.
         """
+
         self.n_processes = n_processes
         self.manager = mp.Manager()
         self.sim_queue = self.manager.Queue()
@@ -667,7 +675,11 @@ class SimulationManager:
     def gpu_resources(self) -> tuple[np.ndarray, int]:
         """ Method to probe the number and current avalible memory of gpus."""
         avalible_memory = []
-        nvidia_smi.nvmlInit()
+        try:
+            nvidia_smi.nvmlInit()
+        except Exception as e:
+            print('nvidia-smi not avalible, ensure you have a cuda enabled GPU')
+            raise e
         NUMBER_OF_GPU = nvidia_smi.nvmlDeviceGetCount()
         for i in range(NUMBER_OF_GPU):
             handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
@@ -700,8 +712,10 @@ class SimulationManager:
         try:
             mem = err_split.index('memory:')
             sim_mem = err_split[mem + 1]
-        except:
-            print("Unable to determine CUDA memoery usage")
+        except Exception as e:
+            print("Unable to determine CUDA memory usage")
+            print(traceback.format_exc())
+            raise e
             
         return float(sim_mem)
 

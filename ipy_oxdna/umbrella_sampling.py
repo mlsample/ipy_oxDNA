@@ -10,14 +10,12 @@ from scipy.optimize import curve_fit
 from scipy.stats import multivariate_normal, norm, t
 from scipy.special import logsumexp
 import matplotlib.pyplot as plt
-import scienceplots
 from copy import deepcopy
 from ipy_oxdna.vmmc import VirtualMoveMonteCarlo
 from tqdm import tqdm
 import io
 import sys
 import contextlib
-import concurrent.futures
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed# from numba import jit
 import pickle
 from json import load, dump
@@ -25,9 +23,8 @@ import traceback
 import warnings
 from scipy.optimize import OptimizeWarning
 import pyarrow
-import pymbar
-from functools import partial
 import warnings
+
 
 class BaseUmbrellaSampling:
     def __init__(self, file_dir, system, clean_build=False):
@@ -1160,7 +1157,7 @@ class PymbarAnalysis:
         if temp_range is None:
             results = self._fes_histogram(u_kn, x_n, bin_edges, bin_center_i)
             f_i = results["f_i"]
-            # df_i = results["df_i"]
+            df_i = results["df_i"]
             f_i = f_i - f_i.min()
             
         elif temp_range is not None:
@@ -1178,7 +1175,6 @@ class PymbarAnalysis:
                 df_i[temp_idx, :] = results["df_i"]
                 f_i[temp_idx, :] = f_i[temp_idx, :] - f_i[temp_idx, 0]
                 
-            bin_center_i = self._modify_bin_center(bin_center_i, op_string)
             
         bin_centers = np.array(bin_center_i).T
         bin_centers[0,:] = self._modify_bin_center(bin_centers[0,:], op_string_0)
@@ -1194,7 +1190,7 @@ class PymbarAnalysis:
         all_centers = np.array(all_centers)
         
         
-        return f_i_bin_pair, all_centers#, df_i
+        return f_i_bin_pair, all_centers, df_i
 
             
     def calculate_melting_temperature(self, temp_range, probabilities):        
@@ -1429,7 +1425,7 @@ class PymbarAnalysis:
         histogram_parameters = {}
         histogram_parameters["bin_edges"] = bin_edges
         self.basefes.generate_fes(u_kn, op_n, fes_type="histogram", histogram_parameters=histogram_parameters)
-        results = self.basefes.get_fes(bin_center_i)#, reference_point="from-lowest", uncertainty_method="analytical")
+        results = self.basefes.get_fes(bin_center_i, reference_point="from-lowest", uncertainty_method="analytical")
         return results
     
     
@@ -1455,7 +1451,7 @@ class PymbarAnalysis:
             bin_center_i, bin_edges = self._bin_centers(op_min, op_max, n_bins, discrete=True)
             
         elif op_string == 'com_distance':
-            op_min = 1e-2 # min of reaction coordinate
+            op_min = np.min([np.min(inner_list[op_string]) for inner_list in self.base_umbrella.obs_df]) + 1e-2 # min of reaction coordinate
             op_max = np.max([np.max(inner_list[op_string]) for inner_list in self.base_umbrella.obs_df]) -1e-1  # max of reaction coordinate
 
             # compute bin centers
@@ -2513,7 +2509,7 @@ class UmbrellaAnalysis:
         try:
             observable = pd.read_csv(f"{sim.sim_dir}/{file_name}", header=None, engine='pyarrow')
         except (FileNotFoundError, pyarrow.lib.ArrowInvalid) as e:
-            print(f'Error reading:\n {sim.sim_dir}\nWith Exception:\n {e}')
+            print(f'No Data found in all_observables.txt file at:\n {sim.sim_dir}')
             observable = pd.DataFrame()
 
         if not observable.empty:
@@ -2679,14 +2675,8 @@ class WhamAnalysis:
             n_boot (str): Number of monte carlo bootstrapping error analysis iterations to preform.
 
         """
-
-        
         self.base_umbrella.com_dir = join(self.base_umbrella.production_sim_dir, 'com_dir')
-        pre_temp = self.base_umbrella.production_sims[0].input.input['T']
-        if ('C'.upper() in pre_temp) or ('C'.lower() in pre_temp):
-            self.base_umbrella.temperature = (float(pre_temp[:-1]) + 273.15) / 3000
-        elif ('K'.upper() in pre_temp) or ('K'.lower() in pre_temp):
-             self.base_umbrella.temperature = float(pre_temp[:-1]) / 3000
+        self.base_umbrella.info_utils.get_temperature()
         wham_analysis(wham_dir,
                       self.base_umbrella.production_sim_dir,
                       self.base_umbrella.com_dir,
@@ -3036,7 +3026,6 @@ class WhamAnalysis:
             ax.plot(df.loc[:, '#Coor'], df.loc[:, 'Free'], label=label)      
             
             
-            
 @contextlib.contextmanager
 def suppress_output():
     new_stdout = io.StringIO()
@@ -3050,3 +3039,6 @@ def suppress_output():
     finally:
         sys.stdout = old_stdout
         sys.stderr = old_stderr
+        
+with suppress_output():
+    import pymbar

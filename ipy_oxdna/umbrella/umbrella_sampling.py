@@ -1253,7 +1253,7 @@ class PymbarAnalysis:
 
         return bin_center_i, bin_edges
 
-    def _subsample_correlated_data(K, N_k, op_kn):
+    def _subsample_correlated_data(self, K, N_k, op_kn):
         com_kn = [inner_list['com_distance'] for inner_list in self.base_umbrella.obs_df]
         com_kn = np.array([np.pad(inner_list, (0, N_max - len(inner_list)), 'constant') for inner_list in com_kn])
         for k in range(K):

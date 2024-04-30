@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import itertools
 import json
 from collections import namedtuple
 from datetime import datetime
@@ -10,6 +11,8 @@ from typing import Union, Generator
 import numpy as np
 from oxDNA_analysis_tools.UTILS.RyeReader import get_traj_info, linear_read
 from oxDNA_analysis_tools.UTILS.data_structures import TopInfo, Configuration
+
+from .defaults import SEQ_DEP_PARAMS
 from .util import rotation_matrix
 
 # universal indexer for residues
@@ -248,6 +251,8 @@ class DNAStructureStrand:
         else:
             return "".join(self.bases)
 
+    def __str__(self):
+        return "".join(self.bases)
 
 # this shit was originally in a file called helix.py
 # i cannot be held resposible for this
@@ -366,6 +371,12 @@ class DNAStructure:
     clustermap: dict[int, int]  # mapping of base uids to cluster indexes
     clusters: list[set[int]]  # list of cluster info, where each cluster is a set of base uids
 
+    # mapper for base IDs from file-loaded confs. these should stay constant during edit but will
+    # NOT be carried over if the edits are saved!
+    # keys are base IDs (like you'd find in OxView), values are DNABase objects
+    # TODO: make this a custom object that we can slice like a numpy array
+    base_id_map: dict[int, DNABase]
+
     def __init__(self,
                  strands: list[DNAStructureStrand],
                  t: int,
@@ -384,6 +395,16 @@ class DNAStructure:
                     self.clustermap[uid] = i
         else:
             self.clusters = list()
+        self.base_id_map = dict()
+
+        # write base id mapping
+        indexer = 0
+        for strand_idx, strand in enumerate(self.strands):
+            # if the indexer + the length of the strand is greater than the length of the strand
+            for base_idx, base in enumerate(strand):
+                self.base_id_map[indexer + base_idx] = base
+            # update indexer
+            indexer += len(strand)
 
     def get_num_strands(self) -> int:
         return len(self.strands)
@@ -620,6 +641,24 @@ class DNAStructure:
     def validate(self) -> bool:
         return all([s.validate() for s in self.strands])
 
+    def possible_bonds(self,
+                       idxs1: list[int],
+                       idxs2: list[int],
+                       min_hybrid_length: int = 1) -> list[tuple[int, int]]:
+        """
+        Parameters:
+            idxs1: indexes of nucleotides in first sequence
+            idxs2: indexes of nucleotides in second sequence
+            min_hybrid_length: minimum length of hybridized sequences to check for. TODO: implement
+        """
+
+        possible_bonds: list[tuple[int, int]] = []
+
+        for idx1, idx2 in itertools.product(idxs1, idxs2):
+            if f"HYDR_{self.get_base(idx1).base}_{self.get_base(idx2).base}" in SEQ_DEP_PARAMS:
+                possible_bonds.append((idx1, idx2))
+        return possible_bonds
+
 
 def load_dna_structure(top: Union[str, Path], conf_file: Union[str, Path]) -> DNAStructure:
     """
@@ -634,7 +673,8 @@ def load_dna_structure(top: Union[str, Path], conf_file: Union[str, Path]) -> DN
     # if not conf_file.is_absolute():
     #     conf_file = get_input_dir() / conf_file
 
-    assert top.is_file()
+    assert top.is_file(), f"No file exists {str(top)}"
+    assert conf_file.is_file(), f"No file exists {str(conf_file)}"
 
     with top.open("r") as top_file:
         lines = top_file.readlines()

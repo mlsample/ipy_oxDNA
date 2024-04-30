@@ -1,4 +1,4 @@
-from ipy_oxdna.umbrella_sampling import MeltingUmbrellaSampling
+from ipy_oxdna.umbrella.umbrella_sampling import MeltingUmbrellaSampling
 from ipy_oxdna.oxdna_simulation import SimulationManager
 
 import numpy as np

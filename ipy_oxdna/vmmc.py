@@ -1,4 +1,9 @@
-from ipy_oxdna.oxdna_simulation import Simulation, Force, Observable, SimulationManager, OxpyRun, GenerateReplicas, Analysis
+"""
+Virtual-move monte carlo simulation
+"""
+from ipy_oxdna.oxdna_simulation import Simulation, Observable, SimulationManager, OxpyRun, Analysis
+from ipy_oxdna.force import Force
+from ipy_oxdna.generate_replicas import GenerateReplicas
 import os
 import shutil
 import queue
@@ -122,7 +127,7 @@ class VmmcOxpyRun(OxpyRun):
         self.custom_observables = custom_observables
         
         if continue_run is not False:
-            self.sim.input_file({'init_hist_file':self.sim.input.input['last_hist_file']})
+            self.sim.input_file({'init_hist_file':self.sim.input.input_dict['last_hist_file']})
         if self.verbose == True:
             print(f'Running: {self.sim_dir.split("/")[-1]}')
         if self.subprocess:

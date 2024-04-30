@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import errno
+import pickle
+import sys
+import warnings
+from abc import ABC
 from pathlib import Path
-from typing import Any, Union, IO
+from typing import Any, Union
 import os
 import numpy as np
 import shutil
@@ -9,11 +14,13 @@ from json import dumps, loads, dump, load
 import oxpy
 import multiprocessing as mp
 import py
-from oxDNA_analysis_tools.UTILS.oxview import oxdna_conf, from_path
+from oxDNA_analysis_tools.UTILS.data_structures import TrajInfo, TopInfo
+from oxDNA_analysis_tools.UTILS.get_confs import Configuration
+from oxDNA_analysis_tools.UTILS.oxview import oxdna_conf
 from oxDNA_analysis_tools.UTILS.RyeReader import describe, get_confs
-from ipy_oxdna.defaults import DefaultInput
+
 import ipywidgets as widgets
-from IPython.display import display, IFrame
+from IPython.display import display
 import pandas as pd
 import matplotlib.pyplot as plt
 from time import sleep
@@ -24,13 +31,18 @@ import traceback
 import queue
 import json
 import signal
-import pickle
-import warnings
-import sys
+
+
+from . import observable
+from .defaults import DefaultInput, SEQ_DEP_PARAMS, NA_PARAMETERS, RNA_PARAMETERS, get_default_input
+from .force import Force
+
+
+# import cupy
 
 class Simulation:
-    file_dir: str
-    sim_dir: str
+    file_dir: Path
+    sim_dir: Path
     sim_files: SimFiles
     build_sim: BuildSimulation
     input: Input
@@ -48,13 +60,33 @@ class Simulation:
         sim_dir (str): Path to directory where a simulation will be run using inital files.
     """
 
-    def __init__(self, file_dir: str, sim_dir: Union[str, None] = None):
-        """ Instance lower level class objects used to compose the Simulation class features."""
-        self.file_dir = file_dir
-        if sim_dir is not None:
+    def __init__(self,
+                 file_dir: Union[str, Path],
+                 sim_dir: Union[str, Path, None] = None,
+                 input_file_params: dict = {}):
+        """
+        Instance lower level class objects used to compose the Simulation class features.
+        """
+
+        # handle alternate param types for file_dir
+        if isinstance(file_dir, Path):
+            self.file_dir = file_dir
+        elif isinstance(file_dir, str):
+            self.file_dir = Path(file_dir)
+        else:
+            raise ValueError(f"Invalid type {type(file_dir)} for parameter file_dir")
+
+        # handle alternate param types for sim_dir
+        if sim_dir is None:  # if no sim dir is provided, use file dir
+            self.sim_dir = self.file_dir
+        elif isinstance(sim_dir, str):
+            self.sim_dir = Path(sim_dir)
+        elif isinstance(sim_dir, Path):
             self.sim_dir = sim_dir
-        else:  # if no sim dir is provided, use file dir
-            self.sim_dir = file_dir
+        else:
+            raise ValueError(f"Invalid type {type(sim_dir)} for parameter sim_dir")
+        # tolerate sim_dir not existing, we can create it later
+
         self.sim_files = SimFiles(self)
         self.build_sim = BuildSimulation(self)
         self.input = Input(self)
@@ -64,7 +96,6 @@ class Simulation:
         self.oat = OxdnaAnalysisTools(self)
         self.sequence_dependant = SequenceDependant(self)
 
-
     def build(self, clean_build=False):
         """
         Build dat, top, and input files in simulation directory.
@@ -72,9 +103,10 @@ class Simulation:
         Parameters:
             clean_build (bool): If sim_dir already exsists, remove it and then rebuild sim_dir
         """
-        if os.path.exists(self.sim_dir):
+        if self.sim_dir.exists():
             # print(f'Exisisting simulation files in {self.sim_dir.split("/")[-1]}')
             if clean_build == True:
+                # TODO: support for non-cli contexts
                 answer = input('Are you sure you want to delete all simulation files? '
                                'Type y/yes to continue or anything else to return (use clean_build=str(force) to skip this message)')
                 if (answer == 'y') or (answer == 'yes'):
@@ -125,7 +157,7 @@ class Simulation:
         Add an external force to the simulation.
         
         Parameters:
-            force_js (Force): A force object, essentially a dictonary, specifying the external force parameters.
+            force_js (ipy_oxdna.force.Force): A force object, essentially a dictonary, specifying the external force parameters.
         """
         if not os.path.exists(os.path.join(self.sim_dir, "forces.json")):
             self.input_file({'external_forces': '1'})
@@ -171,97 +203,46 @@ class Simulation:
         return sim
 
 
+    def pickle_sim(self):
+        """ Pickle the simulation object to a file."""
+        with open(f'{self.sim_dir}/sim.pkl', 'wb') as f:
+            pickle.dump(self, f)
 
-class GenerateReplicas:
+    @classmethod        
+    def from_pickle(cls, filename):
+        """ Read a pickled simulation object from a file."""
+        with open(filename, 'rb') as f:
+            sim = pickle.load(f)
+        return sim
+
+
+    def pickle_sim(self):
+        """ Pickle the simulation object to a file."""
+        with open(f'{self.sim_dir}/sim.pkl', 'wb') as f:
+            pickle.dump(self, f)
+
+    @classmethod        
+    def from_pickle(cls, filename):
+        """ Read a pickled simulation object from a file."""
+        with open(filename, 'rb') as f:
+            sim = pickle.load(f)
+        return sim
+
+
+class SimulationComponent(ABC):
     """
-    Methods to generate multisystem replicas
+    abstract class for a component of a simulation object
     """
+    sim: Simulation
 
-    systems: Any
-    n_replicas_per_system: int
-    file_dir_list: list[str]
-    sim_dir_list: list[str]
-    sim_list: list[Simulation]
-    queue_of_sims: queue.Queue
-
-    # TODO: init
-
-    def multisystem_replica(self,
-                            systems,
-                            n_replicas_per_system,
-                            file_dir_list,
-                            sim_dir_list):
-        """
-        Create simulation replicas, with across multiple systems with diffrent inital files
-        
-        Parameters:
-            systems (list): List of strings, where the strings are the name of the directory which will hold the inital files
-            n_replicas_per_system (int): number of replicas to make per system
-            file_dir_list (list): List of strings with path to intial files
-            sim_dir_list (list): List of simulation directory paths
-        """
-        self.systems = systems
-        self.n_replicas_per_system = n_replicas_per_system
-        self.file_dir_list = file_dir_list
-        self.sim_dir_list = sim_dir_list
-
-        replicas = range(n_replicas_per_system)
-        sim_rep_list = []
-        for sys in sim_dir_list:
-            for rep in replicas:
-                sim_rep_list.append(f'{sys}_{rep}')
-        q1 = queue.Queue()
-        for sys in sim_rep_list:
-            q1.put(sys)
-        sim_list = []
-
-        for file_dir in file_dir_list:
-            for _ in range(len(replicas)):
-                sim_dir = q1.get()
-                sim_list.append(Simulation(file_dir, sim_dir))
-        q2 = queue.Queue()
-        for sim in sim_list:
-            q2.put(sim)
-
-        self.sim_list = sim_list
-        self.queue_of_sims = q2
-
-    def concat_single_system_traj(self, system, concat_dir='concat_dir') -> tuple[list[str], str]:
-        "Concatenate the trajectory of multiple replicas"
-        system_index = self.systems.index(system)
-
-        start_index = self.n_replicas_per_system * system_index
-        end_index = start_index + self.n_replicas_per_system
-
-        system_specific_sim_list = self.sim_list[start_index:end_index]
-        sim_list_file_dir = [sim.file_dir for sim in system_specific_sim_list]
-        sim_list_sim_dir = [sim.sim_dir for sim in system_specific_sim_list]
-        concat_dir = os.path.abspath(os.path.join(sim_list_file_dir[0], concat_dir))
-        if not os.path.exists(concat_dir):
-            os.mkdir(concat_dir)
-
-        with open(f'{concat_dir}/trajectory.dat', 'wb') as outfile:
-            for f in sim_list_sim_dir:
-                with open(f'{f}/trajectory.dat', 'rb') as infile:
-                    outfile.write(infile.read())
-        shutil.copyfile(system_specific_sim_list[0].sim_files.top, concat_dir + '/concat.top')
-        return sim_list_file_dir, concat_dir
-
-    def concat_all_system_traj(self):
-        "Concatenate the trajectory of multiple replicas for each system"
-        self.concat_sim_dirs = []
-        self.concat_file_dirs = []
-        for system in self.systems:
-            file_dir, concat_dir = self.concat_single_system_traj(system)
-            self.concat_sim_dirs.append(concat_dir)
-            self.concat_file_dirs.append(file_dir)
-
-
-class Protein:
-    "Methods used to enable anm simulations with proteins"
-
-    def __init__(self, sim):
+    def __init__(self, sim: Simulation):
         self.sim = sim
+
+
+class Protein(SimulationComponent):
+    """
+    Methods used to enable anm simulations with proteins
+    """
 
     def par_input(self):
         self.sim.input_file({
@@ -270,48 +251,86 @@ class Protein:
         })
 
 
-class BuildSimulation:
-    sim: Simulation
-    file_dir: str
-    sim_dir: str
+class BuildSimulation(SimulationComponent):
     force: Force
     force_cache: Any
-    top: str
-    dat: str
     par: Any
-    force_file: str
+    force_file: Path
     is_file: bool
+
+    # names of top and conf file in file directory
+    top_file_name: str
+    conf_file_name: str
+
+    # dict which maps names of file in file directory to sim directory
+    name_mapper: dict[str, str]
+
     """ Methods used to create/build oxDNA simulations."""
 
-    def __init__(self, sim):
+    def __init__(self, sim: Simulation):
         """ Initalize access to simulation information"""
-        self.sim = sim
+        SimulationComponent.__init__(self, sim)
         self.force = Force()
         self.force_cache = None
 
-    def get_last_conf_top(self):
-        """Set attributes containing the name of the inital conf (dat file) and topology"""
-        conf_top = os.listdir(self.sim.file_dir)
-        self.top = [file for file in conf_top if (file.endswith('.top'))][0]
-        try:
-            last_conf = \
-                [file for file in conf_top if (file.startswith('last_conf')) and (not (file.endswith('pyidx')))][0]
-        except IndexError:
-            last_conf = [file for file in conf_top if
-                         (file.endswith('.dat')) and not (file.endswith(('energy.dat'))) and not (
-                             file.endswith(('trajectory.dat'))) and not (file.endswith(('error_conf.dat')))][0]
-        self.dat = last_conf
+        self.name_mapper = {
+            "conf_file": "init.dat"  # default-case: rename last_conf to init
+        }
+        self.top_file_name = None
+        self.conf_file_name = None
+
+    def get_file_dir(self):
+        return self.sim.file_dir
+
+    def get_sim_dir(self):
+        return self.sim.sim_dir
+
+    file_dir = property(get_file_dir)
+    sim_dir = property(get_sim_dir)
 
     def build_sim_dir(self):
         """Make the simulation directory"""
-        if not os.path.exists(self.sim.sim_dir):
+        if not self.sim.sim_dir.exists():
             os.makedirs(self.sim.sim_dir)
 
     def build_dat_top(self):
-        """Write intial conf and toplogy to simulation directory"""
-        self.get_last_conf_top()
-        shutil.copy(os.path.join(self.sim.file_dir, self.dat), self.sim.sim_dir)
-        shutil.copy(os.path.join(self.sim.file_dir, self.top), self.sim.sim_dir)
+        """
+        Write intial conf and toplogy to simulation directory
+        """
+        # find file-directory top and dat
+        if self.top_file_name is None:
+            self.top_file_name = find_top_file(self.file_dir, self.sim).name
+        if self.conf_file_name is None:
+            self.conf_file_name = find_conf_file(self.file_dir, self.sim).name
+
+        if "conf_file" in self.name_mapper:
+            self.sim.input.set_conf_file(self.name_mapper["conf_file"])
+        else:
+            self.sim.input.set_conf_file(self.conf_file_name)
+        if "topology" in self.name_mapper:
+            self.sim.input.set_top_file(self.name_mapper["topology"])
+        else:
+            self.sim.input.set_top_file(self.top_file_name)
+
+        # copy dat file to sim directory
+        assert (self.file_dir / self.conf_file_name).exists()
+        shutil.copy(self.file_dir / self.conf_file_name, 
+                    self.sim.sim_dir)
+        shutil.move(self.sim.sim_dir / self.conf_file_name,
+                    self.sim.sim_dir / self.sim.input.get_conf_file())
+
+        # copy top file to sim directory
+        assert(self.file_dir / self.top_file_name).exists()
+        shutil.copy(self.file_dir / self.top_file_name,
+                    self.sim.sim_dir)
+        shutil.move(self.sim.sim_dir / self.top_file_name,
+                    self.sim.sim_dir / self.sim.input.get_top_file())
+
+    def list_file_dir(self) -> list[str]:
+        """
+        Returns: a list of files in the data source directory
+        """
+        return os.listdir(self.sim.file_dir)
 
     def build_input(self, production=False):
         """Calls a methods from the Input class which writes a oxDNA input file in plain text and json"""
@@ -319,19 +338,25 @@ class BuildSimulation:
         self.sim.input.write_input(production=production)
 
     def get_par(self):
-        files = os.listdir(self.sim.file_dir)
-        self.par = [file for file in files if (file.endswith('.par'))][0]
+        """
+        what does "par" mean
+        """
+        files = self.list_file_dir()
+        self.par = [file for file in files if file.endswith('.par')][0]
 
     def build_par(self):
+        """
+        what does "par" mean
+        """
         self.get_par()
         shutil.copy(os.path.join(self.sim.file_dir, self.par), self.sim.sim_dir)
 
     def get_force_file(self):
-        files = os.listdir(self.sim.file_dir)
-        force_file = [file for file in files if (file.endswith('.txt'))][0]
+        files = self.list_file_dir()
+        force_file = [file for file in files if file.endswith('.txt')][0]
         if len(force_file) > 1:
-            force_file = [file for file in files if (file.endswith('force.txt'))][0]
-        self.force_file = os.path.join(self.sim.file_dir, force_file)
+            force_file = [file for file in files if file.endswith('force.txt')][0]
+        self.force_file = self.file_dir / force_file
 
     def build_force_from_file(self):
         forces = []
@@ -355,23 +380,24 @@ class BuildSimulation:
         for force in forces:
             self.build_force(force)
 
-    def build_force(self, force_js):
-        force_file_path = os.path.join(self.sim.sim_dir, "forces.json")
+    def build_force(self, force_js: dict):
+        force_file_path = self.sim_dir / "forces.json"
 
         # Initialize the cache and create the file if it doesn't exist
         if self.force_cache is None:
-            if not os.path.exists(force_file_path):
+            if not force_file_path.is_file():
                 self.force_cache = {}
-                with open(force_file_path, 'w') as f:
+                with force_file_path.open("w") as f:
                     json.dump(self.force_cache, f, indent=4)
                 self.is_empty = True  # Set the flag to True for a new file
             else:
-                with open(force_file_path, 'r') as f:
+                with force_file_path.open("r") as f:
                     self.force_cache = json.load(f)
                 self.is_empty = not bool(self.force_cache)  # Set the flag based on the cache
 
         # Check for duplicates in the cache
         for force in list(self.force_cache.values()):
+            # TODO: CLEAN UP THIS LINE
             if list(force.values())[1] == list(list(force_js.values())[0].values())[1]:
                 return
 
@@ -380,7 +406,10 @@ class BuildSimulation:
         self.force_cache[new_key] = force_js['force']
 
         # Append the new force to the existing JSON file
-        self.append_to_json_file(force_file_path, new_key, force_js['force'], self.is_empty)
+        self.append_to_json_file(str(force_file_path),
+                                 new_key,
+                                 force_js['force'],
+                                 self.is_empty)
 
         self.is_empty = False  # Update the flag
 
@@ -399,7 +428,7 @@ class BuildSimulation:
             new_entry_str = f'    "{new_entry_key}": {json.dumps(new_entry_value, indent=4)}\n}}'
             f.write(new_entry_str.encode('utf-8'))
 
-    def build_observable(self, observable_js, one_out_file=False):
+    def build_observable(self, observable_js: dict, one_out_file=False):
         """
         Write observable file is one does not exist. If a observable file exists add additional observables to the file.
         
@@ -429,12 +458,12 @@ class BuildSimulation:
         column_names = ['strand', 'nucleotide', '3_prime', '5_prime']
 
         try:
-            top = pd.read_csv(self.sim.sim_files.top, sep=' ', names=column_names).iloc[1:,:].reset_index(drop=True)
-            top['index'] = top.index 
+            top = pd.read_csv(self.sim.sim_files.top, sep=' ', names=column_names).iloc[1:, :].reset_index(drop=True)
+            top['index'] = top.index
             p1 = p1.split(',')
             p2 = p2.split(',')
             i = 1
-            with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'w') as f:
+            with open(os.path.join(self.sim.sim_dir, "hb_list.txt"), 'w') as f:
                 f.write("{\norder_parameter = bond\nname = all_native_bonds\n")
             complement = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
             for nuc1 in p1:
@@ -443,59 +472,80 @@ class BuildSimulation:
                 for nuc2 in p2:
                     nuc2_data = top.iloc[int(nuc2)]
                     if nuc2_data['nucleotide'] == nuc1_complement:
-                        with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'a') as f:
+                        with open(os.path.join(self.sim.sim_dir, "hb_list.txt"), 'a') as f:
                             f.write(f'pair{i} = {nuc1}, {nuc2}\n')
                         i += 1
-            with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'a') as f:
+            with open(os.path.join(self.sim.sim_dir, "hb_list.txt"), 'a') as f:
                 f.write("}\n")
             return None
-        
+
         except:
-            
             with open(self.sim.sim_files.force, 'r') as f:
                 lines = f.readlines()
                 lines = [int(line.strip().split()[1].replace('"', '')[:-1]) for line in lines if 'particle' in line]
-                line_sets = [(lines[i], lines[i+1]) for i in range(0, len(lines), 2)]
+                line_sets = [(lines[i], lines[i + 1]) for i in range(0, len(lines), 2)]
                 line_sets = {tuple(sorted(t)) for t in line_sets}
-            with open(os.path.join(self.sim.sim_dir,"hb_list.txt"), 'w') as f:
-                f.write("{\norder_parameter = bond\nname = all_native_bonds\n")    
+            with open(os.path.join(self.sim.sim_dir, "hb_list.txt"), 'w') as f:
+                f.write("{\norder_parameter = bond\nname = all_native_bonds\n")
                 for idx, line_set in enumerate(line_sets):
                     f.write(f'pair{idx} = {line_set[0]}, {line_set[1]}\n')
                 f.write("}\n")
-            
+
             return None
 
 
-class OxpyRun:
-    sim: Simulation
+class OxpyRun(SimulationComponent):
+    # setup params
     sim_dir: str
-    sim_output: Any
+    # run params
+    subprocess: bool
+    verbose: bool
+    continue_run: bool
+    log: Union[False, str]  # name of log file, or False if log is off
+    join: bool
+    custom_observables: bool
+    sim_output: str
+    sim_err: str
+    process: mp.Process
+
+    error_message: Union[None, str]
+
     """Automatically runs a built oxDNA simulation using oxpy within a subprocess"""
 
-    def __init__(self, sim):
+    def __init__(self, sim: Simulation):
         """ Initalize access to simulation inforamtion."""
-        self.sim = sim
+        SimulationComponent.__init__(self, sim)
         self.my_obs = {}
 
-    def run(self, subprocess=True, continue_run=False, verbose=True, log=True, join=False, custom_observables=None):
+    def run(self,
+            subprocess=True,
+            continue_run=False,
+            verbose=True,
+            log: Union[str, bool] = True,
+            join=False,
+            custom_observables=None):
         """ Run oxDNA simulation using oxpy in a subprocess.
         
         Parameters:
             subprocess (bool): If false run simulation in parent process (blocks process), if true spawn sim in child process.
             continue_run (number): If False overide previous simulation results. If True continue previous simulation run.
             verbose (bool): If true print directory of simulation when run.
-            log (bool): If true print a log file to simulation directory.
+            log (bool): If not False, print a log file to simulation directory. If True, the file will be auto-named to "log.log". otherwise it will be given the provided name
             join (bool): If true block main parent process until child process has terminated (simulation finished)
         """
         self.subprocess = subprocess
         self.verbose = verbose
         self.continue_run = continue_run
-        self.log = log
+        if log is True:
+            self.log = "log.log"
+        else:
+            self.log = log
         self.join = join
         self.custom_observables = custom_observables
 
-        if self.verbose == True:
-            print(f'Running: {self.sim.sim_dir.split("/")[-1]}')
+        if self.verbose:
+            print(f'Running: {self.sim.sim_dir}')
+
         if self.subprocess:
             self.spawn(self.run_complete)
         else:
@@ -505,7 +555,7 @@ class OxpyRun:
         """Spawn subprocess"""
         p = mp.Process(target=f, args=args)
         p.start()
-        if self.join == True:
+        if self.join:
             p.join()
         self.process = p
 
@@ -513,12 +563,14 @@ class OxpyRun:
         """Run an oxDNA simulation"""
         self.error_message = None
         tic = timeit.default_timer()
+        # capture outputs
         capture = py.io.StdCaptureFD()
         if self.continue_run is not False:
             self.sim.input_file({"conf_file": self.sim.sim_files.last_conf, "refresh_vel": "0",
                                  "restart_step_counter": "0", "steps": f'{self.continue_run}'})
+        start_dir = os.getcwd()
         os.chdir(self.sim.sim_dir)
-        with open(os.path.join(self.sim.sim_dir, 'input.json'), 'r') as f:
+        with open('input.json', 'r') as f:
             my_input = loads(f.read())
         with oxpy.Context():
             ox_input = oxpy.InputFile()
@@ -534,10 +586,12 @@ class OxpyRun:
                         my_obs = [eval(observable_string, {"self": self}) for observable_string in value['observables']]
                         manager.add_output(key, print_every=value['print_every'], observables=my_obs)
                 manager.run_complete()
-            except Exception as e:
+                del manager
+            except oxpy.OxDNAError as e:
                 self.error_message = traceback.format_exc()
 
-        self.sim_output = capture.reset()
+        # grab captured err and outputs
+        self.sim_output, self.sim_err = capture.reset()
         toc = timeit.default_timer()
         if self.verbose:
             print(f'Run time: {toc - tic}')
@@ -545,15 +599,19 @@ class OxpyRun:
                 print(
                     f'Exception encountered in {self.sim.sim_dir}:\n{type(self.error_message).__name__}: {self.error_message}')
             else:
-                print(f'Finished: {self.sim.sim_dir.split("/")[-1]}')
+                print(f'Finished: {self.sim.sim_dir.parent}')
+
+                # if log is set
+                print(f'y: {self.sim.sim_dir.parent}')
         if self.log:
             with open('log.log', 'w') as f:
-                f.write(self.sim_output[0])
-                f.write(self.sim_output[1])
-                f.write(f'Run time: {toc - tic}')
+                f.write(self.sim_output)  # write output log
+                f.write(self.sim_err)  # write error log
+                f.write(f'Run time: {toc - tic}')  # write runtime
                 if self.error_message is not None:
                     f.write(f'Exception: {self.error_message}')
         self.sim.sim_files.parse_current_files()
+        os.chdir(start_dir)
 
     def cms_obs(self, *args, name=None, print_every=None):
         self.my_obs[name] = {'print_every': print_every, 'observables': []}
@@ -633,6 +691,7 @@ class SlurmRun:
 
     def sbatch(self):
         """ Submit sbatch run file."""
+        # TODO: better pls
         os.chdir(self.sim_dir)
         os.system("sbatch run.sh")
 
@@ -640,7 +699,8 @@ class SlurmRun:
 class SimulationManager:
 
     manager: mp.Manager
-    sim_queue: queue.Queue
+    # todo: replace w/ generator?
+    sim_queue: queue.Queue[Simulation]
     process_queue: queue.Queue
     gpu_memory_queue: queue.Queue
     terminate_queue: queue.Queue
@@ -651,6 +711,7 @@ class SimulationManager:
     "os.fork\\(\\) was called\\. os\\.fork\\(\\) is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock\\.",
     RuntimeWarning
     )
+
     """ In conjunction with nvidia-cuda-mps-control, allocate simulations to avalible cpus and gpus."""
 
     def __init__(self, n_processes=None):
@@ -713,7 +774,7 @@ class SimulationManager:
         # TODO: make this not a class method?
         return byte / 1048576
 
-    def get_sim_mem(self, sim, gpu_idx):
+    def get_sim_mem(self, sim: Simulation, gpu_idx):
         """
         Returns the amount of simulation memory requried to run an oxDNA simulation.
         Note: A process running a simulation will need more memory then just required for the simulation.
@@ -723,11 +784,12 @@ class SimulationManager:
             sim (Simulation): Simulation object to probe the required memory of.
             gpu_idx: depreciated
         """
-        steps = sim.input.input['steps']
-        last_conf_file = sim.input.input['lastconf_file']
+        steps = sim.input.input_dict['steps']
+        last_conf_file = sim.input.input_dict['lastconf_file']
         sim.input_file({'lastconf_file': os.devnull, 'steps': '0'})
         sim.oxpy_run.run(subprocess=False, verbose=False, log=False)
         sim.input_file({'lastconf_file': f'{last_conf_file}', 'steps': f'{steps}'})
+
         err_split = sim.oxpy_run.sim_output[1].split()
         try:
             mem = err_split.index('memory:')
@@ -739,7 +801,7 @@ class SimulationManager:
             
         return float(sim_mem)
 
-    def queue_sim(self, sim, continue_run=False):
+    def queue_sim(self, sim: Simulation, continue_run=False):
         """ 
         Add simulation object to the queue of all simulations.
         
@@ -753,11 +815,14 @@ class SimulationManager:
         self.sim_queue.put(sim)
 
     def worker_manager(self, gpu_mem_block=True, custom_observables=None, run_when_failed=False, cpu_run=False):
-        """ Head process in charge of allocating queued simulations to processes and gpu memory."""
+        """
+        Head process in charge of allocating queued simulations to processes and gpu memory.
+        """
         tic = timeit.default_timer()
         if cpu_run is True:
             gpu_mem_block = False
         self.custom_observables = custom_observables
+        # as long as there are simulations in the queue
         while not self.sim_queue.empty():
             # get simulation from queue
             if self.terminate_queue.empty():
@@ -800,7 +865,7 @@ class SimulationManager:
         toc = timeit.default_timer()
         print(f'All queued simulations finished in: {toc - tic}')
 
-    def worker_job(self, sim, gpu_idx, gpu_mem_block=True):
+    def worker_job(self, sim: Simulation, gpu_idx: int, gpu_mem_block: bool = True):
         """ Run an allocated oxDNA simulation"""
         if gpu_mem_block is True:
             sim_mem = self.get_sim_mem(sim, gpu_idx)
@@ -812,9 +877,12 @@ class SimulationManager:
                 f'Simulation exception encountered in {sim.sim_dir}:\n{sim.oxpy_run.error_message}')
         self.process_queue.get()
 
-    def run(self, log=None, join=False, gpu_mem_block=True, custom_observables=None, run_when_failed=False,
+    def run(self, join=False, gpu_mem_block=True, custom_observables=None, run_when_failed=False,
             cpu_run=False):
-        """ Run the worker manager in a subprocess"""
+        """
+        Run the worker manager in a subprocess
+        todo: ...logging?
+        """
         print('spawning')
         if cpu_run is True:
             gpu_mem_block = False
@@ -920,9 +988,9 @@ int main() {
         os.system('./test_script')
 
 
-class Input:
-    input: dict[str, str]
-    
+class Input(SimulationComponent):
+    input_dict: dict[str, str]
+    default_input: DefaultInput
     """ Lower level input file methods"""
 
     def __init__(self, sim: Simulation):
@@ -933,25 +1001,34 @@ class Input:
             sim_dir (str): Simulation directory
             parameters: depreciated
         """
-        self.sim = sim
-        self.default_input = DefaultInput()
-        
+        SimulationComponent.__init__(self, sim)
+        self.default_input = get_default_input("cuda_MD")
+
         if os.path.exists(self.sim.sim_dir):
             self.initalize_input()
-                
-    def initalize_input(self, read_exsisting_input=True):
-        
-        if read_exsisting_input:
-            exsiting_input = (os.path.exists(os.path.join(self.sim.sim_dir, 'input.json')) or 
-                              os.path.exists(os.path.join(self.sim.sim_dir, 'input')))
-        else:
-            exsiting_input = False
-            
-        if exsiting_input:
-            self.read_input()
-        else:
-            self.input = self.default_input._input
+        self.input_dict = {}
 
+    def clear(self):
+        """
+        deletes existing input file data
+        """
+        self.input_dict = {}
+        self.write_input()
+
+    def initalize_input(self, read_existing_input: Union[bool, None] = None):
+        """
+        Initializes the input file
+        If read_existing_
+        """
+        if read_existing_input or read_existing_input is None:
+            existing_input = (self.sim.sim_dir / 'input.json').exists() or (self.sim.sim_dir / 'input').exists()
+        else:
+            existing_input = False
+
+        if existing_input:
+            self.read_input()
+        elif read_existing_input:
+            raise SimBuildMissingFileException(self.sim, "input.json")
 
     def swap_default_input(self, default_type: str):
         """
@@ -959,163 +1036,161 @@ class Input:
         Current Options Include:
         cuda_prod, cpu_prod, cpu_relax
         """
-        self.default_input.swap_default_input(default_type)
-        self.input = self.default_input._input
+        self.default_input = get_default_input(default_type)
+        self.input_dict = self.default_input.get_dict()
         self.write_input()
-    
-    def get_last_conf_top(self):
-        """Set attributes containing the name of the inital conf (dat file) and topology"""
-        conf_top = os.listdir(self.sim.sim_dir)
-        self.top = [file for file in conf_top if (file.endswith(('.top')))][0]
-        try:
-            last_conf = \
-                [file for file in conf_top if (file.startswith('last_conf')) and (not (file.endswith('pyidx')))][0]
-        except IndexError:
-            last_conf = [file for file in conf_top if
-                         (file.endswith(('.dat'))) and not (file.endswith(('energy.dat'))) and not (
-                             file.endswith(('trajectory.dat'))) and not (file.endswith(('error_conf.dat')))][0]
-        self.dat = last_conf
+
+    def get_last_conf_top(self) -> tuple[str, str]:
+        """
+        Set attributes containing the name of the inital conf (dat file) and topology
+        """
+        top, conf = find_top_dat(self.sim.sim_dir, self.sim)
+        self.initial_conf = conf.name
+        self.top = top.name
+        return self.initial_conf, self.top
 
     def write_input_standard(self):
         """ Write a oxDNA input file to sim_dir"""
+        if not self.has_top_conf():
+            raise MissingTopConfException(self.sim)
         with oxpy.Context():
             ox_input = oxpy.InputFile()
-            for k, v in self.input.items():
+            for k, v in self.input_dict.items():
                 ox_input[k] = v
-            with open(os.path.join(self.sim_dir, f'input'), 'w') as f:
+            with open(os.path.join(self.sim.sim_dir, f'input'), 'w') as f:
                 print(ox_input, file=f)
 
     def write_input(self, production=False):
         """ Write an oxDNA input file as a json file to sim_dir"""
         if production is False:
-            if self.input["conf_file"] == None:
-                self.get_last_conf_top()
-                self.input["conf_file"] = self.dat
-                self.input["topology"] = self.top
-            else:
-                self.dat = self.input["conf_file"]
-                self.top = self.input["topology"]
+            if not self.has_top_conf():
+                top, conf = find_top_dat(self.sim.sim_dir, self.sim)
+                self.set_top_file(top.name)
+                self.set_conf_file(conf.name)
+
         # Write input file
+        self.default_input.evaluate(**self.input_dict)
+        # local input dict w/ defaults and manually-specified values
+        inputdict = {
+            **self.default_input.get_dict(),
+            **self.input_dict
+        }
+
         with open(os.path.join(self.sim.sim_dir, f'input.json'), 'w') as f:
-            input_json = dumps(self.input, indent=4)
+            input_json = dumps(inputdict, indent=4)
             f.write(input_json)
         with open(os.path.join(self.sim.sim_dir, f'input'), 'w') as f:
             with oxpy.Context(print_coda=False):
                 ox_input = oxpy.InputFile()
-                for k, v in self.input.items():
+                for k, v in inputdict.items():
                     ox_input[k] = str(v)
                 print(ox_input, file=f)
 
-    def modify_input(self, parameters):
+    def modify_input(self, parameters: dict):
         """ Modify the parameters of the oxDNA input file."""
         if os.path.exists(os.path.join(self.sim.sim_dir, 'input.json')):
             self.read_input()
         for k, v in parameters.items():
-            self.input[k] = v
+            self.input_dict[k] = v
         self.write_input()
-                         
+
     def read_input(self):
         """ Read parameters of exsisting input file in sim_dir"""
-        if os.path.exists(os.path.join(self.sim.sim_dir, 'input.json')):
-            try:
-                with open(os.path.join(self.sim.sim_dir, 'input.json'), 'r') as f:
-                    content = f.read()
-                    my_input = loads(content)
-                self.input = my_input
-            except json.JSONDecodeError:
-                self.initalize_input(read_exsisting_input=False)
-            
+        if (self.sim.sim_dir / "input.json").exists():
+            with (self.sim.sim_dir / "input.json").open("r") as f:
+                content = f.read()
+                my_input = loads(content)
+                self.input_dict = my_input
+            # I don't know why you did this
+            # it SHOULD throw an error if it finds a mangled JSON file!
+            # except json.JSONDecodeError:
+            #     self.initalize_input(read_exsisting_input=False)
+
         else:
             with open(os.path.join(self.sim.sim_dir, 'input'), 'r') as f:
                 lines = f.readlines()
                 lines = [line for line in lines if '=' in line]
                 lines = [line.strip().split('=') for line in lines]
-                my_input = {line[0].strip():line[1].strip() for line in lines}
+                my_input = {line[0].strip(): line[1].strip() for line in lines}
                 # TODO: objects?
 
-            self.input = my_input
+            self.input_dict = my_input
+
+    def get_conf_file(self) -> Union[None, str]:
+        """
+        Returns: the conf file that the simulation will initialize from
+        """
+        if "conf_file" not in self.input_dict:
+            return None
+        else:
+            return self.input_dict["conf_file"]
+
+    def set_conf_file(self, conf_file_name: str):
+        """
+        Sets the conf file
+        """
+        self.input_dict["conf_file"] = conf_file_name
+
+    def get_top_file(self) -> Union[None, str]:
+        """
+        Returns: the topology file that the simulation will use
+        """
+        if "topology" not in self.input_dict:
+            return None
+        else:
+            return self.input_dict["topology"]
+
+    def set_top_file(self, top_file_name: str):
+        """
+        Sets the topology file
+        """
+        self.input_dict["topology"] = top_file_name
+
+    def has_top_conf(self) -> bool:
+        return self.get_conf_file() is not None and self.get_top_file() is not None
+
+    def get_last_conf(self) -> Union[None, str]:
+        if "lastconf_file" not in self.input_dict:
+            return None
+        else:
+            return self.input_dict["lastconf_file"]
+
+    def set_last_conf(self, conf_file_name: str):
+        self.input_dict["lastconf_file"] = conf_file_name
+
+    initial_conf = property(get_conf_file, set_conf_file)
+    top = property(get_top_file, set_conf_file)
+
+    def __getitem__(self, item: str):
+        return self.input_dict[item]
+
+    def __setitem__(self, key: str, value: Union[str, float, bool]):
+        self.input_dict[key] = value
+        self.write_input()
 
 
-class SequenceDependant:
+class SequenceDependant(SimulationComponent):
     """ Make the targeted sim_dir run a sequence dependant oxDNA simulation"""
+    parameters: str
+    na_parameters: str
+    rna_parameters: str
 
-    def __init__(self, sim):
-        self.sim = sim
+    def __init__(self, sim: Simulation):
+        SimulationComponent.__init__(self, sim)
         # TODO: hardcode sequence-dependant parameters externally
-        self.parameters = """STCK_FACT_EPS = 0.18
-STCK_G_C = 1.69339
-STCK_C_G = 1.74669
-STCK_G_G = 1.61295
-STCK_C_C = 1.61295
-STCK_G_A = 1.59887
-STCK_T_C = 1.59887
-STCK_A_G = 1.61898
-STCK_C_T = 1.61898
-STCK_T_G = 1.66322
-STCK_C_A = 1.66322
-STCK_G_T = 1.68032
-STCK_A_C = 1.68032
-STCK_A_T = 1.56166
-STCK_T_A = 1.64311
-STCK_A_A = 1.84642
-STCK_T_T = 1.58952
-HYDR_A_T = 0.88537
-HYDR_T_A = 0.88537
-HYDR_C_G = 1.23238
-HYDR_G_C = 1.23238"""
+        self.parameters = "\n".join([f"{name} = {value}" for name, value in SEQ_DEP_PARAMS.items()])
 
-        self.na_parameters = """HYDR_A_U = 1.21
-HYDR_A_T = 1.37
-HYDR_rC_dG = 1.61
-HYDR_rG_dC = 1.77"""
+        self.na_parameters = "\n".join([f"{name} = {value}" for name, value in NA_PARAMETERS.items()])
 
-        self.rna_parameters = """HYDR_A_T = 0.820419
-HYDR_C_G = 1.06444
-HYDR_G_T = 0.510558
-STCK_G_C = 1.27562
-STCK_C_G = 1.60302
-STCK_G_G = 1.49422
-STCK_C_C = 1.47301
-STCK_G_A = 1.62114
-STCK_T_C = 1.16724
-STCK_A_G = 1.39374
-STCK_C_T = 1.47145
-STCK_T_G = 1.28576
-STCK_C_A = 1.58294
-STCK_G_T = 1.57119
-STCK_A_C = 1.21041
-STCK_A_T = 1.38529
-STCK_T_A = 1.24573
-STCK_A_A = 1.31585
-STCK_T_T = 1.17518
-CROSS_A_A = 59.9626
-CROSS_A_T = 59.9626
-CROSS_T_A = 59.9626
-CROSS_A_C = 59.9626
-CROSS_C_A = 59.9626
-CROSS_A_G = 59.9626
-CROSS_G_A = 59.9626
-CROSS_G_G = 59.9626
-CROSS_G_C = 59.9626
-CROSS_C_G = 59.9626
-CROSS_G_T = 59.9626
-CROSS_T_G = 59.9626
-CROSS_C_C = 59.9626
-CROSS_C_T = 59.9626
-CROSS_T_C = 59.9626
-CROSS_T_T = 59.9626
-
-ST_T_DEP = 1.97561"""
-
+        self.rna_parameters = "\n".join([f"{name} = {value}" for name, value in RNA_PARAMETERS.items()])
 
     def make_sim_sequence_dependant(self):
         self.sequence_dependant_input()
         self.write_sequence_dependant_file()
 
-
     def write_sequence_dependant_file(self):
         # TODO: externalize interaction-type stuff?
-        int_type = self.sim.input.input['interaction_type']
+        int_type = self.sim.input.input_dict['interaction_type']
         if (int_type == 'DNA') or (int_type == 'DNA2') or (int_type == 'NA'):
             with open(os.path.join(self.sim.sim_dir, 'oxDNA2_sequence_dependent_parameters.txt'), 'w') as f:
                 f.write(self.parameters)
@@ -1124,13 +1199,12 @@ ST_T_DEP = 1.97561"""
             with open(os.path.join(self.sim.sim_dir, 'rna_sequence_dependent_parameters.txt'), 'w') as f:
                 f.write(self.rna_parameters)
 
-        if (int_type == 'NA'):
+        if int_type == 'NA':
             with open(os.path.join(self.sim.sim_dir, 'NA_sequence_dependent_parameters.txt'), 'w') as f:
                 f.write(self.na_parameters)
 
-
     def sequence_dependant_input(self):
-        int_type = self.sim.input.input['interaction_type']
+        int_type = self.sim.input.input_dict['interaction_type']
 
         if (int_type == 'DNA') or (int_type == 'DNA2'):
             self.sim.input_file({'use_average_seq': 'no', 'seq_dep_file': 'oxDNA2_sequence_dependent_parameters.txt'})
@@ -1140,30 +1214,28 @@ ST_T_DEP = 1.97561"""
 
         if int_type == 'NA':
             self.sim.input_file({'use_average_seq': 'no',
-                             'seq_dep_file_DNA': 'oxDNA2_sequence_dependent_parameters.txt',
-                             'seq_dep_file_RNA': 'rna_sequence_dependent_parameters.txt',
-                             'seq_dep_file_NA': 'NA_sequence_dependent_parameters.txt'
-                             })
+                                 'seq_dep_file_DNA': 'oxDNA2_sequence_dependent_parameters.txt',
+                                 'seq_dep_file_RNA': 'rna_sequence_dependent_parameters.txt',
+                                 'seq_dep_file_NA': 'NA_sequence_dependent_parameters.txt'
+                                 })
 
 
-class OxdnaAnalysisTools:
+class OxdnaAnalysisTools(SimulationComponent):
     """Interface to OAT"""
 
-    def __init__(self, sim):
-        self.sim = sim
-
-    
     def describe(self):
+        """
+        what even is this code
+        """
         try:
             try:
-                self.top_info, self.traj_info =  describe(self.sim.sim_files.top,self.sim.sim_files.traj)
+                self.top_info, self.traj_info = describe(self.sim.sim_files.top_filename, self.sim.sim_files.traj)
             except:
-                self.top_info, self.traj_info =  describe(self.sim.sim_files.top,self.sim.sim_files.dat)
+                self.top_info, self.traj_info = describe(self.sim.sim_files.top_filename,
+                                                         self.sim.sim_files.last_conf_filename)
         except:
-            self.top_info, self.traj_info =  describe(self.sim.sim_files.top,self.sim.sim_files.last_conf)
+            self.top_info, self.traj_info = describe(self.sim.sim_files.top_filename, self.sim.sim_files.last_conf)
 
-
-    
     def align(self, outfile: str = 'aligned.dat', args: str = '', join: bool = False):
         """
         Align trajectory to mean strucutre
@@ -1172,7 +1244,7 @@ class OxdnaAnalysisTools:
             os.system('oat align -h')
             return None
 
-        def run_align(self, outfile, args=''):
+        def run_align(self, outfile, args=''):  # why does this have a `self` param
             start_dir = os.getcwd()
             os.chdir(self.sim.sim_dir)
             os.system(f'oat align {self.sim.sim_files.traj} {outfile} {args}')
@@ -1482,7 +1554,8 @@ class OxdnaAnalysisTools:
         def run_output_bonds(self, args=''):
             start_dir = os.getcwd()
             os.chdir(self.sim.sim_dir)
-            os.system(f'oat output_bonds {self.sim.sim_files.input} {self.sim.sim_files.traj} {args} -v bonds.json')
+            os.system(
+                f'oat output_bonds {self.sim.sim_files.input_dict} {self.sim.sim_files.traj} {args} -v bonds.json')
             os.chdir(start_dir)
 
         p = mp.Process(target=run_output_bonds, args=(self,), kwargs={'args': args})
@@ -1504,7 +1577,8 @@ class OxdnaAnalysisTools:
             os.system(f'oat oxDNA_PDB {topology} {configuration} {direction} {pdbfiles} {args}')
             os.chdir(start_dir)
 
-        p = mp.Process(target=run_oxDNA_PDB, args=(self, self.sim.sim_files.top, configuration, direction, pdbfiles),
+        p = mp.Process(target=run_oxDNA_PDB,
+                       args=(self, self.sim.sim_files.top_filename, configuration, direction, pdbfiles),
                        kwargs={'args': args})
         p.start()
         if join:
@@ -1529,7 +1603,8 @@ class OxdnaAnalysisTools:
         if join:
             p.join()
 
-    def conformational_entropy(self, traj='trajectory.dat',temperature='293.15', meanfile='mean.dat', outfile='conformational_entropy.json',
+    def conformational_entropy(self, traj='trajectory.dat', temperature='293.15', meanfile='mean.dat',
+                               outfile='conformational_entropy.json',
                                args='', join=False):
         """
         Calculate a strucutres conformational entropy (not currently supported in general). Use args='-h' for more details.
@@ -1544,25 +1619,27 @@ class OxdnaAnalysisTools:
             os.system(f'oat conformational_entropy {traj} {temperature} {meanfile} {outfile} {args}')
             os.chdir(start_dir)
 
-        p = mp.Process(target=run_conformational_entropy, args=(self, traj, temperature, meanfile, outfile,), kwargs={'args': args})
+        p = mp.Process(target=run_conformational_entropy, args=(self, traj, temperature, meanfile, outfile,),
+                       kwargs={'args': args})
         p.start()
         if join == True:
             p.join()
-            
-            
-    def radius_of_gyration(self, traj='trajectory.dat',  args='', join=False):
+
+    def radius_of_gyration(self, traj='trajectory.dat', args='', join=False):
         """
         Calculate a strucutres radius_of_gyration (not currently supported in general). Use args='-h' for more details.
         """
         if args == '-h':
             os.system('oat radius_of_gyration -h')
             return None
-        def run_radius_of_gyration(self,traj, args=''):
+
+        def run_radius_of_gyration(self, traj, args=''):
             start_dir = os.getcwd()
             os.chdir(self.sim.sim_dir)
             os.system(f'oat radius_of_gyration {traj} {args}')
             os.chdir(start_dir)
-        p = mp.Process(target=run_radius_of_gyration, args=(self, traj), kwargs={'args':args})
+
+        p = mp.Process(target=run_radius_of_gyration, args=(self, traj), kwargs={'args': args})
         p.start()
         if join:
             p.join()
@@ -1606,7 +1683,7 @@ class OxdnaAnalysisTools:
         def run_subset_trajectory(self, args=''):
             start_dir = os.getcwd()
             os.chdir(self.sim.sim_dir)
-            os.system(f'oat subset_trajectory {self.sim.sim_files.traj} {self.sim.sim_files.top} {args}')
+            os.system(f'oat subset_trajectory {self.sim.sim_files.traj} {self.sim.sim_files.top_filename} {args}')
             os.chdir(start_dir)
 
         p = mp.Process(target=run_subset_trajectory, args=(self,), kwargs={'args': args})
@@ -1666,25 +1743,25 @@ class OxdnaAnalysisTools:
             p.join()
 
 
-class Analysis:
+class Analysis(SimulationComponent):
     """ Methods used to interface with oxDNA simulation in jupyter notebook (currently in work)"""
 
     def __init__(self, simulation):
         """ Set attributes to know all files in sim_dir and the input_parameters"""
-        self.sim = simulation
+        SimulationComponent.__init__(self, simulation)
         self.sim_files = simulation.sim_files
 
-    def get_init_conf(self):
+    def get_init_conf(self) -> tuple[tuple[TopInfo, TrajInfo], Configuration]:
         """ Returns inital topology and dat file paths, as well as x,y,z info of the conf."""
         self.sim_files.parse_current_files()
-        ti, di = describe(self.sim_files.top,
-                          self.sim_files.dat)
+        ti, di = describe(self.sim_files.top_filename,
+                          self.sim_files.last_conf_filename)
         return (ti, di), get_confs(ti, di, 0, 1)[0]
 
-    def get_last_conf(self):
+    def get_last_conf(self) -> tuple[tuple[TopInfo, TrajInfo], Configuration]:
         """ Returns last topology and dat file paths, as well as x,y,z info of the conf."""
         self.sim_files.parse_current_files()
-        ti, di = describe(self.sim_files.top,
+        ti, di = describe(self.sim_files.top_filename,
                           self.sim_files.last_conf)
         return (ti, di), get_confs(ti, di, 0, 1)[0]
 
@@ -1708,14 +1785,14 @@ class Analysis:
     def get_conf_count(self) -> int:
         """ Returns the number of confs in trajectory file."""
         self.sim_files.parse_current_files()
-        ti, di = describe(self.sim_files.top,
+        ti, di = describe(self.sim_files.top_filename,
                           self.sim_files.traj)
         return len(di.idxs)
 
     def get_conf(self, conf_id: int):
         """ Returns x,y,z (and other) info of specified conf."""
         self.sim_files.parse_current_files()
-        ti, di = describe(self.sim_files.top,
+        ti, di = describe(self.sim_files.top_filename,
                           self.sim_files.traj)
         l = len(di.idxs)
         if conf_id < l:
@@ -1727,7 +1804,7 @@ class Analysis:
     def current_step(self) -> float:
         """ Returns the time-step of the most recently save oxDNA conf."""
         n_confs = float(self.get_conf_count())
-        steps_per_conf = float(self.sim.input.input["print_conf_interval"])
+        steps_per_conf = float(self.sim.input.input_dict["print_conf_interval"])
         return n_confs * steps_per_conf
 
     def view_conf(self, conf_id: int):
@@ -1740,7 +1817,7 @@ class Analysis:
         """ Plot energy of oxDNA simulation."""
         try:
             self.sim_files.parse_current_files()
-            sim_type = self.sim.input.input['sim_type']
+            sim_type = self.sim.input.input_dict['sim_type']
             if (sim_type == 'MC') or (sim_type == 'VMMC'):
                 df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U', 'P', 'K', 'empty'])
             else:
@@ -1756,13 +1833,13 @@ class Analysis:
         """ Plot energy of oxDNA simulation."""
         try:
             self.sim_files.parse_current_files()
-            sim_type = self.sim.input.input['sim_type']
+            sim_type = self.sim.input.input_dict['sim_type']
             if (sim_type == 'MC') or (sim_type == 'VMMC'):
                 df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U', 'P', 'K', 'empty'])
             else:
                 df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U', 'P', 'K'])
-            dt = float(self.sim.input.input["dt"])
-            steps = float(self.sim.input.input["steps"])
+            dt = float(self.sim.input.input_dict["dt"])
+            steps = float(self.sim.input.input_dict["steps"])
             # df = df[df.U <= 10]
             # df = df[df.U >= -10]
             # make sure our figure is bigger
@@ -1790,15 +1867,13 @@ class Analysis:
             if np.any(df.U < -10):
                 print(self.sim.sim_dir)
                 print('Energy is less than -10, check for errors in the simulation')
-                
-            
+
         except Exception as e:
             # TODO: custom exception handling and exception raising
             print(f'{self.sim.sim_dir}: No energy file avalible')
 
-
     def plot_observable(self, observable: dict,
-                        sliding_window: Union[False, Any] =False, fig=True):
+                        sliding_window: Union[False, Any] = False, fig=True):
         file_name = observable['output']['name']
         conf_interval = float(observable['output']['print_every'])
         df = pd.read_csv(f"{self.sim.sim_dir}/{file_name}", header=None, engine='pyarrow')
@@ -1980,365 +2055,191 @@ class Analysis:
         plt.plot(bins[:-1], H, label=self.sim.sim_dir.split("/")[-1])
 
 
+# DEPRECATED
 class Observable:
-    """ Currently implemented observables for this oxDNA wrapper."""
+    """
+    Deprecated class for observable methods
+    class was written by matt to organize methods that create observables
+    methods are retined for backwards compatibility but now redirect
+    """
 
-    @staticmethod
-    def distance(particle_1=None, particle_2=None, PBC=None, print_every=None, name=None):
-        """
-        Calculate the distance between two (groups) of particles
-        """
-        return ({
-            "output": {
-                "print_every": print_every,
-                "name": name,
-                "cols": [
-                    {
-                        "type": "distance",
-                        "particle_1": particle_1,
-                        "particle_2": particle_2,
-                        "PBC": PBC
-                    }
-                ]
-            }
-        })
+    distance = observable.distance
 
-    @staticmethod
-    def hb_list(print_every=None, name=None, only_count=None):
-        """
-        Compute the number of hydrogen bonds between the specified particles
-        """
-        return ({
-            "output": {
-                "print_every": print_every,
-                "name": name,
-                "cols": [
-                    {
-                        "type": "hb_list",
-                        "order_parameters_file": "hb_list.txt",
-                        "only_count": only_count
-                    }
-                ]
-            }
-        })
+    hb_list = observable.hb_list
 
-    @staticmethod
-    def particle_position(particle_id=None, orientation=None, absolute=None, print_every=None, name=None):
-        """
-        Return the x,y,z postions of specified particles
-        """
-        return ({
-            "output": {
-                "print_every": print_every,
-                "name": name,
-                "cols": [
-                    {
-                        "type": "particle_position",
-                        "particle_id": particle_id,
-                        "orientation": orientation,
-                        "absolute": absolute
-                    }
-                ]
-            }
-        })
+    particle_position = observable.particle_position
 
-    @staticmethod
-    def potential_energy(print_every=None, split=None, name=None):
-        """
-        Return the potential energy
-        """
-        return ({
-            "output": {
-                "print_every": f'{print_every}',
-                "name": name,
-                "cols": [
-                    {
-                        "type": "potential_energy",
-                        "split": f"{split}"
-                    }
-                ]
-            }
-        })
+    potential_energy = observable.potential_energy
 
-    @staticmethod
-    def force_energy(print_every=None, name=None, print_group=None):
-        """
-        Return the energy exerted by external forces
-        """
-        if print_group is not None:
-            return ({
-                "output": {
-                    "print_every": f'{print_every}',
-                    "name": name,
-                    "cols": [
-                        {
-                            "type": "force_energy",
-                            "print_group": f"{print_group}"
-                        }
-                    ]
-                }
-            })
-        else:
-            return ({
-                "output": {
-                    "print_every": f'{print_every}',
-                    "name": name,
-                    "cols": [
-                        {
-                            "type": "force_energy",
-                        }
-                    ]
-                }
-            })
+    force_energy = observable.force_energy
 
-    @staticmethod
-    def kinetic_energy(print_every=None, name=None):
-        """
-        Return the kinetic energy  
-        """
-        return ({
-            "output": {
-                "print_every": f'{print_every}',
-                "name": name,
-                "cols": [
-                    {
-                        "type": "kinetic_energy"
-                    }
-                ]
-            }
-        })
+    kinetic_energy = observable.kinetic_energy
 
 
-class Force:
-    """ Currently implemented external forces for this oxDNA wrapper."""
+class SimFiles(SimulationComponent):
+    """
+    Parse the current files present in simulation directory
+    """
+    files_list: list[str]
 
-    @staticmethod
-    def morse(particle=None, ref_particle=None, a=None, D=None, r0=None, PBC=None):
-        "Morse potential"
-        return ({"force": {
-            "type": 'morse',
-            "particle": f'{particle}',
-            "ref_particle": f'{ref_particle}',
-            "a": f'{a}',
-            "D": f'{D}',
-            "r0": f'{r0}',
-            "PBC": f'{PBC}',
-        }
-        })
+    dat: Path
+    top: Path
+    traj: Path
+    last_conf: Path
+    force: Path
+    input: Path
+    input_js: Path
+    observables: Path
+    run_file: Path
+    energy: Path
+    com_distance: Path
+    cms_positions: Path
+    par: Path
+    last_hist: Path
+    hb_observable: Path
+    potential_energy: Path
+    all_observables: Path
+    hb_contacts: Path
+    run_time_custom_observable: Path
 
-    @staticmethod
-    def skew_force(particle=None, ref_particle=None, stdev=None, r0=None, shape=None, PBC=None):
-        "Skewed Gaussian potential"
-        return ({"force": {
-            "type": 'skew_trap',
-            "particle": f'{particle}',
-            "ref_particle": f'{ref_particle}',
-            "stdev": f'{stdev}',
-            "r0": f'{r0}',
-            "shape": f'{shape}',
-            "PBC": f'{PBC}'
-        }
-        })
-
-    @staticmethod
-    def com_force(com_list=None, ref_list=None, stiff=None, r0=None, PBC=None, rate=None):
-        "Harmonic trap between two groups"
-        return ({"force": {
-            "type": 'com',
-            "com_list": f'{com_list}',
-            "ref_list": f'{ref_list}',
-            "stiff": f'{stiff}',
-            "r0": f'{r0}',
-            "PBC": f'{PBC}',
-            "rate": f'{rate}'
-        }
-        })
-
-    @staticmethod
-    def mutual_trap(particle=None, ref_particle=None, stiff=None, r0=None, PBC=None):
-        """
-        A spring force that pulls a particle towards the position of another particle
-    
-        Parameters:
-            particle (int): the particle that the force acts upon
-            ref_particle (int): the particle that the particle will be pulled towards
-            stiff (float): the force constant of the spring (in simulation units)
-            r0 (float): the equlibrium distance of the spring
-            PBC (bool): does the force calculation take PBC into account (almost always 1)
-        """
-        return ({"force": {
-            "type": "mutual_trap",
-            "particle": particle,
-            "ref_particle": ref_particle,
-            "stiff": stiff,
-            "r0": r0,
-            "PBC": PBC
-        }
-        })
-
-    @staticmethod
-    def string(particle, f0, rate, direction):
-        """
-        A linear force along a vector
-    
-        Parameters:
-            particle (int): the particle that the force acts upon
-            f0 (float): the initial strength of the force at t=0 (in simulation units)
-            rate (float or SN string): growing rate of the force (simulation units/timestep)
-            dir ([float, float, float]): the direction of the force
-        """
-        return ({"force": {
-            "type": "string",
-            "particle": particle,
-            "f0": f0,
-            "rate": rate,
-            "dir": direction
-        }})
-
-    @staticmethod
-    def harmonic_trap(particle, pos0, stiff, rate, direction):
-        """
-        A linear potential well that traps a particle
-    
-        Parameters:
-            particle (int): the particle that the force acts upon
-            pos0 ([float, float, float]): the position of the trap at t=0
-            stiff (float): the stiffness of the trap (force = stiff * dx)
-            rate (float): the velocity of the trap (simulation units/time step)
-            direction ([float, float, float]): the direction of movement of the trap
-        """
-        return ({"force": {
-            "type": "trap",
-            "particle": particle,
-            "pos0": pos0,
-            "rate": rate,
-            "dir": direction
-        }})
-
-    @staticmethod
-    def rotating_harmonic_trap(particle, stiff, rate, base, pos0, center, axis, mask):
-        """
-        A harmonic trap that rotates in space with constant angular velocity
-    
-        Parameters:
-            particle (int): the particle that the force acts upon
-            pos0 ([float, float, float]): the position of the trap at t=0
-            stiff (float): the stiffness of the trap (force = stiff * dx)
-            rate (float): the angular velocity of the trap (simulation units/time step)
-            base (float): initial phase of the trap
-            axis ([float, float, float]): the rotation axis of the trap
-            mask([float, float, float]): the masking vector of the trap (force vector is element-wise multiplied by mask)
-        """
-        return ({"force": {
-            "type": "twist",
-            "particle": particle,
-            "stiff": stiff,
-            "rate": rate,
-            "base": base,
-            "pos0": pos0,
-            "center": center,
-            "axis": axis,
-            "mask": mask
-        }})
-
-    @staticmethod
-    def repulsion_plane(particle, stiff, direction, position):
-        """
-        A plane that forces the affected particle to stay on one side.
-    
-        Parameters:
-            particle (int): the particle that the force acts upon.  -1 will act on whole system.
-            stiff (float): the stiffness of the trap (force = stiff * distance below plane)
-            dir ([float, float, float]): the normal vecor to the plane
-            position(float): position of the plane (plane is d0*x + d1*y + d2*z + position = 0)
-        """
-        return ({"force": {
-            "type": "repulsion_plane",
-            "particle": particle,
-            "stiff": stiff,
-            "dir": direction,
-            "position": position
-        }})
-
-    @staticmethod
-    def repulsion_sphere(particle, center, stiff, r0, rate=1):
-        """
-        A sphere that encloses the particle
-        
-        Parameters:
-            particle (int): the particle that the force acts upon
-            center ([float, float, float]): the center of the sphere
-            stiff (float): stiffness of trap
-            r0 (float): radius of sphere at t=0
-            rate (float): the sphere's radius changes to r = r0 + rate*t
-        """
-        return ({"force": {
-            "type": "sphere",
-            "center": center,
-            "stiff": stiff,
-            "r0": r0,
-            "rate": rate
-        }})
-
-
-class SimFiles:
-    """ Parse the current files present in simulation directory"""
-
-    def __init__(self, sim):
-        self.sim = sim
+    def __init__(self, sim: Simulation):
+        SimulationComponent.__init__(self, sim)
         if os.path.exists(self.sim.sim_dir):
             self.file_list = os.listdir(self.sim.sim_dir)
             self.parse_current_files()
 
     def parse_current_files(self):
-        self.sim_dir = self.sim.sim_dir
-        if os.path.exists(self.sim_dir):
-            self.file_list = os.listdir(self.sim_dir)
+        """
+
+        """
+        if self.sim.sim_dir.exists():
+            self.file_list: list[str] = os.listdir(self.sim.sim_dir)
         else:
             print('Simulation directory does not exsist')
             return None
         for file in self.file_list:
             if not file.endswith('pyidx'):
                 if file == 'trajectory.dat':
-                    self.traj = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.traj = self.sim.sim_dir / file
                 elif file == 'last_conf.dat':
-                    self.last_conf = os.path.abspath(os.path.join(self.sim_dir, file))
-                elif (file.endswith(('.dat'))) and not (file.endswith(('energy.dat'))) and not (
-                        file.endswith(('trajectory.dat'))) and not (file.endswith(('error_conf.dat'))) and not (
-                        file.endswith(('last_hist.dat'))) and not (file.endswith(('traj_hist.dat'))) and not (
-                        file.endswith(('last_conf.dat'))):
-                    self.dat = os.path.abspath(os.path.join(self.sim_dir, file))
-                elif (file.endswith(('.top'))):
-                    self.top = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.last_conf = self.sim.sim_dir / file
+                elif file.endswith(".dat") and not any([
+                    file.endswith("energy.dat"),
+                    file.endswith("trajectory.dat"),
+                    file.endswith("error_conf.dat"),
+                    file.endswith("last_hist.dat"),
+                    file.endswith("traj_hist.dat"),
+                    file.endswith("last_conf.dat")
+                ]):
+                    self.dat = self.sim.sim_dir / file
+                elif file.endswith('.top'):
+                    self.top = self.sim.sim_dir / file
                 elif file == 'forces.json':
-                    self.force = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.force = self.sim.sim_dir / file
                 elif file == 'input':
-                    self.input = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.input = self.sim.sim_dir / file
                 elif file == 'input.json':
-                    self.input_js = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.input_js = self.sim.sim_dir / file
                 elif file == 'observables.json':
-                    self.observables = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.observables = self.sim.sim_dir / file
                 elif file == 'run.sh':
-                    self.run_file = os.path.abspath(os.path.join(self.sim_dir, file))
-                elif (file.startswith(('slurm'))):
-                    self.run_file = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.run_file = self.sim.sim_dir / file
+                elif file.startswith('slurm'):
+                    self.run_file = self.sim.sim_dir / file
                 elif 'energy.dat' in file:
-                    self.energy = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.energy = self.sim.sim_dir / file
                 elif 'com_distance' in file:
-                    self.com_distance = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.com_distance = self.sim.sim_dir / file
                 elif 'cms_positions' in file:
-                    self.cms_positions = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.cms_positions = self.sim.sim_dir / file
                 elif 'par' in file:
-                    self.par = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.par = self.sim.sim_dir / file
                 elif 'last_hist.dat' in file:
-                    self.last_hist = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.last_hist = self.sim.sim_dir / file
                 elif 'hb_observable.txt' in file:
-                    self.hb_observable = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.hb_observable = self.sim.sim_dir / file
                 elif 'potential_energy.txt' in file:
-                    self.potential_energy = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.potential_energy = self.sim.sim_dir / file
                 elif 'all_observables.txt' in file:
-                    self.all_observables = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.all_observables = self.sim.sim_dir / file
                 elif 'hb_contacts.txt' in file:
-                    self.hb_contacts = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.hb_contacts = self.sim.sim_dir / file
                 elif 'run_time_custom_observable.json' in file:
-                    self.run_time_custom_observable = os.path.abspath(os.path.join(self.sim_dir, file))
+                    self.run_time_custom_observable = self.sim.sim_dir / file
+
+
+class SimBuildException(Exception, SimulationComponent):
+    pass
+
+
+class MissingTopConfException(SimBuildException):
+    def __str__(self) -> str:
+        return f"No specified topology and initial configuration files specified in the input file for simulation at {str(self.sim.sim_dir)}"
+
+
+class SimBuildMissingFileException(SimBuildException):
+    missing_file_descriptor: str
+
+    def __init__(self, sim: Simulation, missing_file: str):
+        SimulationComponent.__init__(self, sim)
+        self.missing_file_descriptor = missing_file
+
+    def __str__(self) -> str:
+        return f"No {self.missing_file_descriptor} in directory {str(self.sim.file_dir)}"
+
+
+def find_top_dat(directory: Path, sim: Union[Simulation, None] = None) -> tuple[Path, Path]:
+    """
+    Tries to find a top and dat file in the provided directory. simulation object is provided
+    for err-messaging purposes only
+    """
+    # list files in simulation directory
+
+    # skip inputs where we've already set top
+
+    # skip inputs where we've already set top and
+    return find_top_file(directory, sim), find_conf_file(directory, sim)
+
+
+def find_top_file(directory: Path, sim: Union[Simulation, None] = None) -> Path:
+    """
+    Tries to find a top file in the provided directory. simulation object is provided
+    for err-messaging purposes only
+    """
+    if not directory.exists():
+        raise FileNotFoundError(f"{str(directory)} does not exist")
+    try:
+        return [file for file in directory.iterdir() if file.name.endswith('.top')][0]
+    except IndexError:
+        if sim is not None:
+            raise SimBuildException(sim, "topology file")
+        else:
+            raise FileNotFoundError(errno.ENOENT,
+                                    os.strerror(errno.ENOENT),
+                                    f"No valid .top file found in directory {str(directory)}")
+
+
+def find_conf_file(directory: Path, sim: Union[Simulation, None] = None) -> Path:
+    """
+    Tries to find a dat file in the provided directory. simulation object is provided
+    for err-messaging purposes only
+    """
+    try:
+        last_conf = [file for file in directory.iterdir()
+                     if file.name.startswith('last_conf')
+                     and not file.name.endswith('pyidx')][0]
+    except IndexError:
+        try:
+            last_conf = [file for file in directory.iterdir() if file.name.endswith(".dat") and not any([
+                file.name.endswith("energy.dat"),
+                file.name.endswith("trajectory.dat"),
+                file.name.endswith("error_conf.dat")])
+                         ][0]
+        except IndexError:
+            if sim is not None:
+                raise SimBuildException(sim, "initial conf file")
+            else:
+                raise FileNotFoundError(errno.ENOENT,
+                                        os.strerror(errno.ENOENT),
+                                        f"No valid .dat file found in directory {str(directory)}")
+    return last_conf

@@ -371,6 +371,12 @@ class DNAStructure:
     clustermap: dict[int, int]  # mapping of base uids to cluster indexes
     clusters: list[set[int]]  # list of cluster info, where each cluster is a set of base uids
 
+    # mapper for base IDs from file-loaded confs. these should stay constant during edit but will
+    # NOT be carried over if the edits are saved!
+    # keys are base IDs (like you'd find in OxView), values are DNABase objects
+    # TODO: make this a custom object that we can slice like a numpy array
+    base_id_map: dict[int, DNABase]
+
     def __init__(self,
                  strands: list[DNAStructureStrand],
                  t: int,
@@ -389,6 +395,16 @@ class DNAStructure:
                     self.clustermap[uid] = i
         else:
             self.clusters = list()
+        self.base_id_map = dict()
+
+        # write base id mapping
+        indexer = 0
+        for strand_idx, strand in enumerate(self.strands):
+            # if the indexer + the length of the strand is greater than the length of the strand
+            for base_idx, base in enumerate(strand):
+                self.base_id_map[indexer + base_idx] = base
+            # update indexer
+            indexer += len(strand)
 
     def get_num_strands(self) -> int:
         return len(self.strands)

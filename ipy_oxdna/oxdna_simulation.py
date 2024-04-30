@@ -187,6 +187,45 @@ class Simulation:
         self.sequence_dependant.make_sim_sequence_dependant()
 
 
+    def pickle_sim(self):
+        """ Pickle the simulation object to a file."""
+        with open(f'{self.sim_dir}/sim.pkl', 'wb') as f:
+            pickle.dump(self, f)
+
+    @classmethod        
+    def from_pickle(cls, filename):
+        """ Read a pickled simulation object from a file."""
+        with open(filename, 'rb') as f:
+            sim = pickle.load(f)
+        return sim
+
+
+    def pickle_sim(self):
+        """ Pickle the simulation object to a file."""
+        with open(f'{self.sim_dir}/sim.pkl', 'wb') as f:
+            pickle.dump(self, f)
+
+    @classmethod        
+    def from_pickle(cls, filename):
+        """ Read a pickled simulation object from a file."""
+        with open(filename, 'rb') as f:
+            sim = pickle.load(f)
+        return sim
+
+
+    def pickle_sim(self):
+        """ Pickle the simulation object to a file."""
+        with open(f'{self.sim_dir}/sim.pkl', 'wb') as f:
+            pickle.dump(self, f)
+
+    @classmethod        
+    def from_pickle(cls, filename):
+        """ Read a pickled simulation object from a file."""
+        with open(filename, 'rb') as f:
+            sim = pickle.load(f)
+        return sim
+
+
 class SimulationComponent(ABC):
     """
     abstract class for a component of a simulation object
@@ -655,7 +694,7 @@ class SlurmRun:
 
 
 class SimulationManager:
-    n_processes: int
+
     manager: mp.Manager
     # todo: replace w/ generator?
     sim_queue: queue.Queue[Simulation]
@@ -663,10 +702,16 @@ class SimulationManager:
     gpu_memory_queue: queue.Queue
     terminate_queue: queue.Queue
     worker_process_list: list
+    
+    warnings.filterwarnings(
+    "ignore",
+    "os.fork\\(\\) was called\\. os\\.fork\\(\\) is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock\\.",
+    RuntimeWarning
+    )
 
     """ In conjunction with nvidia-cuda-mps-control, allocate simulations to avalible cpus and gpus."""
 
-    def __init__(self, n_processes=len(os.sched_getaffinity(0)) - 1):
+    def __init__(self, n_processes=None):
         """
         Initalize the multiprocessing queues used to manage simulation allocation.
         
@@ -677,7 +722,12 @@ class SimulationManager:
         Parameters:
             n_processes (int): number of processes/cpus avalible to run oxDNA simulations in parallel.
         """
-        self.n_processes = n_processes
+        if n_processes is None:
+            self.n_processes = self.get_number_of_processes()
+        else:
+            if type(n_processes) is not int:
+                raise ValueError('n_processes must be an integer')
+            self.n_processes = n_processes
         self.manager = mp.Manager()
         self.sim_queue = self.manager.Queue()
         self.process_queue = self.manager.Queue(self.n_processes)
@@ -685,10 +735,29 @@ class SimulationManager:
         self.terminate_queue = self.manager.Queue(1)
         self.worker_process_list = self.manager.list()
 
+
+    def get_number_of_processes(self):
+        try:
+            # Try using os.sched_getaffinity() available on some Unix systems
+            if sys.platform.startswith('linux'):
+                return len(os.sched_getaffinity(0))
+            else:
+                # Fallback to multiprocessing.cpu_count() which works cross-platform
+                return mp.cpu_count()
+        except Exception as e:
+            # Handle possible exceptions (e.g., no access to CPU info)
+            print(f"Failed to determine the number of CPUs: {e}")
+            return 1  # Safe fallback if number of CPUs can't be determined
+
+
     def gpu_resources(self) -> tuple[np.ndarray, int]:
         """ Method to probe the number and current avalible memory of gpus."""
         avalible_memory = []
-        nvidia_smi.nvmlInit()
+        try:
+            nvidia_smi.nvmlInit()
+        except Exception as e:
+            print('nvidia-smi not avalible, ensure you have a cuda enabled GPU')
+            raise e
         NUMBER_OF_GPU = nvidia_smi.nvmlDeviceGetCount()
         for i in range(NUMBER_OF_GPU):
             handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
@@ -722,9 +791,11 @@ class SimulationManager:
         try:
             mem = err_split.index('memory:')
             sim_mem = err_split[mem + 1]
-        except:
-            print("Unable to determine CUDA memoery usage")
-
+        except Exception as e:
+            print("Unable to determine CUDA memory usage")
+            print(traceback.format_exc())
+            raise e
+            
         return float(sim_mem)
 
     def queue_sim(self, sim: Simulation, continue_run=False):
@@ -782,7 +853,7 @@ class SimulationManager:
                             wait_for_gpu_memory = False
             else:
                 if cpu_run is False:
-                    sleep(5)
+                    sleep(0.5)
                 elif cpu_run is True:
                     sleep(0.1)
 

@@ -51,9 +51,9 @@ Install the package using:
 
 Install the Weight Histogram Analysis Technique (http://membrane.urmc.rochester.edu/?page_id=126)
 
-`chmod +x ./src/install_wham.sh`
+`chmod +x ./install_wham.sh`
 
-`./src/install_wham.sh`
+`./install_wham.sh`
 
 ## Example Notebooks
 This repository includes a number of example notebooks that demonstrate how to use the code to perform oxDNA umbrella sampling simulations. These notebooks can be used as a starting point for your own simulations.
@@ -68,6 +68,6 @@ This repository includes a number of example notebooks that demonstrate how to u
 If you would like to contribute to this project, please fork the repository and submit a pull request.
 
 ## Citation
-If you use this code in your research, please cite the accompanying academic article:
+If you find this code useful in your research, please cite the accompanying academic article:
 
 Sample, Matthew, Michael Matthies, and Petr Šulc. “Hairygami: Analysis of DNA Nanostructure’s Conformational Change Driven by Functionalizable Overhangs.” arXiv preprint arXiv:2302.09109 (2023).

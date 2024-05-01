@@ -101,7 +101,7 @@ us.build_pre_equlibration_runs(
     print_every=print_every, observable=True, protein=None, sequence_dependant=True,
     force_file=False, name=obs_filename, custom_observable=hb_contact_observable)
 
-simulation_manager.run(cpu_run=True)
+simulation_manager.worker_manager(cpu_run=True)
 
 us.build_equlibration_runs(
     simulation_manager, n_windows, com_list, ref_list,
@@ -110,7 +110,7 @@ us.build_equlibration_runs(
     print_every=print_every, observable=True, protein=None, name=obs_filename,
     force_file=False, custom_observable=hb_contact_observable)
 
-simulation_manager.run(cpu_run=True)
+simulation_manager.worker_manager(cpu_run=True)
 
 us.build_production_runs(
     simulation_manager, n_windows, com_list, ref_list,
@@ -119,23 +119,41 @@ us.build_production_runs(
     observable=True, print_every=print_every ,protein=None, name=obs_filename,
     force_file=False, custom_observable=hb_contact_observable)
 
-simulation_manager.run(cpu_run=True)
+simulation_manager.worker_manager(cpu_run=True)
 
 
-wham_dir = os.path.abspath('/scratch/matthew/ipy_oxDNA/wham/wham')
-n_bins = '400'
-tol = '1e-7'
-n_boot = '10000'
+# You will need to reinitalize the observables if you did not build the dirs in your current kernel, I want to fix this
+us.observables_list = []
+us.initialize_observables(com_list, ref_list, print_every=print_every, name=obs_filename)
 
-xmin = 0
-xmax = 15
-n_windows = 200
-stiff = 3
 
-us.wham_run(wham_dir, xmin, xmax, stiff, n_bins, tol, n_boot, all_observables=True)
-    
-n_chunks = 2
-data_added_per_iteration = 3
+us.pymbar.run_mbar_fes(
+    reread_files=True,
+    sim_type='prod',
+    restraints=False,
+    force_energy_split=True)
 
-us.wham.get_n_data_per_com_file()
-us.convergence_analysis(n_chunks, data_added_per_iteration, wham_dir, xmin, xmax, stiff, n_bins, tol, n_boot)
+max_hb = 8
+temp_range = np.array([42, 52, 62])
+
+free_n_hb, bin_n_hb, dfree_n_hb = us.pymbar.fes_hist('hb_list', temp_range=temp_range)
+free_i_com, bin_com, dfree_com = us.pymbar.fes_hist('com_distance' ,n_bins=20, temp_range=temp_range)
+free_contact, bin_contact, dfree_contact = us.pymbar.fes_hist('hb_contacts', n_bins=20, temp_range=temp_range)
+
+p_val = 0.01
+temp_range = np.arange(40, 80, 1)
+n_bins = 32
+convergence_splits = 100
+subsample = 100
+max_hb = 32
+  
+hbs_info, coms_info, contacts_info = us.pymbar.pymbar_convergence_free_energy_curves(
+    convergence_splits,
+    subsampling=subsample,
+    max_hb=max_hb,
+    n_bins=n_bins,
+    temp_range=temp_range,
+    restraints=True,
+    force_energy_split=True,
+    save=True
+)

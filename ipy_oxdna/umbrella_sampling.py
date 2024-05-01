@@ -1981,6 +1981,11 @@ class UmbrellaBuild:
         self.prepare_simulation_environment(sims)
         
         # Using ThreadPoolExecutor to parallelize the simulation building
+        warnings.filterwarnings(
+        "ignore",
+        "os.fork\\(\\) was called\\. os\\.fork\\(\\) is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock\\.",
+        RuntimeWarning
+        )
         with ProcessPoolExecutor() as executor:
             futures = [executor.submit(self._build_simulation, sim, forces, input_parameters, observables_list,
                                        observable, sequence_dependant, cms_observable, protein, force_file)

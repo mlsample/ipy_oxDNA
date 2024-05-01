@@ -46,11 +46,11 @@ import os
 # I can save each sim_list_slice as a pickle file in the rank subdirectory
 
 
-def run_sim_list_slice(sim_list_slice):
-    sim_manager = SimulationManager()
+def run_sim_list_slice(sim_list_slice, continue_run):
+    sim_manager = SimulationManager(n_processes=len(os.sched_getaffinity(0)))
     
     for sim in sim_list_slice:
-        sim_manager.queue_sim(sim, continue_run=False)
+        sim_manager.queue_sim(sim, continue_run=continue_run)
     sim_manager.worker_manager(gpu_mem_block=False)
 
 
@@ -60,6 +60,8 @@ def cli_parser(prog="distributed.py"):
     parser.add_argument('-c', '--n_cpus_per_gpu', metavar='n_cpus_per_gpu', nargs=1, type=int, dest='n_cpus_per_gpu', help="The number of cpus per gpu")
     parser.add_argument('-g', '--n_gpus_per_sbatch', metavar='n_gpus_per_sbatch', nargs=1, type=int, dest='n_gpus_per_sbatch', help='The number of gpus per sbatch job')
     parser.add_argument('-d', '--distributed_directory', metavar='distributed_directory', nargs=1, type=str, dest='distributed_directory', help='The directory where the distributed files will be saved')
+    parser.add_argument('-r', '--continue_run', metavar='continue_run', nargs=1, type=float, dest='continue_run', help='Whether to continue the run')
+
     return parser
 
 
@@ -67,13 +69,14 @@ def distribute_sim_list_across_nodes(sim_list):
     parser = cli_parser()
     args = parser.parse_args()
     
+    continue_run = args.continue_run[0] if args.continue_run else False
     n_cpus_per_gpu = args.n_cpus_per_gpu[0] if args.n_cpus_per_gpu else 1
     n_gpus_per_sbatch = args.n_gpus_per_sbatch[0] if args.n_gpus_per_sbatch else 1
     distributed_directory = args.distributed_directory[0] if args.distributed_directory else f'{os.getcwd()}/distributed'
     distributed_directory = os.path.abspath(distributed_directory)
     sim_list_slices = create_sim_slices(sim_list, n_cpus_per_gpu, n_gpus_per_sbatch)
     
-    build_distributed_files(distributed_directory, sim_list_slices, n_cpus_per_gpu, n_gpus_per_sbatch)
+    build_distributed_files(distributed_directory, sim_list_slices, n_cpus_per_gpu, n_gpus_per_sbatch, continue_run)
     
     run_distributed_files(distributed_directory, sim_list_slices)
     
@@ -97,13 +100,13 @@ def create_sim_slices(sim_list, n_cpus_per_gpu, n_gpus_per_sbatch):
     return sim_list_slices
 
     
-def build_distributed_files(distributed_directory, sim_list_slices, n_cpus_per_gpu, n_gpus_per_sbatch):
+def build_distributed_files(distributed_directory, sim_list_slices, n_cpus_per_gpu, n_gpus_per_sbatch, continue_run):
     
     create_distributed_dirs(distributed_directory, sim_list_slices)
     
     pickle_sim_slices(distributed_directory, sim_list_slices)
     
-    create_run_files(distributed_directory, sim_list_slices)
+    create_run_files(distributed_directory, sim_list_slices, continue_run)
     
     create_sbatch_files(distributed_directory, sim_list_slices, n_cpus_per_gpu, n_gpus_per_sbatch)
     
@@ -136,14 +139,14 @@ def create_distributed_dirs(distributed_directory, sim_list_slices):
     return None
     
     
-def create_run_files(distributed_directory, sim_list_slices):
+def create_run_files(distributed_directory, sim_list_slices, continue_run):
     n_dirs = len(sim_list_slices)
     
     file_contents = [f"""from ipy_oxdna.distributed import run_sim_list_slice, read_pickle_sim_list
 
 job_id = {job_id}
 sim_list_slice = read_pickle_sim_list(job_id)
-run_sim_list_slice(sim_list_slice)
+run_sim_list_slice(sim_list_slice, {continue_run})
     """ for job_id in range(n_dirs)]
     
     for job_id, file_content in enumerate(file_contents):
@@ -159,8 +162,8 @@ def create_sbatch_files(distributed_directory, sim_list_slices, n_cpus_per_gpu, 
 
 #SBATCH -N 1            # number of nodes
 #SBATCH -n {n_cpus_per_sbatch}           # number of cores 
-#SBATCH --gpus={n_gpus_per_sbatch} # number of gpus
-#SBATCH -t 4-00:00:00   # time in d-hh:mm:ss
+#SBATCH -t 7-00:00:00   # time in d-hh:mm:ss
+#SBATCH -G a100:{n_gpus_per_sbatch} 
 #SBATCH -p general      # partition 
 #SBATCH -q public       # QOS
 #SBATCH --job-name="{job_id}_job"
@@ -198,4 +201,3 @@ def write_pickle_sim_list(save_dir, sim_list_slice, job_id):
 def read_pickle_sim_list(job_id):
     with open(f'{job_id}_sim_slice.pkl', 'rb') as f:
         return pickle.load(f)
-

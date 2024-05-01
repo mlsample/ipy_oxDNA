@@ -975,6 +975,10 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
     
     def volume_correction(self, box_size, xmax):
         return np.log((((box_size / 2) * np.sqrt(3))**3) / ((4/3) * np.pi * xmax**3))
+    
+
+    def entropic_correction(self, bin_values):
+        return self.temperature * np.log(4 * np.pi * np.power(bin_values, 2))
 
 
     # Function to convert molar concentration to box size

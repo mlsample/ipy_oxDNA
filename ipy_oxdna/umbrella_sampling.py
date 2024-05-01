@@ -2848,11 +2848,6 @@ class WhamAnalysis:
     
     
     def to_si(self, n_bins, com_dir):
-        pre_temp = self.base_umbrella.production_sims[0].input.input['T']
-        if ('C'.upper() in pre_temp) or ('C'.lower() in pre_temp):
-            self.base_umbrella.temperature = (float(pre_temp[:-1]) + 273.15) / 3000
-        elif ('K'.upper() in pre_temp) or ('K'.lower() in pre_temp):
-             self.base_umbrella.temperature = float(pre_temp[:-1]) / 3000
         free = pd.read_csv(f'{com_dir}/freefile', sep='\t', nrows=int(n_bins))
         free['Free'] = free['Free'].div(self.base_umbrella.temperature)
         free['+/-'] = free['+/-'].div(self.base_umbrella.temperature)

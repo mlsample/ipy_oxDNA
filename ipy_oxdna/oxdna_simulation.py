@@ -33,7 +33,6 @@ import queue
 import json
 import signal
 
-from . import observable
 from .defaults import DefaultInput, SEQ_DEP_PARAMS, NA_PARAMETERS, RNA_PARAMETERS, get_default_input
 from .force import Force
 
@@ -197,7 +196,7 @@ class Simulation(SimDirInfo):
         Add an observable that will be saved as a text file to the simulation.
         
         Parameters:
-            observable_js (Observable): A observable object, essentially a dictonary, specifying the observable parameters.
+            observable_js (ipy_oxdna.observable.Observable): A observable object, essentially a dictonary, specifying the observable parameters.
         """
         if not os.path.exists(os.path.join(self.sim_dir, "observables.json")):
             self.input_file({'observables_file': 'observables.json'})
@@ -2110,27 +2109,6 @@ class Analysis(SimulationComponent):
         H, bins = np.histogram(df, density=True, bins=bins)
         H = H * (bins[1] - bins[0])
         plt.plot(bins[:-1], H, label=self.sim.sim_dir.split("/")[-1])
-
-
-# DEPRECATED
-class Observable:
-    """
-    Deprecated class for observable methods
-    class was written by matt to organize methods that create observables
-    methods are retined for backwards compatibility but now redirect
-    """
-
-    distance = observable.distance
-
-    hb_list = observable.hb_list
-
-    particle_position = observable.particle_position
-
-    potential_energy = observable.potential_energy
-
-    force_energy = observable.force_energy
-
-    kinetic_energy = observable.kinetic_energy
 
 
 class SimFiles(SimulationComponent):

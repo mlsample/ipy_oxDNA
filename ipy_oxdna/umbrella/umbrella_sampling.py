@@ -1,5 +1,6 @@
 
-from ..oxdna_simulation import Simulation, Observable, SimulationManager
+from ..oxdna_simulation import Simulation, SimulationManager
+from ..observable import Observable
 from ..force import Force
 from ..wham_analysis import *
 import multiprocessing as mp

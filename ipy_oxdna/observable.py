@@ -4,7 +4,7 @@ File created 29 March 2024 by josh to replace Observable class
 from __future__ import annotations
 
 import copy
-from typing import Union, Generator
+from typing import Union, Generator, Any
 
 
 # TODO: observable class!!
@@ -203,10 +203,11 @@ class Observable:
     _print_every: int  # interval at which to print
     _cols: list[ObservableColumn]
 
-    def __init__(self, name: str, print_every: int, *args: ObservableColumn):
+    def __init__(self, name: str, print_every: int, *args: Union[ObservableColumn, dict[str, Any]]):
         self._file_name = name
         self._print_every = print_every
-        self._cols = [*args]
+        self._cols = [col if isinstance(col, ObservableColumn) else ObservableColumn(**col)
+                      for col in args]
 
     def get_file_name(self) -> str:
         return self._file_name
@@ -249,6 +250,7 @@ class Observable:
 
     # TODO: make callable on simulation or something?
 
+
 class ObservableColumn:
     _type_name: str  # name of ovservable type (e.g. "distance", "hb_list", "PatchyBonds")
     col_attrs: dict[str, str]
@@ -266,4 +268,4 @@ class ObservableColumn:
             **self.col_attrs
         }
 
-    type_name = property(get_type_name) # type name should not be settable
+    type_name = property(get_type_name)  # type name should not be settable

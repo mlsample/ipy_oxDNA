@@ -35,6 +35,7 @@ import signal
 
 from .defaults import DefaultInput, SEQ_DEP_PARAMS, NA_PARAMETERS, RNA_PARAMETERS, get_default_input
 from .force import Force
+from .observable import Observable
 
 # import cupy
 
@@ -191,16 +192,19 @@ class Simulation(SimDirInfo):
             self.input_file({'external_forces': '1'})
         self.build_sim.build_force(force_js)
 
-    def add_observable(self, observable_js):
+    def add_observable(self, observable_js: Union[Observable, dict[str, Any]]):
         """
         Add an observable that will be saved as a text file to the simulation.
         
         Parameters:
             observable_js (ipy_oxdna.observable.Observable): A observable object, essentially a dictonary, specifying the observable parameters.
         """
-        if not os.path.exists(os.path.join(self.sim_dir, "observables.json")):
-            self.input_file({'observables_file': 'observables.json'})
-        self.build_sim.build_observable(observable_js)
+        if isinstance(observable_js, dict):
+            if not os.path.exists(os.path.join(self.sim_dir, "observables.json")):
+                self.input_file({'observables_file': 'observables.json'})
+            self.build_sim.build_observable(observable_js)
+        else:
+            self.add_observable(observable_js.export())
 
     def slurm_run(self, run_file, job_name='oxDNA'):
         """

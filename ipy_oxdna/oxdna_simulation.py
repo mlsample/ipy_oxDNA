@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import abc
 import errno
 import pickle
 import sys
 import warnings
-from abc import ABC
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Union
 import os
@@ -32,17 +33,45 @@ import queue
 import json
 import signal
 
-
 from . import observable
 from .defaults import DefaultInput, SEQ_DEP_PARAMS, NA_PARAMETERS, RNA_PARAMETERS, get_default_input
 from .force import Force
 
-
 # import cupy
 
-class Simulation:
-    file_dir: Path
-    sim_dir: Path
+"""
+interface for file_dir and sim_dir methods
+Inheriting classes can either define protected variables to store
+values for file_dir and sim_dir or they can refer to other class member vars
+"""
+class SimDirInfo(abc.ABC):
+    @abstractmethod
+    def get_file_dir(self) -> Path:
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @abstractmethod
+    def set_file_dir(self, p: Union[Path, str]):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @abstractmethod
+    def get_sim_dir(self) -> Path:
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @abstractmethod
+    def set_sim_dir(self, p: Union[Path, str]):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    # Properties for file_dir and sim_dir
+    # all inheriting classes must include the following:
+    '''
+    file_dir = property(get_file_dir, set_file_dir)
+    sim_dir = property(get_sim_dir, set_sim_dir)
+    '''
+
+class Simulation(SimDirInfo):
+
+    _file_dir: Path
+    _sim_dir: Path
     sim_files: SimFiles
     build_sim: BuildSimulation
     input: Input
@@ -189,47 +218,65 @@ class Simulation:
         """ Add a sequence dependant file to simulation directory and modify input file to use it."""
         self.sequence_dependant.make_sim_sequence_dependant()
 
-
     def pickle_sim(self):
         """ Pickle the simulation object to a file."""
         with open(f'{self.sim_dir}/sim.pkl', 'wb') as f:
             pickle.dump(self, f)
 
-    @classmethod        
+    def get_file_dir(self) -> Path:
+        return self._file_dir
+
+    def set_file_dir(self, p: Union[Path, str]):
+        if isinstance(p, Path):
+            # assert p.exists(), f"Cannot make a simulation from non-existing file dir {str(p)}"
+            self._file_dir = p
+        else:
+            self.set_file_dir(Path(p))
+
+    def get_sim_dir(self) -> Path:
+        return self._sim_dir
+
+    def set_sim_dir(self, p: Union[Path, str]):
+        if isinstance(p, Path):
+            self._sim_dir = p
+        else:
+            self.set_sim_dir(Path(p))
+
+    @classmethod
     def from_pickle(cls, filename):
         """ Read a pickled simulation object from a file."""
         with open(filename, 'rb') as f:
             sim = pickle.load(f)
         return sim
 
-
     def pickle_sim(self):
         """ Pickle the simulation object to a file."""
         with open(f'{self.sim_dir}/sim.pkl', 'wb') as f:
             pickle.dump(self, f)
 
-    @classmethod        
+    @classmethod
     def from_pickle(cls, filename):
         """ Read a pickled simulation object from a file."""
         with open(filename, 'rb') as f:
             sim = pickle.load(f)
         return sim
 
-
     def pickle_sim(self):
         """ Pickle the simulation object to a file."""
         with open(f'{self.sim_dir}/sim.pkl', 'wb') as f:
             pickle.dump(self, f)
 
-    @classmethod        
+    @classmethod
     def from_pickle(cls, filename):
         """ Read a pickled simulation object from a file."""
         with open(filename, 'rb') as f:
             sim = pickle.load(f)
         return sim
 
+    file_dir = property(get_file_dir, set_file_dir)
+    sim_dir = property(get_sim_dir, set_sim_dir)
 
-class SimulationComponent(ABC):
+class SimulationComponent(SimDirInfo, ABC):
     """
     abstract class for a component of a simulation object
     """
@@ -238,6 +285,28 @@ class SimulationComponent(ABC):
     def __init__(self, sim: Simulation):
         self.sim = sim
 
+    # override methods from SimDirInfo to invoke Simulation object
+    # to mimimize potential issues w/ same thing stored in different place
+    def get_file_dir(self) -> Path:
+        return self.sim.file_dir
+
+    def set_file_dir(self, p: Union[Path, str]):
+        if isinstance(p, Path):
+            self.sim.file_dir = p
+        else:
+            self.set_file_dir(Path(p))
+
+    def get_sim_dir(self) -> Path:
+        return self.sim.sim_dir
+
+    def set_sim_dir(self, p: Union[Path, str]):
+        if isinstance(p, Path):
+            self.sim.sim_dir = p
+        else:
+            self.set_sim_dir(Path(p))
+
+    file_dir = property(get_file_dir, set_file_dir)
+    sim_dir = property(get_sim_dir, set_sim_dir)
 
 class Protein(SimulationComponent):
     """
@@ -279,15 +348,6 @@ class BuildSimulation(SimulationComponent):
         self.top_file_name = None
         self.conf_file_name = None
 
-    def get_file_dir(self):
-        return self.sim.file_dir
-
-    def get_sim_dir(self):
-        return self.sim.sim_dir
-
-    file_dir = property(get_file_dir)
-    sim_dir = property(get_sim_dir)
-
     def build_sim_dir(self):
         """Make the simulation directory"""
         if not self.sim.sim_dir.exists():
@@ -314,13 +374,13 @@ class BuildSimulation(SimulationComponent):
 
         # copy dat file to sim directory
         assert (self.file_dir / self.conf_file_name).exists()
-        shutil.copy(self.file_dir / self.conf_file_name, 
+        shutil.copy(self.file_dir / self.conf_file_name,
                     self.sim.sim_dir)
         shutil.move(self.sim.sim_dir / self.conf_file_name,
                     self.sim.sim_dir / self.sim.input.get_conf_file())
 
         # copy top file to sim directory
-        assert(self.file_dir / self.top_file_name).exists()
+        assert (self.file_dir / self.top_file_name).exists()
         shutil.copy(self.file_dir / self.top_file_name,
                     self.sim.sim_dir)
         shutil.move(self.sim.sim_dir / self.top_file_name,
@@ -697,7 +757,6 @@ class SlurmRun:
 
 
 class SimulationManager:
-
     manager: mp.Manager
     # todo: replace w/ generator?
     sim_queue: queue.Queue[Simulation]
@@ -705,11 +764,11 @@ class SimulationManager:
     gpu_memory_queue: queue.Queue
     terminate_queue: queue.Queue
     worker_process_list: list
-    
+
     warnings.filterwarnings(
-    "ignore",
-    "os.fork\\(\\) was called\\. os\\.fork\\(\\) is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock\\.",
-    RuntimeWarning
+        "ignore",
+        "os.fork\\(\\) was called\\. os\\.fork\\(\\) is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock\\.",
+        RuntimeWarning
     )
 
     """ In conjunction with nvidia-cuda-mps-control, allocate simulations to avalible cpus and gpus."""
@@ -738,7 +797,6 @@ class SimulationManager:
         self.terminate_queue = self.manager.Queue(1)
         self.worker_process_list = self.manager.list()
 
-
     def get_number_of_processes(self):
         try:
             # Try using os.sched_getaffinity() available on some Unix systems
@@ -751,7 +809,6 @@ class SimulationManager:
             # Handle possible exceptions (e.g., no access to CPU info)
             print(f"Failed to determine the number of CPUs: {e}")
             return 1  # Safe fallback if number of CPUs can't be determined
-
 
     def gpu_resources(self) -> tuple[np.ndarray, int]:
         """ Method to probe the number and current avalible memory of gpus."""
@@ -798,7 +855,7 @@ class SimulationManager:
             print("Unable to determine CUDA memory usage")
             print(traceback.format_exc())
             raise e
-            
+
         return float(sim_mem)
 
     def queue_sim(self, sim: Simulation, continue_run=False):
@@ -1004,7 +1061,7 @@ class Input(SimulationComponent):
         SimulationComponent.__init__(self, sim)
         self.default_input = get_default_input("cuda_MD")
 
-        if os.path.exists(self.sim.sim_dir):
+        if self.sim.sim_dir.exists():
             self.initalize_input()
         self.input_dict = {}
 
@@ -1096,7 +1153,7 @@ class Input(SimulationComponent):
 
     def read_input(self):
         """ Read parameters of exsisting input file in sim_dir"""
-        if (self.sim.sim_dir / "input.json").exists():
+        if (self.sim.sim_dir / "input.json").exists() and os.stat(self.sim.sim_dir / "input.json").st_size > 0:
             with (self.sim.sim_dir / "input.json").open("r") as f:
                 content = f.read()
                 my_input = loads(content)

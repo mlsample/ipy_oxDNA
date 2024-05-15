@@ -383,8 +383,12 @@ class DNAStructure:
                  box: np.ndarray,
                  energy: np.ndarray = np.zeros(3),
                  clusters: list[set[int]] = None):
+        assert all([isinstance(strand, DNAStructureStrand) for strand in strands]),\
+            f"Invalid type for strands parameter: {type(strands)}"
         self.strands = strands
+        assert isinstance(t, int) or isinstance(t, float), f"Invalid type for t {type(t)}"
         self.time = t
+        assert len(box) == (3,), "Wrong size for box!"
         self.box = box
         self.energy = energy
         self.clustermap = dict()
@@ -446,6 +450,21 @@ class DNAStructure:
 
     def get_strand(self, strand_id) -> DNAStructureStrand:
         return self.strands[strand_id]
+
+    def nick(self, strand_id: int, n: int) -> tuple[int, int]:
+        """
+        Adds a nick in a strand, turning it into two strands
+        Parameters:
+            strand_id: the id of the strand to nick
+            n: the position (3' -> 5') to nick after. So n=0 would clip off the first nucleotide.
+                If a negative number is provided, the method will index 5'->3'
+        Returns: a tuple of the strand IDs of the two strands produced
+        """
+        assert 0 <= strand_id < self.get_num_strands(), f"Invalid strand ID {strand_id}"
+        if n < 0:
+            return self.nick(strand_id, n + len(self.get_strand(strand_id)) - 1)
+        assert 0 <= n < len(self.get_strand(strand_id)) - 1, f"Invalid base index {n} on {strand_id}"
+
 
     def export_top_conf(self, top_file_path: Path, conf_file_path: Path):
         if not self.has_valid_box():

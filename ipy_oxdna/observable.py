@@ -236,7 +236,7 @@ class Observable:
     def export(self) -> dict:
         return {
             "output": {
-                "print_every": self.print_every,
+                "print_every": f"{self.print_every}",
                 "name": self.file_name,
                 "cols": [
                     col.export() for col in self.cols
@@ -265,7 +265,8 @@ class ObservableColumn:
     def export(self) -> dict:
         return {
             "type": self.type_name,
-            **self.col_attrs
+            # convert all column vals to strings for some reason
+            **{key: f"{self.col_attrs[key]}" for key in self.col_attrs}
         }
 
     type_name = property(get_type_name)  # type name should not be settable

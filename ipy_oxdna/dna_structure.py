@@ -388,7 +388,12 @@ class DNAStructure:
         self.strands = strands
         assert isinstance(t, int) or isinstance(t, float), f"Invalid type for t {type(t)}"
         self.time = t
-        assert len(box) == (3,), "Wrong size for box!"
+        if isinstance(box, list) or isinstance(box, tuple):
+            assert len(box) == 3, "Wrong size for box!"
+            box = np.array(box)
+        else:
+            assert isinstance(box, np.ndarray), f"Invalid box python object type {type(box)}"
+            assert box.shape == (3,), "Wrong size for box!"
         self.box = box
         self.energy = energy
         self.clustermap = dict()

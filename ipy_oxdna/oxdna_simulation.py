@@ -2043,7 +2043,7 @@ class Observable:
         })
 
     @staticmethod
-    def potential_energy(print_every=None, split=None, name=None):
+    def potential_energy(print_every=None, split=None, name=None, precision=6, general_format=True):
         """
         Return the potential energy
         """
@@ -2054,14 +2054,16 @@ class Observable:
                 "cols": [
                     {
                         "type": "potential_energy",
-                        "split": f"{split}"
+                        "split": f"{split}",
+                        "precision" : f'{precision}',
+                        "general_format": f'{general_format}'
                     }
                 ]
             }
         })
 
     @staticmethod
-    def force_energy(print_every=None, name=None, print_group=None):
+    def force_energy(print_every=None, name=None, print_group=None, precision=6, general_format='true'):
         """
         Return the energy exerted by external forces
         """
@@ -2073,7 +2075,9 @@ class Observable:
                     "cols": [
                         {
                             "type": "force_energy",
-                            "print_group": f"{print_group}"
+                            "print_group": f"{print_group}",
+                            "precision": f'{precision}',
+                            "general_format": f'{general_format}'
                         }
                     ]
                 }
@@ -2086,6 +2090,7 @@ class Observable:
                     "cols": [
                         {
                             "type": "force_energy",
+                            "precision": f'{precision}',
                         }
                     ]
                 }

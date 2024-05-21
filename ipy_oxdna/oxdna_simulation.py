@@ -495,7 +495,10 @@ class OxpyRun:
         self.custom_observables = custom_observables
 
         if self.verbose == True:
-            print(f'Running: {self.sim.sim_dir.split("/")[-1]}')
+            if type(self.sim.sim_dir) == str: 
+                print(f'Running: {self.sim.sim_dir.split("/")[-1]}')
+            else:
+                print(f'Running: {self.sim.sim_dir}')
         if self.subprocess:
             self.spawn(self.run_complete)
         else:
@@ -508,6 +511,7 @@ class OxpyRun:
         if self.join == True:
             p.join()
         self.process = p
+        self.sim.sim_files.parse_current_files()
 
     def run_complete(self):
         """Run an oxDNA simulation"""
@@ -545,7 +549,10 @@ class OxpyRun:
                 print(
                     f'Exception encountered in {self.sim.sim_dir}:\n{type(self.error_message).__name__}: {self.error_message}')
             else:
-                print(f'Finished: {self.sim.sim_dir.split("/")[-1]}')
+                if type(self.sim.sim_dir) == str: 
+                    print(f'Finished: {self.sim.sim_dir.split("/")[-1]}')
+                else:
+                    print(f'Finished: {self.sim.sim_dir}')
         if self.log:
             with open('log.log', 'w') as f:
                 f.write(self.sim_output[0])

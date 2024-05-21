@@ -990,6 +990,10 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
     
     def volume_correction(self, box_size, xmax):
         return np.log((((box_size / 2) * np.sqrt(3))**3) / ((4/3) * np.pi * xmax**3))
+    
+
+    def entropic_correction(self, bin_values):
+        return self.temperature * np.log(4 * np.pi * np.power(bin_values, 2))
 
 
     # Function to convert molar concentration to box size
@@ -2000,11 +2004,6 @@ class WhamAnalysis:
     
     
     def to_si(self, n_bins, com_dir):
-        pre_temp = self.base_umbrella.production_sims[0].input.input['T']
-        if ('C'.upper() in pre_temp) or ('C'.lower() in pre_temp):
-            self.base_umbrella.temperature = (float(pre_temp[:-1]) + 273.15) / 3000
-        elif ('K'.upper() in pre_temp) or ('K'.lower() in pre_temp):
-             self.base_umbrella.temperature = float(pre_temp[:-1]) / 3000
         free = pd.read_csv(f'{com_dir}/freefile', sep='\t', nrows=int(n_bins))
         free['Free'] = free['Free'].div(self.base_umbrella.temperature)
         free['+/-'] = free['+/-'].div(self.base_umbrella.temperature)

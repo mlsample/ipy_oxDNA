@@ -61,7 +61,7 @@ class BaseUmbrellaSampling:
             simulation_manager.queue_sim(sim, continue_run=continue_run)        
      
              
-    def wham_run(self, wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot, all_observables=False):
+    def wham_run(self, wham_dir, xmin, xmax, umbrella_stiff, n_bins, tol, n_boot, all_observables=True):
         """
         Run the weighted histogram analysis technique (Grossfield, Alan http://membrane.urmc.rochester.edu/?page_id=126)
         
@@ -1646,8 +1646,13 @@ class UmbrellaAnalysis:
         names = ['backbone', 'bonded_excluded_volume', 'stacking', 'nonbonded_excluded_volume', 'hydrogen_bonding', 'cross_stacking', 'coaxial_stacking', 'debye_huckel']
 
         force_energy = [f'force_energy_{idx}' for idx in range(number_of_forces)]
-        columns = ['com_distance', 'hb_list', *force_energy, 'kinetic_energy', *names]
-        # columns = ['com_distance', 'hb_list', 'force_energy', 'kinetic_energy', *names]
+        
+        class_name = type(self.base_umbrella).__name__
+        if class_name == 'MeltingUmbrellaSampling':
+            columns = ['com_distance', 'hb_list', *force_energy, 'kinetic_energy', *names]
+        else:
+            columns = ['com_distance', *force_energy, 'kinetic_energy', *names]
+            
         # Parallel processing using ProcessPoolExecutor
         warnings.filterwarnings(
         "ignore",

@@ -24,7 +24,8 @@ setup(
     'pandas',
     'statsmodels',
     'tqdm',
-    'pyarrow'
+    'pyarrow',
+    'pytest'
     # ... other dependencies ...
     ],
     # dependencies can be listed under install_requires

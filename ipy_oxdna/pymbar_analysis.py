@@ -798,7 +798,7 @@ class PymbarHistograming:
      
     def _choose_binning(self, op_string, n_bins):
         
-        if hasattr(self, '_choose_binning') is True:
+        if hasattr(self, 'obs_df_whole') is True:
             df_to_use = self.pymbar.obs_df_whole
         else:
             df_to_use = self.base_umbrella.obs_df

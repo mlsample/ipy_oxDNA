@@ -20,4 +20,4 @@ examples/tutorials/origami_tile_N_nt_overhangs_gpu/t20/t20_k02
 ipy_oxdna.egg-info
 ipy_oxdna/patchy_particles.py
 execute_analysis.ipynb
-
+examples/tutorials/8_nt_duplex_melting_cpu

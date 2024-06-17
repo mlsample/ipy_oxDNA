@@ -427,8 +427,7 @@ class MeltingUmbrellaSampling(ComUmbrellaSampling):
             self.convergence_inverted_finfs.append(self.inverted_finfs)
             
     
-    def wham_temp_interp_converg_analysis(self, convergence_slice, temp_range, n_bins, xmin, xmax, umbrella_stiff, max_hb, epsilon=1e-7, re
-            ead_files=False, all_observables=False, max_iterations=100000):
+    def wham_temp_interp_converg_analysis(self, convergence_slice, temp_range, n_bins, xmin, xmax, umbrella_stiff, max_hb, epsilon=1e-7, reread_files=False, all_observables=False, max_iterations=100000):
         if (type(convergence_slice) == int) or (type(convergence_slice) == float):
             min_length = min([len(inner_list['com_distance']) for inner_list in self.obs_df])
             #split min_length into 3 slices

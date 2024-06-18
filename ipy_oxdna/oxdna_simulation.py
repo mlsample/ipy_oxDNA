@@ -1345,19 +1345,19 @@ class OxdnaAnalysisTools:
         if join:
             p.join()
 
-    #     def distance(self, args='', join=False):
-    #         if args == '-h':
-    #             os.system('oat distance -h')
-    #             return None
-    #         def run_distance(self, args=''):
-    #             start_dir = os.getcwd()
-    #             os.chdir(self.sim.sim_dir)
-    #             os.system(f'oat distance {self.sim.sim_files.traj} {args}')
-    #             os.chdir(start_dir)
-    #         p = mp.Process(target=run_distance, args=(self,), kwargs={'args':args})
-    #         p.start()
-    #         if join == True:
-    #             p.join()
+    def distance(self, args='', join=False):
+        if args == '-h':
+            os.system('oat distance -h')
+            return None
+        def run_distance(self, args=''):
+            start_dir = os.getcwd()
+            os.chdir(self.sim.sim_dir)
+            os.system(f'oat distance {args}')
+            os.chdir(start_dir)
+        p = mp.Process(target=run_distance, args=(self,), kwargs={'args':args})
+        p.start()
+        if join == True:
+            p.join()
 
     #     def duplex_angle_plotter(self, args='', join=False):
     #         if args == '-h':
@@ -1749,9 +1749,9 @@ class Analysis:
             self.sim_files.parse_current_files()
             sim_type = self.sim.input.input['sim_type']
             if (sim_type == 'MC') or (sim_type == 'VMMC'):
-                df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U', 'P', 'K', 'empty'])
+                df = pd.read_csv(self.sim_files.energy, sep='\s+', names=['time', 'U', 'P', 'K', 'empty'])
             else:
-                df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U', 'P', 'K'])
+                df = pd.read_csv(self.sim_files.energy, sep='\s+', names=['time', 'U', 'P', 'K'])
 
             df = df[df.U <= 10]
             self.energy_df = df
@@ -1765,9 +1765,9 @@ class Analysis:
             self.sim_files.parse_current_files()
             sim_type = self.sim.input.input['sim_type']
             if (sim_type == 'MC') or (sim_type == 'VMMC'):
-                df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U', 'P', 'K', 'empty'])
+                df = pd.read_csv(self.sim_files.energy, sep='\s+', names=['time', 'U', 'P', 'K', 'empty'])
             else:
-                df = pd.read_csv(self.sim_files.energy, delim_whitespace=True, names=['time', 'U', 'P', 'K'])
+                df = pd.read_csv(self.sim_files.energy, sep='\s+', names=['time', 'U', 'P', 'K'])
             dt = float(self.sim.input.input["dt"])
             steps = float(self.sim.input.input["steps"])
             # df = df[df.U <= 10]

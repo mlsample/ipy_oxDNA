@@ -1,6 +1,7 @@
 from ipy_oxdna.oxdna_simulation import Simulation, Force, Observable, SimulationManager
 from ipy_oxdna.wham_analysis import *
 from ipy_oxdna.pymbar_analysis import PymbarAnalysis
+from ipy_oxdna.vmmc import VirtualMoveMonteCarlo
 import multiprocessing as mp
 import os
 from os.path import join, exists
@@ -12,7 +13,6 @@ from scipy.stats import multivariate_normal, norm, t
 from scipy.special import logsumexp
 import matplotlib.pyplot as plt
 from copy import deepcopy
-from ipy_oxdna.vmmc import VirtualMoveMonteCarlo
 from tqdm import tqdm
 import io
 import sys
@@ -1661,11 +1661,14 @@ class UmbrellaAnalysis:
         )
         workers = self.base_umbrella.info_utils.get_number_of_processes()
         with ProcessPoolExecutor(max_workers=workers) as executor:
-            results = list(tqdm(executor.map(self.process_simulation, sim_list, 
-                                        [file_name]*len(sim_list), 
-                                        [number_of_forces]*len(sim_list), 
-                                        [columns]*len(sim_list), 
-                                        [print_every]*len(sim_list)), total=len(sim_list), desc='Reading Observables'))
+            try:
+                results = list(tqdm(executor.map(self.process_simulation, sim_list, 
+                                            [file_name]*len(sim_list), 
+                                            [number_of_forces]*len(sim_list), 
+                                            [columns]*len(sim_list), 
+                                            [print_every]*len(sim_list)), total=len(sim_list), desc='Reading Observables'))
+            except Exception as e:
+                print(f"An error occurred: {e}")
 
         self.base_umbrella.obs_df = results    
             
